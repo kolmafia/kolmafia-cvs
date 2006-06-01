@@ -53,18 +53,6 @@ import com.sun.java.forums.CloseableTabbedPaneListener;
 
 public class TabbedChatFrame extends ChatFrame implements CloseableTabbedPaneListener, ChangeListener
 {
-	private CloseableTabbedPane tabs;
-
-	public TabbedChatFrame()
-	{	tabs.addChangeListener( this );
-	}
-
-	public void dispose()
-	{
-		this.tabs = null;
-		super.dispose();
-	}
-
 	public void stateChanged( ChangeEvent e )
 	{
 		int selectedIndex = tabs.getSelectedIndex();
@@ -87,7 +75,9 @@ public class TabbedChatFrame extends ChatFrame implements CloseableTabbedPaneLis
 	protected void initialize( String associatedContact )
 	{
 		tabs = new CloseableTabbedPane();
-		tabs.addCloseableTabbedPaneListener( this );
+		tabs.addChangeListener( this );
+
+		((CloseableTabbedPane)tabs).addCloseableTabbedPaneListener( this );
 		framePanel.add( tabs, BorderLayout.CENTER );
 	}
 
@@ -103,14 +93,9 @@ public class TabbedChatFrame extends ChatFrame implements CloseableTabbedPaneLis
 			if ( tabs.getTitleAt(i).trim().equals( tabName ) )
 				return (ChatPanel) tabs.getComponentAt(i);
 
-		ChatPanel createdPanel = new ChatPanel( tabName );
-
-		// Add a little bit of whitespace to make the
-		// chat tab larger and easier to click.
-
-		tabs.addTab( "  " + tabName + "           ", createdPanel );
-		createdPanel.requestFocus();
-		return createdPanel;
+		TabAdder adder = new TabAdder( tabName );
+		adder.run();
+		return adder.createdPanel;
 	}
 
 	public boolean closeTab( int tabIndexToClose )
@@ -127,11 +112,72 @@ public class TabbedChatFrame extends ChatFrame implements CloseableTabbedPaneLis
 		for ( int i = 0; i < tabs.getTabCount(); ++i )
 			if ( tabName.equals( tabs.getTitleAt(i).trim() ) )
 			{
-				if ( tabs.getSelectedIndex() == i )
-					return;
-
-				tabs.setBackgroundAt( i, new Color( 0, 0, 128 ) );
-				tabs.setForegroundAt( i, Color.white );
+				(new TabHighlighter( i )).run();
+				return;
 			}
+	}
+	
+	private class TabAdder implements Runnable
+	{
+		private String tabName;
+		private ChatPanel createdPanel;
+		
+		private TabAdder( String tabName )
+		{	this.tabName = tabName;
+		}
+		
+		public void run()
+		{
+			try
+			{
+				if ( !SwingUtilities.isEventDispatchThread() )
+				{
+					SwingUtilities.invokeAndWait( this );
+					return;
+				}
+
+				createdPanel = new ChatPanel( tabName );
+
+				// Add a little bit of whitespace to make the
+				// chat tab larger and easier to click.
+
+				tabs.addTab( "  " + tabName + "           ", createdPanel );
+				createdPanel.requestFocus();
+			}
+			catch ( Exception e )
+			{
+				StaticEntity.printStackTrace( e );				
+			}
+		}
+	}
+
+	private class TabHighlighter implements Runnable
+	{
+		private int tabIndex;
+		public TabHighlighter( int tabIndex )
+		{	this.tabIndex = tabIndex;
+		}
+		
+		public void run()
+		{
+			try
+			{				
+				if ( tabs.getSelectedIndex() == tabIndex )
+					return;
+				
+				if ( !SwingUtilities.isEventDispatchThread() )
+				{
+					SwingUtilities.invokeAndWait( this );
+					return;
+				}
+	
+				tabs.setBackgroundAt( tabIndex, new Color( 0, 0, 128 ) );
+				tabs.setForegroundAt( tabIndex, Color.white );
+			}
+			catch ( Exception e )
+			{
+				StaticEntity.printStackTrace( e );
+			}
+		}
 	}
 }

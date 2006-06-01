@@ -75,16 +75,21 @@ public class ConsumeItemRequest extends KoLRequest
 	private static final int TOASTER = 637;
 	private static final int GIANT_CASTLE_MAP = 667;
 	private static final int YETI_PROTEST_SIGN = 775;
+	private static final int ANTIDOTE = 829;
+	private static final int TEARS = 869;
 	private static final int ROLLING_PIN = 873;
 	private static final int UNROLLING_PIN = 874;
+	private static final int PLUS_SIGN = 918;
 	private static final int CLOCKWORK_BARTENDER = 1111;
 	private static final int CLOCKWORK_CHEF = 1112;
+	private static final int SNOWCONE_TOME = 1411;
 	private static final int PURPLE = 1412;
 	private static final int GREEN = 1413;
 	private static final int ORANGE = 1414;
 	private static final int RED = 1415;
 	private static final int BLUE = 1416;
 	private static final int BLACK = 1417;
+	private static final int HILARIOUS_TOME = 1498;
 
 	private static final int GIFT1 = 1167;
 	private static final int GIFT2 = 1168;
@@ -99,6 +104,7 @@ public class ConsumeItemRequest extends KoLRequest
 	private static final int GIFT11 = 1177;
 	private static final int GIFTV = 1460;
 
+	private static final AdventureResult POISON = new AdventureResult( "Poisoned", 1, true );
 	private static final AdventureResult SAPLING = new AdventureResult( 75, -1 );
 	private static final AdventureResult FERTILIZER = new AdventureResult( 76, -1 );
 	private static final AdventureResult PLANKS = new AdventureResult( 140, -1 );
@@ -157,6 +163,37 @@ public class ConsumeItemRequest extends KoLRequest
 
 	public void run()
 	{
+		if ( itemUsed.getItemID() == SorceressLair.PUZZLE_PIECE.getItemID() )
+		{
+			SorceressLair.completeHedgeMaze();
+			return;
+		}
+		
+		int iterations = 1;
+		if ( itemUsed.getCount() != 1 && consumptionType != ConsumeItemRequest.CONSUME_MULTIPLE && consumptionType != ConsumeItemRequest.CONSUME_RESTORE )
+		{
+			iterations = itemUsed.getCount();
+			itemUsed = itemUsed.getInstance( 1 );
+		}
+
+		String useTypeAsString = (consumptionType == ConsumeItemRequest.CONSUME_EAT) ? "Eating" :
+			(consumptionType == ConsumeItemRequest.CONSUME_DRINK) ? "Drinking" : "Using";
+
+		for ( int i = 1; client.permitsContinue() && i <= iterations; ++i )
+			useOnce( i, iterations, useTypeAsString );
+	}
+	
+	public void useOnce( int currentIteration, int totalIterations, String useTypeAsString )
+	{
+		if ( !formURLString.startsWith( "inventory.php" ) )
+		{
+			if ( totalIterations == 1 )
+				DEFAULT_SHELL.updateDisplay( useTypeAsString + " " + getItemUsed().toString() + "..." );
+			else
+				DEFAULT_SHELL.updateDisplay( useTypeAsString + " " + getItemUsed().getName() +
+					" (" + currentIteration + " of " + totalIterations + ")..." );
+		}
+
 		if ( itemUsed.getItemID() == UneffectRequest.REMEDY.getItemID() )
 		{
 			client.makeUneffectRequest();
@@ -194,7 +231,7 @@ public class ConsumeItemRequest extends KoLRequest
 
 		if ( alreadyInstalled )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You already have one installed." );
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You already have one installed." );
 			return;
 		}
 
@@ -221,8 +258,6 @@ public class ConsumeItemRequest extends KoLRequest
 
 	protected void processResults()
 	{
-		super.processResults();
-
 		// Check for familiar growth - if a familiar is added,
 		// make sure to update the client.
 
@@ -230,7 +265,7 @@ public class ConsumeItemRequest extends KoLRequest
 		{
 			if ( responseText.indexOf( "You've already got a familiar of that type." ) != -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You already have that familiar." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You already have that familiar." );
 				return;
 			}
 
@@ -247,22 +282,29 @@ public class ConsumeItemRequest extends KoLRequest
 
 		if ( responseText.indexOf( "You may not" ) != -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Pathed ascension." );
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Pathed ascension." );
 			return;
 		}
 
 		if ( responseText.indexOf( "rupture" ) != -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Your spleen might go kabooie." );
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Your spleen might go kabooie." );
 			return;
 		}
 
 		// Check to make sure that it wasn't a food or drink
-		// that was consumed that resulted in nothing.
+		// that was consumed that resulted in nothing.  Eating
+		// too much is flagged as a continuable state.
 
-		if ( responseText.indexOf( "too full" ) != -1 || responseText.indexOf( "too drunk" ) != -1 )
+		if ( responseText.indexOf( "too full" ) != -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Consumption limit reached." );
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Consumption limit reached." );
+			return;
+		}
+		
+		if ( responseText.indexOf( "too drunk" ) != -1 )
+		{
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Inebriety limit reached." );
 			return;
 		}
 
@@ -287,7 +329,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// right now."
 			if ( responseText.indexOf( "You can't receive things" ) != -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You can't open that package yet." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You can't open that package yet." );
 				return;
 			}
 
@@ -344,7 +386,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// with some of my crazy imps, to do your bidding."
 			if ( responseText.indexOf( "pleased me greatly" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You music was inadequate." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You music was inadequate." );
 				return;
 			}
 			break;
@@ -354,7 +396,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// another castle!"
 			if ( responseText.indexOf( "Sorceress is in another castle" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You couldn't make it all the way to the back door." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You couldn't make it all the way to the back door." );
 				return;
 			}
 			break;
@@ -364,8 +406,21 @@ public class ConsumeItemRequest extends KoLRequest
 			// crumble, it is not consumed
 
 			client.processResult( new AdventureResult( AdventureResult.HP, KoLCharacter.getMaximumHP() ) );
+			
 			if ( responseText.indexOf( "crumble" ) == -1 )
+			{
+				KoLCharacter.updateStatus();
 				return;
+			}
+
+			break;
+		
+		case TEARS:
+			KoLCharacter.getEffects().remove( KoLAdventure.BEATEN_UP );
+			break;
+		
+		case ANTIDOTE:
+			KoLCharacter.getEffects().remove( POISON );
 			break;
 
 		case TINY_HOUSE:
@@ -405,7 +460,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// the sea, and find his glorious treasure."
 			if ( responseText.indexOf( "find his glorious treasure" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have everything you need." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You don't have everything you need." );
 				return;
 			}
 			break;
@@ -415,7 +470,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// and find a chest engraved with the initials S. L."
 			if ( responseText.indexOf( "deepest part of the tank" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have everything you need." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You don't have everything you need." );
 				return;
 			}
 			break;
@@ -425,7 +480,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// at the exact same moment."
 			if ( responseText.indexOf( "exact same moment" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have everything you need." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You don't have everything you need." );
 				return;
 			}
 			break;
@@ -439,7 +494,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// now..."
 			if ( responseText.indexOf( "easily climb the branches" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have everything you need." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You don't have everything you need." );
 				return;
 			}
 			client.processResult( SAPLING );
@@ -450,7 +505,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// "You need some planks to build the dinghy."
 			if ( responseText.indexOf( "need some planks" ) != -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You need some dingy planks." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You need some dingy planks." );
 				return;
 			}
 			client.processResult( PLANKS );
@@ -482,6 +537,7 @@ public class ConsumeItemRequest extends KoLRequest
 			if ( responseText.indexOf( "ironically" ) != -1 )
 			{
 				client.processResult( itemUsed.getInstance( -1 ) );
+				super.processResults();
 				return;
 			}
 			break;
@@ -496,7 +552,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// ate.	 Try again later."
 			if ( responseText.indexOf( "still cold" ) != -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Your mouth is too cold." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Your mouth is too cold." );
 				return;
 			}
 			break;
@@ -513,6 +569,16 @@ public class ConsumeItemRequest extends KoLRequest
 			// They are not consumed by being used
 			client.processResult( FLAT_DOUGH.getInstance( FLAT_DOUGH.getCount( KoLCharacter.getInventory() ) ).getNegation() );
 			return;
+
+		case PLUS_SIGN:
+			// "Following The Oracle's advice, you treat the plus
+			// sign as a book, and read it."
+			if ( responseText.indexOf( "you treat the plus sign as a book" ) == -1 )
+			{
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You don't know how to use it." );
+				return;
+			}
+			break;
 
 		case YETI_PROTEST_SIGN:
 			// You don't use up a Yeti Protest Sign by protesting
@@ -536,12 +602,32 @@ public class ConsumeItemRequest extends KoLRequest
 		case ARCHES:
 			KoLCharacter.setArches( true );
 			break;
+
+		case SNOWCONE_TOME:
+			// "You read the incantation written on the pages of
+			// the tome. Snowflakes coalesce in your
+			// mind. Delicious snowflakes."
+			if ( responseText.indexOf( "You read the incantation" ) == -1 )
+				return;
+			KoLCharacter.addAvailableSkill( new UseSkillRequest( client, "Summon Snowcone", "", 1 ) );
+			break;
+
+
+		case HILARIOUS_TOME:
+			// "You pore over the tome, and sophomoric humor pours
+			// into your brain. The mysteries of McPhee become
+			// clear to you."
+			if ( responseText.indexOf( "You pore over the tome" ) == -1 )
+				return;
+			KoLCharacter.addAvailableSkill( new UseSkillRequest( client, "Summon Hilarious Objects", "", 1 ) );
+			break;
 		}
 
 		// If we get here, we know that the item is consumed by being
 		// used. Do so.
 
 		client.processResult( itemUsed.getNegation() );
+		super.processResults();
 	}
 
 	private String trimInventoryText( String text )
@@ -578,7 +664,7 @@ public class ConsumeItemRequest extends KoLRequest
 				break;
 		}
 
-		commandString.append( iterations == 1 ? itemUsed.getCount() : iterations );
+		commandString.append( itemUsed.getCount() );
 		commandString.append( " \"" );
 		commandString.append( itemUsed.getName() );
 		commandString.append( "\"" );

@@ -36,6 +36,9 @@ package net.sourceforge.kolmafia;
 
 import java.io.BufferedReader;
 import java.util.ArrayList;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+
 import net.java.dev.spellcast.utilities.SortedListModel;
 
 
@@ -55,33 +58,36 @@ public class BuffBotDatabase extends KoLDatabase
 	private static final Object [][] buffData =
 	{
 		// Accordion Thief Buffs
-		{ new Integer(6003), "Antiphon of Aptitude", "Antiphon" },
-		{ new Integer(6004), "Moxious Madrigal", "Madrigal" },
-		{ new Integer(6005), "Canticle of Celerity", "Celerity" },
-		{ new Integer(6006), "Polka of Plenty", "Polka" },
-		{ new Integer(6007), "Magical Mojomuscular Melody", "Melody" },
-		{ new Integer(6008), "Power Ballad of the Arrowsmith", "Ballad" },
-		{ new Integer(6009), "Anthem of Absorption", "Anthem" },
-		{ new Integer(6010), "Phat Loot Lyric", "Phat Loot" },
-		{ new Integer(6011), "Psalm of Pointiness", "Psalm" },
-		{ new Integer(6012), "Symphony of Destruction", "Symphony" },
-		{ new Integer(6013), "Shanty of Superiority", "Shanty" },
-		{ new Integer(6014), "Ode to Booze", "Ode" },
-		{ new Integer(6015), "Sonata of Sneakiness", "Sneakiness" },
-		{ new Integer(6016), "Cantata of Conflict", "Conflict" },
-		{ new Integer(6017), "Aria of Annoyance", "Aria" },
+		{ new Integer(6003), "Antiphon" },
+		{ new Integer(6004), "Madrigal" },
+		{ new Integer(6005), "Celerity" },
+		{ new Integer(6006), "Polka" },
+		{ new Integer(6007), "Melody" },
+		{ new Integer(6008), "Ballad" },
+		{ new Integer(6009), "Anthem" },
+		{ new Integer(6010), "Phat Loot" },
+		{ new Integer(6011), "Psalm" },
+		{ new Integer(6012), "Symphony" },
+		{ new Integer(6013), "Shanty" },
+		{ new Integer(6014), "Ode" },
+		{ new Integer(6015), "Sneakiness" },
+		{ new Integer(6016), "Cantata" },
+		{ new Integer(6017), "Aria" },
 
 		// Sauceress Buffs
-		{ new Integer(4007), "Elemental Saucesphere", "Elemental" },
-		{ new Integer(4008), "Jalape&ntilde;o Saucesphere", "Jalapeno" },
-		{ new Integer(4011), "Jaba&ntilde;ero Saucesphere", "Jabanero" },
+		{ new Integer(4007), "Elemental" },
+		{ new Integer(4008), "Jalapeno" },
+		{ new Integer(4011), "Jabanero" },
 
 		// Turtle Tamer Buffs
-		{ new Integer(2007), "Ghostly Shell", "Ghostly" },
-		{ new Integer(2008), "Reptilian Fortitude", "Fortitude" },
-		{ new Integer(2009), "Empathy of the Newt", "Empathy" },
-		{ new Integer(2010), "Tenacity of the Snapper", "Tenacity" },
-		{ new Integer(2012), "Astral Shell", "Astral" }
+		{ new Integer(2007), "Ghostly" },
+		{ new Integer(2008), "Fortitude" },
+		{ new Integer(2009), "Empathy" },
+		{ new Integer(2010), "Tenacity" },
+		{ new Integer(2012), "Astral" },
+		
+		// Oddball Buffs
+		{ new Integer(3), "Smile" }
 	};
 
 	// Buffs obtainable from statically configured buffbots
@@ -122,45 +128,42 @@ public class BuffBotDatabase extends KoLDatabase
 				int price;
 				try
 				{
-					price = Integer.parseInt( data[2] );
+					price = df.parse( data[2] ).intValue();
 				}
 				catch ( Exception e )
 				{
-					System.out.println( "Bad price: " + data[2] );
-
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
-
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
+					
+					StaticEntity.printStackTrace( e, "Bad price: " + data[2] );
 					continue;
 				}
 
 				int turns;
 				try
 				{
-					turns = Integer.parseInt( data[3] );
+					turns = df.parse( data[3] ).intValue();
 				}
 				catch ( Exception e )
 				{
-					System.out.println( "Bad turns: " + data[3] );
-
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
-
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
+					
+					StaticEntity.printStackTrace( e, "Bad turns: " + data[3] );
 					continue;
 				}
 
 				int free;
 				try
 				{
-					free = Integer.parseInt( data[4] );
+					free = df.parse( data[4] ).intValue();
 				}
 				catch ( Exception e )
 				{
-					System.out.println( "Bad free: " + data[2] );
-
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
-
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
+					
+					StaticEntity.printStackTrace( e, "Bad free: " + data[2] );
 					continue;
 				}
 
@@ -175,8 +178,10 @@ public class BuffBotDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -260,10 +265,6 @@ public class BuffBotDatabase extends KoLDatabase
 		allBots = new BuffList();
 		allBots.addBuffList( staticBots );
 
-		// If there is no client, return.
-		if ( client == null )
-			return;
-
 		DEFAULT_SHELL.updateDisplay( "Configuring dynamic buff prices..." );
 
 		// Iterate over list of bots and configure each one
@@ -288,9 +289,56 @@ public class BuffBotDatabase extends KoLDatabase
 		KoLRequest request = new KoLRequest( client, "displaycollection.php" );
 		request.addFormField( "who", id );
 		request.run();
+		
+		Matcher linkMatcher = Pattern.compile( "<a [^>]*href=\"([^>]*)\\.xml\">" ).matcher( request.responseText );
+		if ( linkMatcher.find() )
+		{
+			request = new KoLRequest( client, linkMatcher.group(1) + ".xml" );
+			request.run();
 
-		String data = request.responseText;
+			htmlConfigure( name, request.responseText );
+		}
+		else
+			textConfigure( name, request.responseText );
+	}
+	
+	private static void htmlConfigure( String name, String data )
+	{
+		// Now, for the infamous XML parse tree.  Rather than building
+		// a tree (which would probably be smarter), simply do regular
+		// expression matching and assume we have a properly-structured
+		// XML file -- which is assumed because of the XSLT.
 
+		Matcher nodeMatcher = Pattern.compile( "<buffdata>(.*?)</buffdata>" ).matcher( data );
+		Pattern namePattern = Pattern.compile( "<name>(.*?)</name>" );
+		Pattern pricePattern = Pattern.compile( "<price>(.*?)</price>" );
+		Pattern turnPattern = Pattern.compile( "<turns>(.*?)</turns>" );
+		Pattern oncePattern = Pattern.compile( "<philanthropic>(.*?)</philanthropic>" );
+
+		BuffList buffs = new BuffList();		
+		Matcher nameMatcher, priceMatcher, turnMatcher, onceMatcher;
+
+		while ( nodeMatcher.find() )
+		{
+			nameMatcher = namePattern.matcher( nodeMatcher.group(1) );
+			priceMatcher = pricePattern.matcher( nodeMatcher.group(1) );
+			turnMatcher = turnPattern.matcher( nodeMatcher.group(1) );
+			onceMatcher = oncePattern.matcher( nodeMatcher.group(1) );
+
+			if ( nameMatcher.find() && priceMatcher.find() && turnMatcher.find() )
+			{
+				buffs.findAbbreviation( nameMatcher.group(1).trim() ).addOffering(
+					new Offering( name, Integer.parseInt( priceMatcher.group(1).trim() ),
+					Integer.parseInt( turnMatcher.group(1).trim() ),
+					onceMatcher.find() ? onceMatcher.group(1).trim().equals( "true" ) : false ) );
+			}
+		}
+		
+		allBots.addBuffList( buffs );
+	}
+	
+	private static void textConfigure( String name, String data )
+	{
 		// Look for start tag
 		int start = data.indexOf( "CONDENSED PRICE LIST" );
 		if ( start < 0 )
@@ -352,9 +400,10 @@ public class BuffBotDatabase extends KoLDatabase
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
-
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 				continue;
 			}
 		}
@@ -365,11 +414,11 @@ public class BuffBotDatabase extends KoLDatabase
 
 	private static class BuffList
 	{
-		private SortedListModel buffs;
+		private ArrayList buffs;
 
 		public BuffList()
 		{
-			this.buffs = new SortedListModel();
+			this.buffs = new ArrayList();
 			for ( int i = 0; i < buffData.length; ++i )
 				buffs.add( new Buff( i ) );
 		}
@@ -482,11 +531,11 @@ public class BuffBotDatabase extends KoLDatabase
 		}
 	}
 
-	private static class Buff implements Comparable
+	private static class Buff
 	{
-		int skill;
-		String name;
-		String abbreviation;
+		private int skill;
+		private String name;
+		private String abbreviation;
 		private SortedListModel offerings;
 
 		public Buff( int index )
@@ -494,7 +543,7 @@ public class BuffBotDatabase extends KoLDatabase
 			Object [] data = buffData[index];
 			this.skill = ((Integer)data[0]).intValue();
 			this.name = ClassSkillsDatabase.getSkillName( skill );
-			this.abbreviation = (String)data[2];
+			this.abbreviation = (String)data[1];
 			this.offerings = new SortedListModel();
 		}
 
@@ -554,15 +603,6 @@ public class BuffBotDatabase extends KoLDatabase
 
 			Buff buff = (Buff) o;
 			return abbreviation.equals( buff.abbreviation );
-		}
-
-		public int compareTo( Object o )
-		{
-			if ( !(o instanceof Buff) || o == null )
-				return -1;
-
-			Buff buff = (Buff) o;
-			return abbreviation.compareTo( buff.abbreviation );
 		}
 	}
 

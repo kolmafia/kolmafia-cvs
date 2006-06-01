@@ -34,16 +34,6 @@
 
 package net.sourceforge.kolmafia;
 
-import javax.swing.JLabel;
-import javax.swing.JCheckBox;
-import javax.swing.JTextArea;
-import javax.swing.JDialog;
-import javax.swing.JTabbedPane;
-import javax.swing.JScrollPane;
-import java.awt.CardLayout;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -65,6 +55,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.JOptionPane;
 
 import edu.stanford.ejalbert.BrowserLauncher;
+import net.java.dev.spellcast.utilities.DataUtilities;
 import net.java.dev.spellcast.utilities.SortedListModel;
 import net.java.dev.spellcast.utilities.LockableListModel;
 
@@ -293,9 +284,10 @@ public class ClanManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
+				StaticEntity.printStackTrace( e, "Failed to load cached profile" );
 				return;
 			}
 		}
@@ -320,11 +312,10 @@ public class ClanManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Failed to load cached profile." );
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
-
+				StaticEntity.printStackTrace( e, "Failed to load cached profile" );
 				return;
 			}
 
@@ -356,9 +347,10 @@ public class ClanManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
+				StaticEntity.printStackTrace( e, "Failed to load cached ascension history" );
 				return;
 			}
 		}
@@ -383,11 +375,10 @@ public class ClanManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Failed to load cached ascension." );
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
-
+				StaticEntity.printStackTrace( e, "Failed to load cached ascension history" );
 				return;
 			}
 
@@ -504,7 +495,7 @@ public class ClanManager extends StaticEntity
 				ostream.close();
 
 				String line;
-				BufferedReader script = KoLDatabase.getReader( "sorttable.js" );
+				BufferedReader script = DataUtilities.getReader( "html", "sorttable.js" );
 				ostream = new PrintStream( new FileOutputStream( sortingScript, true ), true );
 
 				while ( (line = script.readLine()) != null )
@@ -528,11 +519,10 @@ public class ClanManager extends StaticEntity
 		}
 		catch ( Exception e )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Clan snapshot generation failed." );
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-
+			StaticEntity.printStackTrace( e, "Clan snapshot generation failed" );
 			return;
 		}
 
@@ -554,11 +544,10 @@ public class ClanManager extends StaticEntity
 		}
 		catch ( Exception e )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Clan snapshot generation failed." );
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-
+			StaticEntity.printStackTrace( e, "Clan snapshot generation failed" );
 			return;
 		}
 
@@ -673,10 +662,10 @@ public class ClanManager extends StaticEntity
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			throw new RuntimeException( "The file <" + file.getAbsolutePath() + "> could not be opened for writing" );
+			StaticEntity.printStackTrace( e, "Error opening <" + file.getAbsolutePath() + "> for output" );
 		}
 	}
 
@@ -708,9 +697,10 @@ public class ClanManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
+				StaticEntity.printStackTrace( e );
 				this.timestamp = new Date();
 			}
 
@@ -814,11 +804,10 @@ public class ClanManager extends StaticEntity
 				}
 				catch ( Exception e )
 				{
-					// Should not happen, but catching the exception
-					// anyway, just in case it does.
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
 
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
+					StaticEntity.printStackTrace( e );
 				}
 			}
 
@@ -850,11 +839,10 @@ public class ClanManager extends StaticEntity
 				}
 				catch ( Exception e )
 				{
-					// Should not happen, but catching the exception
-					// anyway, just in case it does.
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
 
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
+					StaticEntity.printStackTrace( e );
 				}
 			}
 
@@ -889,11 +877,10 @@ public class ClanManager extends StaticEntity
 				}
 				catch ( Exception e )
 				{
-					// Should not happen, but catching the exception
-					// anyway, just in case it does.
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
 
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
+					StaticEntity.printStackTrace( e );
 				}
 			}
 
@@ -938,7 +925,6 @@ public class ClanManager extends StaticEntity
 		{
 			case ClanSnapshotTable.NAME_FILTER:
 			case ClanSnapshotTable.LEVEL_FILTER:
-			case ClanSnapshotTable.RANK_FILTER:
 			case ClanSnapshotTable.KARMA_FILTER:
 
 				break;

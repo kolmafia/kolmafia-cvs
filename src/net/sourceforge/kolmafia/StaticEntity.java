@@ -34,28 +34,46 @@
 
 package net.sourceforge.kolmafia;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.TimeZone;
+
 import javax.swing.SwingUtilities;
 import edu.stanford.ejalbert.BrowserLauncher;
 
 public abstract class StaticEntity implements KoLConstants
 {
+	private static final TimeZone USER_TIMEZONE = java.util.TimeZone.getDefault();
+	private static final String [] EMPTY_STRING_ARRAY = new String[0];
+
 	static
 	{
-		// In order to minimize error internally, KoLmafia will
-		// use the same time zone as KoL for calculations.
-
-		System.setProperty( "user.timezone", "America/Halifax" );
-		java.util.TimeZone.setDefault( java.util.TimeZone.getTimeZone( "America/Halifax" ) );
+		changeToKoLTimeZone();
 	}
 
 	protected static KoLmafia client;
 	private static int usesSystemTray = 0;
 	private static int usesRelayWindows = 0;
 
+	public static final void changeToKoLTimeZone()
+	{
+		// In order to minimize error internally, KoLmafia will
+		// use the same time zone as KoL for calculations.
+
+		System.setProperty( "user.timezone", "America/Halifax" );
+		TimeZone.setDefault( TimeZone.getTimeZone( "America/Halifax" ) );
+	}
+	
+	public static final void changeToUserTimeZone()
+	{
+		System.setProperty( "user.timezone", USER_TIMEZONE.getDisplayName() );
+		TimeZone.setDefault( USER_TIMEZONE );
+	}
+
 	public static final void setClient( KoLmafia client )
 	{	StaticEntity.client = client;
 	}
-
+	
 	public static KoLmafia getClient()
 	{	return client;
 	}
@@ -116,10 +134,10 @@ public abstract class StaticEntity implements KoLConstants
 		}
 		catch ( java.io.IOException e )
 		{
-			KoLmafia.getLogStream().println( "Failed to open browser:" );
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e, "Failed to open system browser" );
 		}
 	}
 
@@ -164,6 +182,90 @@ public abstract class StaticEntity implements KoLConstants
 			parameters[0] = request;
 		}
 
-		SwingUtilities.invokeLater( new CreateFrameRunnable( RequestFrame.class, parameters ) );
+		(new RequestThread( new CreateFrameRunnable( RequestFrame.class, parameters ) )).start();
+	}
+	
+	public static void externalUpdate( String location, String responseText )
+	{
+		// Keep the client updated of your current equipment and
+		// familiars, if you visit the appropriate pages.
+
+		if ( location.startsWith( "inventory.php?which=2" ) )
+			EquipmentRequest.parseEquipment( responseText );
+
+		if ( location.startsWith( "familiar.php" ) )
+			FamiliarData.registerFamiliarData( client, responseText );
+
+		if ( location.startsWith( "charsheet.php" ) )
+			CharsheetRequest.parseStatus( responseText );
+
+		// See if the person learned a new skill from using a
+		// mini-browser frame.
+
+		Matcher learnedMatcher = Pattern.compile( "<td>You learn a new skill: <b>(.*?)</b>" ).matcher( responseText );
+		if ( learnedMatcher.find() )
+		{
+			KoLCharacter.addAvailableSkill( new UseSkillRequest( client, learnedMatcher.group(1), "", 1 ) );
+			KoLCharacter.addDerivedSkills();
+		}
+		
+		learnedMatcher = Pattern.compile( "You emerge with a (.*?) of Steel" ).matcher( responseText );
+		if ( learnedMatcher.find() )
+			KoLCharacter.addAvailableSkill( new UseSkillRequest( client, learnedMatcher.group(1) + " of Steel", "", 1 ) );
+
+		// Unfortunately, if you learn a new skill from Frank
+		// the Regnaissance Gnome at the Gnomish Gnomads
+		// Camp, it doesn't tell you the name of the skill.
+		// It simply says: "You leargn a new skill. Whee!"
+
+		if ( responseText.indexOf( "You leargn a new skill." ) != -1 )
+		     (new CharsheetRequest( client )).run();
+
+		KoLCharacter.refreshCalculatedLists();
+	}
+	
+	public static final void executeCountdown( String message, int seconds )
+	{
+		for ( int i = 0; i < seconds && StaticEntity.getClient().permitsContinue(); ++i )
+		{
+			StaticEntity.getClient().updateDisplay( message + (seconds - i) + " seconds..." );
+			KoLRequest.delay( 1000 );
+		}
+	}
+		
+	public static final void printStackTrace( Throwable t )
+	{	printStackTrace( t, "UNEXPECTED ERROR", EMPTY_STRING_ARRAY );
+	}
+	
+	
+	public static final void printStackTrace( Throwable t, String message )
+	{	printStackTrace( t, message, EMPTY_STRING_ARRAY );
+	}
+
+	public static final void printStackTrace( Throwable t, String message, String [] logAssistMessages )
+	{
+		boolean shouldOpenStream = KoLmafia.getDebugStream() instanceof NullStream;
+
+		if ( shouldOpenStream )
+			KoLmafia.openDebugStream();
+
+		DEFAULT_SHELL.updateDisplay( ABORT_STATE, message + ".  Debug log printed." );
+		for ( int i = 0; i < logAssistMessages.length; ++i )
+		{
+			if ( logAssistMessages[i] != null )
+			{
+				System.out.println( logAssistMessages[i] );
+				KoLmafia.getDebugStream().println( logAssistMessages[i] );
+			}
+		}
+		
+		t.printStackTrace( KoLmafia.getDebugStream() );
+		t.printStackTrace();
+
+		if ( client.getCurrentRequest() != null )
+			KoLmafia.getDebugStream().println( "" + client.getCurrentRequest().responseText );
+		
+		if ( shouldOpenStream )
+			KoLmafia.closeDebugStream();
 	}
 }

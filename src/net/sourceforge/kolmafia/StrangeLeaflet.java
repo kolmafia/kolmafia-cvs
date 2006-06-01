@@ -143,17 +143,21 @@ public abstract class StrangeLeaflet extends StaticEntity
 	private static boolean petunias;	// true if petunias are done
 	private static boolean giant;		// true if giant is done
 
-	public static void robStrangeLeaflet()
+	public static void leafletNoMagic()
+	{	robStrangeLeaflet( false );
+	}
+
+	public static void leafletWithMagic()
 	{	robStrangeLeaflet( true );
 	}
-  
+
 	public static void robStrangeLeaflet( boolean invokeMagic )
 	{
 		// Make sure the player has the Strange Leaflet.
 		if ( !KoLCharacter.hasItem( LEAFLET, false ) )
 		{
 			if ( KoLCharacter.getLevel() >= 9 )
-				(new KoLRequest( client, "council.php" )).run();
+				DEFAULT_SHELL.executeLine( "council" );
 			else
 			{
 				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You are too low level for that quest." );
@@ -183,13 +187,13 @@ public abstract class StrangeLeaflet extends StaticEntity
 		// Get the grue egg from the hole
 		robHole();
 
-		// Invoke the magic word
+		// Invoke the magic word, if the player wants to;
+		// otherwise, retrieve the trophy in all cases.
+
 		if ( !invokeMagic( invokeMagic ) )
 		{
-			// Magic word is available but the player opted to not
-			// use it yet.
 			KoLCharacter.refreshCalculatedLists();
-			DEFAULT_SHELL.updateDisplay( "Strange Leaflet partially robbed." );
+			DEFAULT_SHELL.updateDisplay( "Serpent-slaying quest complete." );
 			return;
 		}
 
@@ -200,7 +204,7 @@ public abstract class StrangeLeaflet extends StaticEntity
 		KoLCharacter.refreshCalculatedLists();
 
 		String extra = trophy ? " (trophy available)" : ( magic != null ) ? " (magic invoked)" : "";
-		DEFAULT_SHELL.updateDisplay( "Strange Leaflet robbed" + extra + "." );
+		DEFAULT_SHELL.updateDisplay( "The giant is now searching for a princess" + extra + "." );
 	}
 
 	private static void initialize()
@@ -304,7 +308,7 @@ public abstract class StrangeLeaflet extends StaticEntity
 				break;
 
 			default:
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "I can't figure out where you are!" );
+				DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Server-side change detected.  Script aborted." );
 				break;
 		}
 	}
@@ -382,7 +386,10 @@ public abstract class StrangeLeaflet extends StaticEntity
 		killSerpent();
 
 		if ( !chest )
+		{
 			executeCommand( "open chest", true );
+			DEFAULT_SHELL.executeLine( "use Frobozz Real-Estate Company Instant House (TM)" );
+		}
 	}
 
 	private static void robHole()
@@ -420,12 +427,6 @@ public abstract class StrangeLeaflet extends StaticEntity
 			trophy = true;
 			return true;
 		}
-
-		if ( client instanceof KoLmafiaGUI )
-			invokeMagic = JOptionPane.showConfirmDialog( null,
-								     "Would you like to invoke the \"magic words\" today?",
-								     "You know you want to!",
-								     JOptionPane.YES_NO_OPTION ) == JOptionPane.YES_OPTION;
 
 		if ( !invokeMagic )
 			return false;

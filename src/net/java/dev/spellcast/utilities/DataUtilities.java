@@ -73,20 +73,26 @@ public class DataUtilities implements UtilityConstants
 	 * @param	filename	the name of the file to be retrieved
 	 */
 
-	public static BufferedReader getReaderForSharedDataFile( String filename )
-	{
-		String shareDirectory = System.getProperty( "SHARED_MODULE_DIRECTORY" );
+	public static BufferedReader getReader( String filename )
+	{	return getReader( DATA_DIRECTORY, filename );
+	}
+	
+	/**
+	 * A public function used to retrieve the reader for a file.  Allows the
+	 * referencing of files contained within a JAR, inside of a class tree,
+	 * and from the local directory from which the Java command line is called.
+	 * The priority is as listed, in reverse order.  Note that rather than
+	 * throwing an exception should the file not be successfully found, this
+	 * function will instead print out an error message and simply return null.
+	 *
+	 * @param	subdirectory	the subdirectory of the file
+	 * @param	filename	the name of the file to be retrieved
+	 */
 
-		try
-		{
-			return new BufferedReader( new InputStreamReader(
-				getFileInputStream( shareDirectory == null ? "" : shareDirectory, DATA_DIRECTORY, filename ) ) );
-		}
-		catch ( FileNotFoundException e )
-		{
-			System.err.println( "Shared file <" + filename + "> could not be found" );
-			return null;
-		}
+	public static BufferedReader getReader( String directory, String filename )
+	{
+		InputStream istream = getInputStream( directory, filename );
+		return istream == null ? null : new BufferedReader( new InputStreamReader( istream ) );
 	}
 
 	/**
@@ -95,47 +101,57 @@ public class DataUtilities implements UtilityConstants
 	 * from the local directory from which the Java command line is called.
 	 * The priority is as listed, in reverse order.
 	 *
-	 * @param	directory	the main subtree in which the image can be found, relative to the
-	 *						system class loader
-	 * @param	subdirectory	the subtree in which the image can be found
+	 * @param	directory	the subtree in which the file can be found
 	 * @param	filename	the name of the file to be retrieved
 	 */
 
-	public static InputStream getFileInputStream( String directory, String subdirectory, String filename )
-		throws FileNotFoundException
+	public static InputStream getInputStream( String directory, String filename )
 	{
-		if ( directory.length() > 0 && (!directory.endsWith( File.separator ) && !directory.endsWith( "/" )) )
+		if ( directory.length() > 0 && !directory.endsWith( File.separator ) && !directory.endsWith( "/" ) )
 			directory += File.separator;
 
-		if ( subdirectory.length() > 0 && (!subdirectory.endsWith( File.separator ) && !subdirectory.endsWith( "/" )) )
-			subdirectory += File.separator;
-
 		InputStream locationAsInputStream;
-		String fullname = directory + subdirectory + filename;
-		String jarname = fullname.replaceAll( java.io.File.separator.replaceAll( "\\\\", "\\\\\\\\" ), "/" );
 
-		// attempt to retrieve the file from the system class tree (non-JAR)
-		locationAsInputStream = SYSTEM_CLASSLOADER.getResourceAsStream( fullname );
+		String fullname = directory + filename;
+		String jarname = fullname.replaceAll( File.separator.replaceAll( "\\\\", "\\\\\\\\" ), "/" );
+
+		File override = new File( fullname );
+		if ( override.exists() )
+		{
+			try
+			{
+				return new FileInputStream( override );
+			}
+			catch ( Exception e )
+			{
+				e.printStackTrace();
+			}
+		}
+
+		locationAsInputStream = getInputStream( SYSTEM_CLASSLOADER, fullname, jarname );
 		if ( locationAsInputStream != null )
 			return locationAsInputStream;
 
-		// attempt to retrieve the file from the system class tree (JAR)
-		locationAsInputStream = SYSTEM_CLASSLOADER.getResourceAsStream( jarname );
-		if ( locationAsInputStream != null )
-			return locationAsInputStream;
-
-		// attempt to retrieve the file from the Spellcast class tree (non-JAR)
-		locationAsInputStream = MAINCLASS_CLASSLOADER.getResourceAsStream( fullname );
-		if ( locationAsInputStream != null )
-			return locationAsInputStream;
-
-		// attempt to retrieve the file from the Spellcast class tree (JAR)
-		locationAsInputStream = MAINCLASS_CLASSLOADER.getResourceAsStream( jarname );
+		locationAsInputStream = getInputStream( MAINCLASS_CLASSLOADER, fullname, jarname );
 		if ( locationAsInputStream != null )
 			return locationAsInputStream;
 
 		// if it's gotten this far, the file does not exist
-		throw new FileNotFoundException( fullname );
+		return null;
+	}
+	
+	private static InputStream getInputStream( ClassLoader loader, String filename, String jarname )
+	{
+		InputStream locationAsInputStream = loader.getResourceAsStream( filename );
+		if ( locationAsInputStream != null )
+			return locationAsInputStream;
+
+		// attempt to retrieve the file from the system class tree (JAR)
+		locationAsInputStream = loader.getResourceAsStream( jarname );
+		if ( locationAsInputStream != null )
+			return locationAsInputStream;
+
+		return null;
 	}
 
 	/**

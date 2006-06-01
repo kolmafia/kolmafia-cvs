@@ -52,31 +52,36 @@ public class EquipmentRequest extends PasswordHashRequest
 {
 	public static final String UNEQUIP = "(none)";
 
-	public static final int EQUIPMENT = 1;
-	public static final int CLOSET = 2;
-	private static final int CHANGE_OUTFIT = 3;
-	private static final int CHANGE_ITEM = 4;
-	private static final int REMOVE_ITEM = 5;
-	public static final int UNEQUIP_ALL = 6;
+	public static final int CLOSET = 1;
+	public static final int EQUIPMENT = 2;
+
+	private static final int SAVE_OUTFIT = 3;
+	private static final int CHANGE_OUTFIT = 4;
+
+	private static final int CHANGE_ITEM = 5;
+	private static final int REMOVE_ITEM = 6;
+	private static final int UNEQUIP_ALL = 7;
 
 	// Array indexed by equipment "slot" from KoLCharacter
 	//
 	// Perhaps this should be in that module, except this is closely tied
 	// to the PHP files that are manipulated by THIS module.
 
-        // These are the public names
+    // These are the public names
 	public static final String [] slotNames =
 	{
 		"hat", "weapon", "off-hand", "shirt", "pants",
-		"acc1", "acc2", "acc3", "familiar"
+		"acc1", "acc2", "acc3", "familiar", "fakehand"
 	};
 
         // These are the names used in the PHP file
 	public static final String [] phpSlotNames =
 	{
 		"hat", "weapon", "offhand", "shirt", "pants",
-		"acc1", "acc2", "acc3", "familiarequip"
+		"acc1", "acc2", "acc3", "familiarequip", "fakehand"
 	};
+
+	private static final int FAKE_HAND = 1511;
 
 	private int requestType;
 	private int equipmentSlot;
@@ -106,12 +111,14 @@ public class EquipmentRequest extends PasswordHashRequest
 		}
 	}
 
-	public EquipmentRequest( KoLmafia client, String change )
-	{	this( client, change, -1 );
-	}
-
-	public EquipmentRequest( KoLmafia client, String change, Integer equipmentSlot )
-	{	this( client, change, equipmentSlot.intValue() );
+	public EquipmentRequest( KoLmafia client, String outfitName )
+	{
+		super( client, "inv_equip.php" );
+		addFormField( "which", "2" );
+		
+		addFormField( "action", "customoutfit" );
+		addFormField( "outfitname", outfitName );
+		requestType = SAVE_OUTFIT;
 	}
 
 	public EquipmentRequest( KoLmafia client, String change, int equipmentSlot )
@@ -138,6 +145,10 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		// Find out what kind of item it is
 		this.equipmentType = TradeableItemDatabase.getConsumptionType( itemID );
+
+		// If unspecified slot, pick based on type of item
+		if ( this.equipmentSlot == -1 )
+			this.equipmentSlot = chooseEquipmentSlot();
 
 		// Make sure you can equip it in the requested slot
 		String action = getAction();
@@ -167,6 +178,14 @@ public class EquipmentRequest extends PasswordHashRequest
 
 	private String getAction()
 	{
+		AdventureResult item = new AdventureResult( itemID, 0 );
+		if ( equipmentSlot != KoLCharacter.FAMILIAR && 
+		     item.getCount( KoLCharacter.getInventory() ) == 0 )
+		{
+			error = "You don't have a " + item.getName();
+			return null;
+		}
+
 		switch ( equipmentSlot )
 		{
 		case KoLCharacter.HAT:
@@ -176,7 +195,16 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		case KoLCharacter.WEAPON:
 			if ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON )
+			{
+				if ( KoLCharacter.dualWielding() &&
+				     EquipmentDatabase.isRanged( itemID ) &&
+				     EquipmentDatabase.getHands( itemID ) == 1 )
+				{
+					error = "You can't equip a ranged weapon with a melee weapon in your off-hand.";
+					return null;
+				}
 				return "equip";
+			}
 			break;
 
 		case KoLCharacter.OFFHAND:
@@ -185,14 +213,19 @@ public class EquipmentRequest extends PasswordHashRequest
 
 			if ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON )
 			{
-				if ( KoLCharacter.weaponHandedness() != 1 )
+				if ( KoLCharacter.weaponHandedness() != 1 || KoLCharacter.rangedWeapon() )
 				{
-					error = "You must have a 1-handed primary weapon equipped first.";
+					error = "You must have a 1-handed melee weapon equipped first.";
 					return null;
 				}
 				if ( EquipmentDatabase.getHands( itemID ) > 1 )
 				{
-					error = "That weapon is too big to wield in your off hand.";
+					error = "That weapon is too big to wield in your off-hand.";
+					return null;
+				}
+				if ( EquipmentDatabase.isRanged( itemID ) )
+				{
+					error = "You can't wield a ranged weapon in your off-hand.";
 					return null;
 				}
 				if ( !KoLCharacter.hasSkill( "Double-Fisted Skull Smashing" ) )
@@ -236,6 +269,37 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		error = "You can't put your " + TradeableItemDatabase.getItemName( itemID ) + " there.";
 		return null;
+	}
+
+	private int chooseEquipmentSlot()
+	{
+		if ( equipmentSlot != -1 )
+			return equipmentSlot;
+
+		switch ( equipmentType )
+		{
+		case ConsumeItemRequest.EQUIP_HAT:
+			return KoLCharacter.HAT;
+
+		case ConsumeItemRequest.EQUIP_WEAPON:
+			return KoLCharacter.WEAPON;
+
+		case ConsumeItemRequest.EQUIP_OFFHAND:
+			return KoLCharacter.OFFHAND;
+
+		case ConsumeItemRequest.EQUIP_SHIRT:
+			return KoLCharacter.SHIRT;
+
+		case ConsumeItemRequest.EQUIP_PANTS:
+			return KoLCharacter.PANTS;
+
+		case ConsumeItemRequest.EQUIP_FAMILIAR:
+			return KoLCharacter.FAMILIAR;
+
+		case ConsumeItemRequest.EQUIP_ACCESSORY:
+		default:
+			return -1;
+		}
 	}
 
 	public String getOutfitName()
@@ -355,14 +419,18 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		switch ( requestType )
 		{
-			case EQUIPMENT:
-				DEFAULT_SHELL.updateDisplay( "Updating equipment..." );
-				break;
-
 			case CLOSET:
 				DEFAULT_SHELL.updateDisplay( "Refreshing closet..." );
 				break;
 
+			case EQUIPMENT:
+				DEFAULT_SHELL.updateDisplay( "Retrieving equipment..." );
+				break;
+
+			case SAVE_OUTFIT:
+				DEFAULT_SHELL.updateDisplay( "Saving outfit..." );
+				break;
+				
 			case CHANGE_OUTFIT:
 				DEFAULT_SHELL.updateDisplay( "Putting on " + outfit + "..." );
 				break;
@@ -372,7 +440,11 @@ public class EquipmentRequest extends PasswordHashRequest
 				break;
 
 			case REMOVE_ITEM:
-				DEFAULT_SHELL.updateDisplay( "Taking off " + KoLCharacter.getCurrentEquipmentName( equipmentSlot) + "..." );
+				String item = KoLCharacter.getCurrentEquipmentName( equipmentSlot);
+				if ( item == null )
+					return;
+				
+				DEFAULT_SHELL.updateDisplay( "Taking off " + item + "..." );
 				break;
 
 			case UNEQUIP_ALL:
@@ -411,6 +483,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			else
 			{
 				String [] oldEquipment = new String[9];
+				int oldFakeHands = KoLCharacter.getFakeHands();
 
 				// Ensure that the inventory stays up-to-date by
 				// switching items around, as needed.
@@ -423,8 +496,21 @@ public class EquipmentRequest extends PasswordHashRequest
 				for ( int i = 0; i < 9; ++i )
 					switchItem( oldEquipment[i], KoLCharacter.getEquipment( i ) );
 
+				// Adjust inventory of fake hands
+				int newFakeHands = KoLCharacter.getFakeHands();
+				if ( oldFakeHands != newFakeHands )
+					AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( FAKE_HAND, oldFakeHands - newFakeHands ) );
+
 				CharpaneRequest.getInstance().run();
+				KoLCharacter.recalculateAdjustments( false );
 				KoLCharacter.updateStatus();
+
+				if ( requestType == EQUIPMENT )
+					DEFAULT_SHELL.updateDisplay( "Equipment updated." );
+				else if ( requestType == SAVE_OUTFIT )
+					DEFAULT_SHELL.updateDisplay( "Outfit saved." );
+				else
+					DEFAULT_SHELL.updateDisplay( "Gear changed." );
 			}
 
 			// After all the items have been switched,
@@ -434,8 +520,10 @@ public class EquipmentRequest extends PasswordHashRequest
 		}
 		catch ( RuntimeException e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -484,8 +572,10 @@ public class EquipmentRequest extends PasswordHashRequest
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 		}
 
@@ -526,12 +616,10 @@ public class EquipmentRequest extends PasswordHashRequest
 			}
 			catch ( Exception e )
 			{
-				// If an exception occurs during the parsing, just
-				// continue after notifying the KoLmafia.getLogStream() of the
-				// error.  This could be handled better, but not now.
-
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 		}
 	}
@@ -539,10 +627,11 @@ public class EquipmentRequest extends PasswordHashRequest
 	public static void parseEquipment( String responseText )
 	{
 		String [] equipment = new String[9];
-		Matcher equipmentMatcher;
-
 		for ( int i = 0; i < equipment.length; ++i )
 			equipment[i] = UNEQUIP;
+		int fakeHands = 0;
+
+		Matcher equipmentMatcher;
 
 		if ( responseText.indexOf( "unequip&type=hat") != -1 )
 		{
@@ -550,7 +639,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.HAT ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Hat: " + equipment[ KoLCharacter.HAT ] );
+				KoLmafia.getDebugStream().println( "Hat: " + equipment[ KoLCharacter.HAT ] );
 			}
 		}
 
@@ -560,17 +649,17 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.WEAPON ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Weapon: " + equipment[ KoLCharacter.WEAPON ] );
+				KoLmafia.getDebugStream().println( "Weapon: " + equipment[ KoLCharacter.WEAPON ] );
 			}
 		}
 
 		if ( responseText.indexOf( "unequip&type=offhand") != -1 )
 		{
-			equipmentMatcher = Pattern.compile( "Off-Hand:</td>.*?<b>(.*?)</b>.*unequip&type=offhand" ).matcher( responseText );
+			equipmentMatcher = Pattern.compile( "Off-Hand:</td>.*?<b>([^<]*)</b> *(<font.*?/font>)?[^>]*unequip&type=offhand" ).matcher( responseText );
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.OFFHAND ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Off-hand: " + equipment[ KoLCharacter.OFFHAND ] );
+				KoLmafia.getDebugStream().println( "Off-hand: " + equipment[ KoLCharacter.OFFHAND ] );
 			}
 		}
 
@@ -580,7 +669,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.SHIRT ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Shirt: " + equipment[ KoLCharacter.SHIRT ] );
+				KoLmafia.getDebugStream().println( "Shirt: " + equipment[ KoLCharacter.SHIRT ] );
 			}
 		}
 
@@ -590,7 +679,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.PANTS ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Pants: " + equipment[ KoLCharacter.PANTS ] );
+				KoLmafia.getDebugStream().println( "Pants: " + equipment[ KoLCharacter.PANTS ] );
 			}
 		}
 
@@ -600,7 +689,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.ACCESSORY1 ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Accessory 1: " + equipment[ KoLCharacter.ACCESSORY1 ] );
+				KoLmafia.getDebugStream().println( "Accessory 1: " + equipment[ KoLCharacter.ACCESSORY1 ] );
 			}
 		}
 
@@ -610,7 +699,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.ACCESSORY2 ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Accessory 2: " + equipment[ KoLCharacter.ACCESSORY2 ] );
+				KoLmafia.getDebugStream().println( "Accessory 2: " + equipment[ KoLCharacter.ACCESSORY2 ] );
 			}
 		}
 
@@ -620,7 +709,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.ACCESSORY3 ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Accessory 3: " + equipment[ KoLCharacter.ACCESSORY3 ] );
+				KoLmafia.getDebugStream().println( "Accessory 3: " + equipment[ KoLCharacter.ACCESSORY3 ] );
 			}
 
 		}
@@ -631,8 +720,15 @@ public class EquipmentRequest extends PasswordHashRequest
 			if ( equipmentMatcher.find() )
 			{
 				equipment[ KoLCharacter.FAMILIAR ] = equipmentMatcher.group(1);
-				KoLmafia.getLogStream().println( "Familiar: " + equipment[ KoLCharacter.FAMILIAR ] );
+				KoLmafia.getDebugStream().println( "Familiar: " + equipment[ KoLCharacter.FAMILIAR ] );
 			}
+		}
+
+		int index = 0;
+		while ( ( index = responseText.indexOf( "unequip&type=fakehand", index) ) != -1 )
+		{
+			++fakeHands;
+			index += 21;
 		}
 
 		Matcher outfitsMatcher = Pattern.compile( "<select name=whichoutfit>.*?</select>" ).matcher( responseText );
@@ -641,6 +737,15 @@ public class EquipmentRequest extends PasswordHashRequest
 			SpecialOutfit.parseOutfits( outfitsMatcher.group() ) : null;
 
 		KoLCharacter.setEquipment( equipment, outfits );
+		KoLCharacter.setFakeHands( fakeHands );
+	}
+
+	public static int slotNumber( String name )
+	{
+		for ( int i = 0; i < slotNames.length; ++i )
+			if ( name.equals( slotNames[i] ) )
+				return i;
+		return -1;
 	}
 
 	public String getCommandForm( int iterations )

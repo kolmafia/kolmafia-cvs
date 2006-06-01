@@ -61,12 +61,6 @@ public class ProposeTradeFrame extends SendMessageFrame
 			recipientEntry.setEnabled( false );
 	}
 
-	public void dispose()
-	{
-		offerID = null;
-		super.dispose();
-	}
-
 	protected String [] getEntryHeaders()
 	{	return HEADERS;
 	}
@@ -93,10 +87,11 @@ public class ProposeTradeFrame extends SendMessageFrame
 
 		if ( offerID != null )
 			(new ProposeTradeRequest( StaticEntity.getClient(), Integer.parseInt( offerID ), messages[0], getAttachedItems(), getAttachedMeat() )).run();
-		Object [] parameters = new Object[2];
-		parameters[0] = StaticEntity.getClient();
-		parameters[1] = offerID != null ? new ProposeTradeRequest( StaticEntity.getClient() ) :
+
+		Object [] parameters = new Object[1];
+		parameters[0] = offerID != null ? new ProposeTradeRequest( StaticEntity.getClient() ) :
 			new ProposeTradeRequest( StaticEntity.getClient(), recipient, messages[0], getAttachedItems(), getAttachedMeat() );
+
 		(new CreateFrameRunnable( PendingTradesFrame.class, parameters )).run();
 		return true;
 	}

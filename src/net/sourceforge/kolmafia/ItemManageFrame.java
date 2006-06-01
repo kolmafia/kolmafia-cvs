@@ -37,7 +37,6 @@ package net.sourceforge.kolmafia;
 // layout
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.CardLayout;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
 import javax.swing.BoxLayout;
@@ -83,7 +82,6 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class ItemManageFrame extends KoLFrame
 {
-	private JTabbedPane tabs;
 	private MultiButtonPanel bruteforcer, inventory, closet, consume, create, special;
 
 	/**
@@ -105,34 +103,34 @@ public class ItemManageFrame extends KoLFrame
 		closet = new InsideClosetPanel();
 		special = null;
 
-		// If the player is in a muscle sign, then make sure
-		// that the restaurant panel is there.
-
 		tabs.addTab( "Consume", consume );
 
-		// If the person is in a mysticality sign, make sure
-		// you retrieve information from the restaurant.
-
-		if ( KoLCharacter.canEat() && KoLCharacter.inMysticalitySign() )
+		if ( StaticEntity.getClient().shouldMakeConflictingRequest() )
 		{
-			special = new SpecialPanel( StaticEntity.getClient().getRestaurantItems() );
-			tabs.add( "Restaurant", special );
+			// If the person is in a mysticality sign, make sure
+			// you retrieve information from the restaurant.
 
-			if ( StaticEntity.getClient().getRestaurantItems().isEmpty() )
-				(new RequestThread( new RestaurantRequest( StaticEntity.getClient() ) )).start();
-		}
+			if ( KoLCharacter.canEat() && KoLCharacter.inMysticalitySign() )
+			{
+				special = new SpecialPanel( StaticEntity.getClient().getRestaurantItems() );
+				tabs.add( "Restaurant", special );
 
-		// If the person is in a moxie sign and they have completed
-		// the beach quest, then retrieve information from the
-		// microbrewery.
+				if ( StaticEntity.getClient().getRestaurantItems().isEmpty() )
+					(new RequestThread( new RestaurantRequest( StaticEntity.getClient() ) )).start();
+			}
 
-		if ( KoLCharacter.canDrink() && KoLCharacter.inMoxieSign() && KoLCharacter.getInventory().contains( ConcoctionsDatabase.CAR ) )
-		{
-			special = new SpecialPanel( StaticEntity.getClient().getMicrobreweryItems() );
-			tabs.add( "Microbrewery", special );
+			// If the person is in a moxie sign and they have completed
+			// the beach quest, then retrieve information from the
+			// microbrewery.
 
-			if ( StaticEntity.getClient().getMicrobreweryItems().isEmpty() )
-				(new RequestThread( new MicrobreweryRequest( StaticEntity.getClient() ) )).start();
+			if ( KoLCharacter.canDrink() && KoLCharacter.inMoxieSign() && KoLCharacter.getInventory().contains( ConcoctionsDatabase.CAR ) )
+			{
+				special = new SpecialPanel( StaticEntity.getClient().getMicrobreweryItems() );
+				tabs.add( "Microbrewery", special );
+
+				if ( StaticEntity.getClient().getMicrobreweryItems().isEmpty() )
+					(new RequestThread( new MicrobreweryRequest( StaticEntity.getClient() ) )).start();
+			}
 		}
 
 //		tabs.addTab( "Find Recipe", bruteforcer );
@@ -145,6 +143,8 @@ public class ItemManageFrame extends KoLFrame
 
 	private class ConsumePanel extends MultiButtonPanel
 	{
+		private JCheckBox [] filters;
+
 		public ConsumePanel()
 		{
 			super( "Usable Items", KoLCharacter.getUsables(), false );
@@ -153,7 +153,7 @@ public class ItemManageFrame extends KoLFrame
 				new ActionListener [] { new ConsumeListener( false ), new ConsumeListener( true ),
 				new RequestButton( "Refresh Items", new EquipmentRequest( StaticEntity.getClient(), EquipmentRequest.CLOSET ) ) } );
 
-			JCheckBox [] filters = new JCheckBox[3];
+			filters = new JCheckBox[3];
 			filters[0] = new FilterCheckBox( filters, elementList, "Show food", KoLCharacter.canEat() );
 			filters[1] = new FilterCheckBox( filters, elementList, "Show drink", KoLCharacter.canDrink() );
 			filters[2] = new FilterCheckBox( filters, elementList, "Show others", true );
@@ -163,6 +163,13 @@ public class ItemManageFrame extends KoLFrame
 
 			elementList.setCellRenderer(
 				AdventureResult.getConsumableCellRenderer( KoLCharacter.canEat(), KoLCharacter.canDrink(), true ) );
+		}
+
+		protected Object [] getDesiredItems( String message )
+		{
+			filterSelection( filters[0].isSelected(),
+				 filters[1].isSelected(), filters[2].isSelected(), true, true );
+			return super.getDesiredItems( message );
 		}
 
 		private class ConsumeListener implements ActionListener
@@ -175,7 +182,7 @@ public class ItemManageFrame extends KoLFrame
 
 			public void actionPerformed( ActionEvent e )
 			{
-				Object [] items = elementList.getSelectedValues();
+				Object [] items = getDesiredItems( "Consume" );
 				if ( items.length == 0 )
 					return;
 
@@ -183,7 +190,6 @@ public class ItemManageFrame extends KoLFrame
 				AdventureResult currentItem;
 
 				Runnable [] requests = new Runnable[ items.length ];
-				int [] repeatCount = new int[ items.length ];
 
 				for ( int i = 0; i < items.length; ++i )
 				{
@@ -195,19 +201,10 @@ public class ItemManageFrame extends KoLFrame
 					if ( consumptionCount == 0 )
 						return;
 
-					if ( consumptionType == ConsumeItemRequest.CONSUME_MULTIPLE || consumptionType == ConsumeItemRequest.CONSUME_RESTORE )
-					{
-						requests[i] = new ConsumeItemRequest( StaticEntity.getClient(), currentItem.getInstance( consumptionCount ) );
-						repeatCount[i] = 1;
-					}
-					else
-					{
-						requests[i] = new ConsumeItemRequest( StaticEntity.getClient(), currentItem.getInstance( 1 ) );
-						repeatCount[i] = consumptionCount;
-					}
+					requests[i] = new ConsumeItemRequest( StaticEntity.getClient(), currentItem.getInstance( consumptionCount ) );
 				}
 
-				(new RequestThread( requests, repeatCount )).start();
+				(new RequestThread( requests )).start();
 			}
 		}
 	}
@@ -216,18 +213,16 @@ public class ItemManageFrame extends KoLFrame
 	{
 		private final int PURCHASE_ONE = 1;
 		private final int PURCHASE_MULTIPLE = 2;
-		private final int PURCHASE_MAX = 3;
 
 		public SpecialPanel( LockableListModel items )
 		{
 			super( "Sign-Specific Stuffs", items, false );
 
 			elementList.setSelectionMode( ListSelectionModel.SINGLE_SELECTION );
-			setButtons( new String [] { "buy one", "buy multiple", "buy maximum" },
+			setButtons( new String [] { "buy one", "buy multiple" },
 				new ActionListener [] {
 					new BuyListener( PURCHASE_ONE ),
-					new BuyListener( PURCHASE_MULTIPLE ),
-					new BuyListener( PURCHASE_MAX )
+					new BuyListener( PURCHASE_MULTIPLE )
 				} );
 		}
 
@@ -245,9 +240,7 @@ public class ItemManageFrame extends KoLFrame
 				if ( item == null )
 					return;
 
-				int consumptionCount = purchaseType == PURCHASE_MULTIPLE ? getQuantity( "Buying multiple " + item + "...", Integer.MAX_VALUE, 1 ) :
-					purchaseType == PURCHASE_ONE ? 1 : 30;
-
+				int consumptionCount = purchaseType == PURCHASE_MULTIPLE ? getQuantity( "Buying multiple " + item + "...", Integer.MAX_VALUE, 1 ) : 1;
 				if ( consumptionCount == 0 )
 					return;
 
@@ -283,47 +276,11 @@ public class ItemManageFrame extends KoLFrame
 
 		protected Object [] getDesiredItems( String message )
 		{
-			// Ensure that the selection interval does not include
-			// anything that was filtered out by the checkboxes.
-
-			Object [] elements = elementList.getSelectedValues();
-			for ( int i = 0; i < elements.length; ++i )
-			{
-				int actualIndex = ((LockableListModel)elementList.getModel()).indexOf( elements[i] );
-				switch ( TradeableItemDatabase.getConsumptionType( ((AdventureResult)elements[i]).getName() ) )
-				{
-					case ConsumeItemRequest.CONSUME_EAT:
-
-						if ( !filters[0].isSelected() )
-							elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-						break;
-
-					case ConsumeItemRequest.CONSUME_DRINK:
-
-						if ( !filters[1].isSelected() )
-							elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-						break;
-
-					default:
-
-						if ( !filters[2].isSelected() )
-							elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-						break;
-				}
-
-
-				int autoSellValue = TradeableItemDatabase.getPriceByID( ((AdventureResult)elements[i]).getItemID() );
-
-				if ( !filters[3].isSelected() && autoSellValue == -1 )
-					elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-				if ( !filters[4].isSelected() && ( autoSellValue == 0 || autoSellValue < -1 ) )
-					elementList.removeSelectionInterval( actualIndex, actualIndex );
-			}
-
+			filterSelection( filters[0].isSelected(),
+					 filters[1].isSelected(),
+					 filters[2].isSelected(),
+					 filters[3].isSelected(),
+					 filters[4].isSelected() );
 			return super.getDesiredItems( message );
 		}
 
@@ -345,6 +302,8 @@ public class ItemManageFrame extends KoLFrame
 			public Object [] initialSetup()
 			{
 				Object [] items = getDesiredItems( description );
+				if (items == null )
+					return null;
 				this.requests = new Runnable[ !retrieveFromClosetFirst || description.equals( "Bagging" ) ? 1 : 2 ];
 
 				if ( retrieveFromClosetFirst )
@@ -780,9 +739,13 @@ public class ItemManageFrame extends KoLFrame
 				if ( selected == null )
 					return;
 
-				DEFAULT_SHELL.updateDisplay( "Verifying ingredients..." );
 				ItemCreationRequest selection = (ItemCreationRequest) selected;
-				selection.setQuantityNeeded( createMultiple ? getQuantity( "Creating multiple " + selection.getName() + "...", selection.getQuantityNeeded() ) : 1 );
+				int quantityDesired = createMultiple ? getQuantity( "Creating multiple " + selection.getName() + "...", selection.getQuantityNeeded() ) : 1;
+				if ( quantityDesired < 1 )
+					return;
+
+				DEFAULT_SHELL.updateDisplay( "Verifying ingredients..." );
+				selection.setQuantityNeeded( quantityDesired );
 				(new RequestThread( selection )).start();
 			}
 		}

@@ -34,6 +34,7 @@
 
 package net.sourceforge.kolmafia;
 
+import java.awt.Color;
 import java.util.Random;
 import java.util.Locale;
 import java.text.DecimalFormat;
@@ -56,8 +57,8 @@ public interface KoLConstants extends UtilityConstants
 	public static final JLabel BLANK_LABEL = new JLabel();
 	public static final Toolkit TOOLKIT = Toolkit.getDefaultToolkit();
 
-	public static final String VERSION_NAME = "KoLmafia v6.9";
-	public static final String VERSION_DATE = "Released March 23, 2006";
+	public static final String VERSION_NAME = "KoLmafia v7.8";
+	public static final String VERSION_DATE = "Released May 28, 2006";
 
 	public static final KoLSettings GLOBAL_SETTINGS = new KoLSettings();
 	public static final KoLmafiaCLI DEFAULT_SHELL = new KoLmafiaCLI( System.in );
@@ -69,18 +70,27 @@ public interface KoLConstants extends UtilityConstants
 	public static final DecimalFormat df = new DecimalFormat(
 		"#,##0", new DecimalFormatSymbols( Locale.US ) );
 
+	public static final DecimalFormat df2 = new DecimalFormat(
+		"+#0;-#0", new DecimalFormatSymbols( Locale.US ) );
+
 	public static final DecimalFormat ff = new DecimalFormat(
 		"#,##0.00", new DecimalFormatSymbols( Locale.US ) );
 
+	public static final DecimalFormat sff = new DecimalFormat(
+		"+#0.00;-#0.00", new DecimalFormatSymbols( Locale.US ) );
+
 	public static final SimpleDateFormat sdf = new SimpleDateFormat( "yyyyMMdd" );
 
-	public static final int NULL_STATE     = 0;
 	public static final int ENABLE_STATE   = 1;
 	public static final int ERROR_STATE    = 2;
 	public static final int ABORT_STATE    = 3;
 
 	public static final int PENDING_STATE  = 4;
 	public static final int CONTINUE_STATE = 5;
+
+	public static final Color ERROR_COLOR = new Color( 255, 192, 192 );
+	public static final Color ENABLED_COLOR = new Color( 192, 255, 192 );
+	public static final Color DISABLED_COLOR = null;
 
 	public static final String [][] WIN_GAME_TEXT = new String [][]
 	{
@@ -111,7 +121,7 @@ public interface KoLConstants extends UtilityConstants
 			"Accessing tower backdoor.  Fighting Naughty Sorceress...",
 			"Connection timed out during post.  Retrying...",
 			"Connection timed out during reply.  Retrying...",
-			"Your star power has expired.  You have been defeated!"
+			"Star power expired.  You slink away, dejected and defeated."
 		},
 
 		{
@@ -119,15 +129,15 @@ public interface KoLConstants extends UtilityConstants
 			"Original game concept by Jick (Asymmetric Publications).",
 			"Co-written by Mr. Skullhead, Riff, and the /dev team.",
 			"Special thanks to: the Mods, the Ascension testers, and you.",
-			"We present you a new quest, which is basically the same thing, only harder.",
-			"Crap!  You've been using KoLmafia so long you can't remember how to play!  Game Over."
+			"We present you a new quest, which is the same thing, only harder.",
+			"Segmentation fault.  Core dumped."
 		},
 
 		{
-			"Executing secret trail script...",
+			"Unlocking secret Arizona trail script...",
 			"Crossing first obstacle, admiring landmarks...",
 			"Path set to oxygenarian, familiar pace set to grue-ing...",
-			"You have died from KoLera.  Game Over."
+			"You have died from KoLera."
 		}
 	};
 }

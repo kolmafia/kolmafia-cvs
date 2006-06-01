@@ -42,12 +42,7 @@ import java.io.BufferedReader;
 import java.io.PrintStream;
 import java.io.InputStreamReader;
 
-import java.util.List;
-import java.util.Vector;
 import java.util.TreeMap;
-import java.util.Collections;
-import java.util.Enumeration;
-
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.DefaultMutableTreeNode;
 
@@ -74,7 +69,7 @@ public abstract class CombatSettings implements UtilityConstants
 
 	static { CombatSettings.reset(); }
 
-	public static final void reset()
+	public synchronized static final void reset()
 	{
 		CombatSettings.characterName = KoLCharacter.getUsername();
 		CombatSettings.settingsFile = new File( DATA_DIRECTORY + settingsFileName() );
@@ -86,11 +81,11 @@ public abstract class CombatSettings implements UtilityConstants
 		saveSettings();
 	}
 
-	public static final String settingsFileName()
+	public synchronized static final String settingsFileName()
 	{	return "~" + KoLCharacter.getUsername().replaceAll( "\\/q", "" ).replaceAll( " ", "_" ).toLowerCase() + ".ccs";
 	}
 
-	public static final TreeNode getRoot()
+	public synchronized static final TreeNode getRoot()
 	{
 		if ( !characterName.equals( KoLCharacter.getUsername() ) )
 			CombatSettings.reset();
@@ -103,7 +98,7 @@ public abstract class CombatSettings implements UtilityConstants
 	 * object to disk for later retrieval.
 	 */
 
-	public static void saveSettings()
+	public synchronized static void saveSettings()
 	{	storeSettings( settingsFile );
 	}
 
@@ -116,7 +111,7 @@ public abstract class CombatSettings implements UtilityConstants
 	 * @param	source	The file that contains (or will contain) the character data
 	 */
 
-	private static void loadSettings()
+	private synchronized static void loadSettings()
 	{
 		try
 		{
@@ -165,13 +160,10 @@ public abstract class CombatSettings implements UtilityConstants
 		}
 		catch ( IOException e1 )
 		{
-			// This should not happen, because it should
-			// always be possible.  Therefore, no handling
-			// will take place at the current time unless a
-			// pressing need arises for it.
-
-			e1.printStackTrace( KoLmafia.getLogStream() );
-			e1.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e1 );
 		}
 		catch ( Exception e2 )
 		{
@@ -179,9 +171,7 @@ public abstract class CombatSettings implements UtilityConstants
 			// means that they will have to be created after
 			// the current file is deleted.
 
-			e2.printStackTrace( KoLmafia.getLogStream() );
-			e2.printStackTrace();
-
+			StaticEntity.printStackTrace( e2 );
 			settingsFile.delete();
 			loadSettings();
 		}
@@ -192,7 +182,7 @@ public abstract class CombatSettings implements UtilityConstants
 	 * initializes it to the given value.
 	 */
 
-	private static void ensureProperty( String key, String defaultValue )
+	private synchronized static void ensureProperty( String key, String defaultValue )
 	{
 		if ( !reference.containsKey( key ) )
 		{
@@ -214,7 +204,7 @@ public abstract class CombatSettings implements UtilityConstants
 	 * @param	destination	The file to which the settings will be stored.
 	 */
 
-	private static void storeSettings( File destination )
+	private synchronized static void storeSettings( File destination )
 	{
 		try
 		{
@@ -236,17 +226,14 @@ public abstract class CombatSettings implements UtilityConstants
 		}
 		catch ( IOException e )
 		{
-			// This should not happen, because it should
-			// always be possible.  Therefore, no handling
-			// will take place at the current time unless a
-			// pressing need arises for it.
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
-	public static String getSetting( String encounter, int roundCount )
+	public synchronized static String getSetting( String encounter, int roundCount )
 	{
 		if ( !characterName.equals( KoLCharacter.getUsername() ) )
 			CombatSettings.reset();
@@ -299,9 +286,11 @@ public abstract class CombatSettings implements UtilityConstants
 		if ( potentialSkill != null )
 			return "skill " + potentialSkill;
 
-		AdventureResult item = KoLmafiaCLI.getFirstMatchingItem( setting.toString() );
-		if ( item != null )
-			return "item " + item.getName();
+		int itemID = setting.toString().equals( "" ) ? -1 : KoLmafiaCLI.getFirstMatchingItemID(
+			TradeableItemDatabase.getMatchingNames( setting.toString() ), KoLmafiaCLI.NOWHERE );
+
+		if ( itemID != -1 )
+			return "item " + TradeableItemDatabase.getItemName( itemID );
 
 		return getSetting( setting.toString(), roundCount - match.getChildCount() + 1 );
 	}

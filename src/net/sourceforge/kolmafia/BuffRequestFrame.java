@@ -73,19 +73,14 @@ public class BuffRequestFrame extends KoLFrame
 	public BuffRequestFrame()
 	{
 		super( "Purchase Buffs" );
-
-		CardLayout cards = new CardLayout( 10, 10 );
-		framePanel.setLayout( cards );
+		framePanel.setLayout( new CardLayout( 10, 10 ) );
 
 		// Configure buffbot offerings
-		BuffBotDatabase.configureBuffBots();
 
 		BuffRequestPanel buffs = new BuffRequestPanel();
 		JScrollPane scroller = new JScrollPane( buffs, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
 		JComponentUtilities.setComponentSize( scroller, 600, 480 );
 		framePanel.add( scroller, "" );
-
-		StaticEntity.getClient().enableDisplay();
 	}
 
 	private class BuffRequestPanel extends JPanel

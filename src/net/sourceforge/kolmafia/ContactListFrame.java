@@ -38,6 +38,7 @@ import java.awt.Color;
 import java.awt.CardLayout;
 import java.awt.GridLayout;
 
+import javax.swing.JToolBar;
 import javax.swing.JDialog;
 import javax.swing.JTextArea;
 import javax.swing.JOptionPane;
@@ -77,20 +78,16 @@ public class ContactListFrame extends KoLFrame
 		framePanel.setLayout( new CardLayout( 10, 10 ) );
 		framePanel.add( new ContactListPanel(), "" );
 
-		this.toolbarPanel.add( new InvocationButton( "Show as list", "copy.gif", this, "listSelected" ) );
-		this.toolbarPanel.add( new InvocationButton( "Mass-buff", "buff.gif", this, "buffSelected" ) );
-		this.toolbarPanel.add( new InvocationButton( "Mass-mail", "mail.gif", this, "mailSelected" ) );
+		JToolBar toolbarPanel = getToolbar();
+		if ( toolbarPanel != null )
+		{
+			toolbarPanel.add( new InvocationButton( "Show as list", "copy.gif", this, "listSelected" ) );
+			toolbarPanel.add( new InvocationButton( "Mass-buff", "buff.gif", this, "buffSelected" ) );
+			toolbarPanel.add( new InvocationButton( "Mass-mail", "mail.gif", this, "mailSelected" ) );
+		}
 
 		setDefaultCloseOperation( HIDE_ON_CLOSE );
 		pack();
-	}
-
-	public void dispose()
-	{
-		contacts = null;
-		contactsDisplay = null;
-
-		super.dispose();
 	}
 
 	public Object [] getSelectedPlayers()
@@ -140,12 +137,10 @@ public class ContactListFrame extends KoLFrame
 
 	public void buffSelected()
 	{
-		Object [] parameters = new Object[3];
-		parameters[0] = StaticEntity.getClient();
-		parameters[1] = "Mass Buff";
-		parameters[2] = new SkillBuffPanel( convertToCDL() );
+		Object [] parameters = new Object[1];
+		parameters[0] = convertToCDL();
 
-		SwingUtilities.invokeLater( new CreateFrameRunnable( KoLPanelFrame.class, parameters ) );
+		(new RequestThread( new CreateFrameRunnable( SkillBuffFrame.class, parameters ) )).start();
 	}
 
 	public void mailSelected()
@@ -156,11 +151,10 @@ public class ContactListFrame extends KoLFrame
 		if ( getSelectedPlayers().length > 11 )
 			JOptionPane.showMessageDialog( null, "That's beyond ridiculous." );
 
-		Object [] parameters = new Object[2];
-		parameters[0] = StaticEntity.getClient();
-		parameters[1] = convertToCDL();
+		Object [] parameters = new Object[1];
+		parameters[0] = convertToCDL();
 
-		SwingUtilities.invokeLater( new CreateFrameRunnable( GreenMessageFrame.class, parameters ) );
+		(new RequestThread( new CreateFrameRunnable( GreenMessageFrame.class, parameters ) )).start();
 	}
 
 	private class ContactListPanel extends JPanel

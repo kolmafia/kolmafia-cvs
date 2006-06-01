@@ -52,6 +52,7 @@ public class SpecialOutfit implements Comparable
 	private String outfitName;
 	private ArrayList pieces;
 
+	public static SpecialOutfit CHECKPOINT = null;
 	public static final String NO_CHANGE = " - No Change - ";
 	public static final SpecialOutfit BIRTHDAY_SUIT = new SpecialOutfit();
 
@@ -66,6 +67,10 @@ public class SpecialOutfit implements Comparable
 	{
 		this.outfitID = outfitID;
 		this.outfitName = outfitName;
+
+		if ( this.outfitName.equals( "Custom: KoLmafia Checkpoint" ) )
+			CHECKPOINT = this;
+		
 		this.pieces = new ArrayList();
 	}
 
@@ -87,18 +92,15 @@ public class SpecialOutfit implements Comparable
 		return true;
 	}
 
-	public String [] getMissingPieces()
+	public String [] getPieces()
 	{
-		ArrayList missingPieces = new ArrayList();
+		ArrayList piecesList = new ArrayList();
 		for ( int i = 0; i < pieces.size(); ++i )
-			if ( !KoLCharacter.hasItem( (AdventureResult) pieces.get(i), false ) )
-				missingPieces.add( (AdventureResult) pieces.get(i) );
+			piecesList.add( ((AdventureResult) pieces.get(i)).getName() );
 
-		String [] missingArray = new String[ missingPieces.size() ];
-		for ( int i = 0; i < missingArray.length; ++i )
-			missingArray[i] = ((AdventureResult) pieces.get(i)).getName();
-
-		return missingArray;
+		String [] piecesArray = new String[ piecesList.size() ];
+		piecesList.toArray( piecesArray );
+		return piecesArray;
 	}
 
 
@@ -125,7 +127,46 @@ public class SpecialOutfit implements Comparable
 
 		return outfitName.compareToIgnoreCase( ((SpecialOutfit)o).outfitName );
 	}
+	
+	/**
+	 * Creates a checkpoint.  This should be called whenever
+	 * the player needs an outfit marked to revert to.
+	 */
 
+	public static void createCheckpoint()
+	{	(new EquipmentRequest( StaticEntity.getClient(), "KoLmafia Checkpoint" )).run();
+	}
+	
+	/**
+	 * Restores a checkpoint.  This should be called whenever
+	 * the player needs to revert to their checkpointed outfit.
+	 */
+	
+	public static void restoreCheckpoint()
+	{
+		if ( CHECKPOINT != null )
+		{
+			(new EquipmentRequest( StaticEntity.getClient(), CHECKPOINT )).run();
+			SpecialOutfit.deleteCheckpoint();
+		}
+	}
+	
+	/**
+	 * Deletes the checkpoint outfit, if present.  This should
+	 * be called whenever KoLmafia is done using the checkpoint.
+	 */
+
+	public static void deleteCheckpoint()
+	{
+		if ( CHECKPOINT != null )
+		{
+			(new KoLRequest( StaticEntity.getClient(), "account_manageoutfits.php?action=Yep.&delete" +
+				(0 - CHECKPOINT.getOutfitID()) + "=on" )).run();
+
+			CHECKPOINT = null;
+		}
+	}
+	
 	/**
 	 * Static method used to determine all of the custom outfits,
 	 * based on the given HTML enclosed in <code><select></code> tags.
@@ -139,6 +180,7 @@ public class SpecialOutfit implements Comparable
 			"<option value=(.*?)>(.*?)</option>" ).matcher( selectHTML );
 
 		int outfitID;
+		CHECKPOINT = null;
 		SortedListModel outfits = new SortedListModel();
 
 		while ( singleOutfitMatcher.find() )
@@ -147,7 +189,7 @@ public class SpecialOutfit implements Comparable
 			if ( outfitID < 0 )
 				outfits.add( new SpecialOutfit( outfitID, singleOutfitMatcher.group(2) ) );
 		}
-
+		
 		return outfits;
 	}
 }

@@ -78,8 +78,16 @@ public class ConcoctionsDatabase extends KoLDatabase
 	private static final AdventureResult ROLLING_PIN = new AdventureResult( 873, 1 );
 	private static final AdventureResult UNROLLING_PIN = new AdventureResult( 873, 1 );
 
+	private static final int TOMATO = 246;
 	private static final int DOUGH = 159;
 	private static final int FLAT_DOUGH = 301;
+
+	private static final AdventureResult DYSPEPSI = new AdventureResult( 347, 1 );
+	private static final AdventureResult CLOACA = new AdventureResult( 1334, 1 );
+	private static final AdventureResult SCHLITZ = new AdventureResult( 41, 1 );
+	private static final AdventureResult WILLER = new AdventureResult( 81, 1 );
+	private static final AdventureResult KETCHUP = new AdventureResult( 106, 1 );
+	private static final AdventureResult CATSUP = new AdventureResult( 107, 1 );
 
 	static
 	{
@@ -121,11 +129,10 @@ public class ConcoctionsDatabase extends KoLDatabase
 			}
 			catch ( Exception e )
 			{
-				// If an exception is thrown, then something bad
-				// happened, so do absolutely nothing.
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				StaticEntity.printStackTrace( e );
 			}
 		}
 
@@ -135,8 +142,10 @@ public class ConcoctionsDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -158,36 +167,50 @@ public class ConcoctionsDatabase extends KoLDatabase
 			// Handle plain pizza, which also allows flat dough
 			// to be used instead of wads of dough.
 
-			if ( ingredients[0].getItemID() == 246 && ingredients[1].getItemID() == 301 )
+			if ( ingredients[0].getItemID() == TOMATO && ingredients[1].getItemID() == FLAT_DOUGH )
 				return true;
-			if ( ingredients[1].getItemID() == 246 && ingredients[0].getItemID() == 301 )
+			if ( ingredients[1].getItemID() == TOMATO && ingredients[0].getItemID() == FLAT_DOUGH )
 				return true;
 
 			// Handle catsup recipes, which only exist in the
 			// item table as ketchup recipes.
 
-			if ( ingredients[0].getItemID() == 107 )
+			if ( ingredients[0].getItemID() == CATSUP.getItemID() )
 			{
-				ingredients[0] = new AdventureResult( 106, 1 );
+				ingredients[0] = KETCHUP;
 				return isKnownCombination( ingredients );
 			}
-			if ( ingredients[1].getItemID() == 107 )
+			if ( ingredients[1].getItemID() == CATSUP.getItemID() )
 			{
-				ingredients[1] = new AdventureResult( 106, 1 );
+				ingredients[1] = KETCHUP;
 				return isKnownCombination( ingredients );
 			}
 
 			// Handle ice-cold beer recipes, which only uses the
 			// recipe for item #41 at this time.
 
-			if ( ingredients[0].getItemID() == 81 )
+			if ( ingredients[0].getItemID() == WILLER.getItemID() )
 			{
-				ingredients[0] = new AdventureResult( 41, 1 );
+				ingredients[0] = SCHLITZ;
 				return isKnownCombination( ingredients );
 			}
-			if ( ingredients[1].getItemID() == 81 )
+			if ( ingredients[1].getItemID() == WILLER.getItemID() )
 			{
-				ingredients[1] = new AdventureResult( 41, 1 );
+				ingredients[1] = SCHLITZ;
+				return isKnownCombination( ingredients );
+			}
+
+			// Handle cloaca recipes, which only exist in the
+			// item table as dyspepsi cola.
+
+			if ( ingredients[0].getItemID() == CLOACA.getItemID() )
+			{
+				ingredients[0] = DYSPEPSI;
+				return isKnownCombination( ingredients );
+			}
+			if ( ingredients[1].getItemID() == CLOACA.getItemID() )
+			{
+				ingredients[1] = DYSPEPSI;
 				return isKnownCombination( ingredients );
 			}
 		}
@@ -233,33 +256,23 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 	private static AdventureResult parseIngredient( String data )
 	{
-		try
+		// If the ingredient is specified inside of brackets,
+		// then a specific item ID is being designated.
+
+		if ( data.startsWith( "[" ) )
 		{
-			// If the ingredient is specified inside of brackets,
-			// then a specific item ID is being designated.
+			int closeBracketIndex = data.indexOf( "]" );
+			String itemIDString = data.substring( 0, closeBracketIndex ).replaceAll( "[\\[\\]]", "" ).trim();
+			String quantityString = data.substring( closeBracketIndex + 1 ).trim();
 
-			if ( data.startsWith( "[" ) )
-			{
-				int closeBracketIndex = data.indexOf( "]" );
-				String itemIDString = data.substring( 0, closeBracketIndex ).replaceAll( "[\\[\\]]", "" ).trim();
-				String quantityString = data.substring( closeBracketIndex + 1 ).trim();
-
-				return new AdventureResult( df.parse( itemIDString ).intValue(), quantityString.length() == 0 ? 1 :
-					df.parse( quantityString.replaceAll( "[\\(\\)]", "" ) ).intValue() );
-			}
-
-			// Otherwise, it's a standard ingredient - use
-			// the standard adventure result parsing routine.
-
-			return AdventureResult.parseResult( data );
+			return new AdventureResult( Integer.parseInt( itemIDString ), quantityString.length() == 0 ? 1 :
+				Integer.parseInt( quantityString.replaceAll( "[\\(\\)]", "" ) ) );
 		}
-		catch ( Exception e )
-		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
 
-			return null;
-		}
+		// Otherwise, it's a standard ingredient - use
+		// the standard adventure result parsing routine.
+
+		return AdventureResult.parseResult( data );
 	}
 
 	public static synchronized SortedListModel getConcoctions()
@@ -318,30 +331,21 @@ public class ConcoctionsDatabase extends KoLDatabase
 		// concoction will use ADVs.
 
 		concoctions.get(0).total = KoLCharacter.getAdventuresLeft();
-
-		// Next, meat paste and meat stacks can be created directly
-		// and are dependent upon the amount of meat available.
-		// This should also be calculated to allow for meat stack
-		// recipes to be calculated.
-
-		concoctions.get( ItemCreationRequest.MEAT_PASTE ).creatable = KoLCharacter.getAvailableMeat() / 10;
-		concoctions.get( ItemCreationRequest.MEAT_PASTE ).total =
-			concoctions.get( ItemCreationRequest.MEAT_PASTE ).initial +
-				concoctions.get( ItemCreationRequest.MEAT_PASTE ).creatable;
-
-		concoctions.get( ItemCreationRequest.MEAT_STACK ).creatable = KoLCharacter.getAvailableMeat() / 100;
-		concoctions.get( ItemCreationRequest.MEAT_STACK ).total =
-			concoctions.get( ItemCreationRequest.MEAT_STACK ).initial +
-				concoctions.get( ItemCreationRequest.MEAT_STACK ).creatable;
-
-		concoctions.get( ItemCreationRequest.DENSE_STACK ).creatable = KoLCharacter.getAvailableMeat() / 1000;
-		concoctions.get( ItemCreationRequest.DENSE_STACK ).total =
-			concoctions.get( ItemCreationRequest.DENSE_STACK ).initial +
-				concoctions.get( ItemCreationRequest.DENSE_STACK ).creatable;
+		calculateMeatCombines( availableIngredients );
 
 		// Ice-cold beer and ketchup are special instances -- for the
 		// purposes of calculation, we assume that they will use the
 		// ingredient which is present in the greatest quantity.
+
+		int availableSoda = getBetterIngredient( DYSPEPSI, CLOACA, availableIngredients ).getCount( availableIngredients );
+
+		concoctions.get( DYSPEPSI.getItemID() ).initial = availableSoda;
+		concoctions.get( DYSPEPSI.getItemID() ).creatable = 0;
+		concoctions.get( DYSPEPSI.getItemID() ).total = availableSoda;
+
+		concoctions.get( CLOACA.getItemID() ).initial = availableSoda;
+		concoctions.get( CLOACA.getItemID() ).creatable = 0;
+		concoctions.get( CLOACA.getItemID() ).total = availableSoda;
 
 		int availableBeer = getBetterIngredient( SCHLITZ, WILLER, availableIngredients ).getCount( availableIngredients );
 
@@ -368,12 +372,8 @@ public class ConcoctionsDatabase extends KoLDatabase
 		// mixture before doing the calculation.
 
 		for ( int i = 1; i < concoctions.size(); ++i )
-		{
-			if ( concoctions.get(i).concoction.getName() == null )
-				continue;
-
-			concoctions.get(i).calculate( availableIngredients );
-		}
+			if ( concoctions.get(i).toString() != null )
+				concoctions.get(i).calculate( availableIngredients );
 
 		// Now, to update the list of creatables without removing
 		// all creatable items.  We do this by determining the
@@ -390,27 +390,45 @@ public class ConcoctionsDatabase extends KoLDatabase
 					concoctionsList.remove( ItemCreationRequest.getInstance( client, i, 0, false ) );
 					concoctions.get(i).setPossible( false );
 				}
-
-				continue;
-			}
-
-			// We can make the concoction now
-			ItemCreationRequest currentCreation = ItemCreationRequest.getInstance( client, i, concoctions.get(i).creatable );
-
-			if ( concoctions.get(i).wasPossible() )
-			{
-				if ( currentCreation.getCount( concoctionsList ) != concoctions.get(i).creatable )
-				{
-					concoctionsList.remove( currentCreation );
-					concoctionsList.add( currentCreation );
-				}
 			}
 			else
 			{
-				concoctionsList.add( currentCreation );
-				concoctions.get(i).setPossible( true );
+				// We can make the concoction now
+				ItemCreationRequest currentCreation = ItemCreationRequest.getInstance( client, i, concoctions.get(i).creatable );
+
+				if ( concoctions.get(i).wasPossible() )
+				{
+					if ( currentCreation.getCount( concoctionsList ) != concoctions.get(i).creatable )
+					{
+						concoctionsList.remove( currentCreation );
+						concoctionsList.add( currentCreation );
+					}
+				}
+				else
+				{
+					concoctionsList.add( currentCreation );
+					concoctions.get(i).setPossible( true );
+				}
 			}
 		}
+	}
+
+	private static void calculateMeatCombines( List availableIngredients )
+	{
+		// Meat paste and meat stacks can be created directly
+		// and are dependent upon the amount of meat available.
+
+		concoctions.get( PASTE.getItemID() ).initial = PASTE.getCount( availableIngredients );
+		concoctions.get( PASTE.getItemID() ).creatable = KoLCharacter.getAvailableMeat() / 10;
+		concoctions.get( PASTE.getItemID() ).total = concoctions.get( PASTE.getItemID() ).initial + concoctions.get( PASTE.getItemID() ).creatable;
+
+		concoctions.get( STACK.getItemID() ).initial = STACK.getCount( availableIngredients );
+		concoctions.get( STACK.getItemID() ).creatable = KoLCharacter.getAvailableMeat() / 100;
+		concoctions.get( STACK.getItemID() ).total = concoctions.get( STACK.getItemID() ).initial + concoctions.get( STACK.getItemID() ).creatable;
+
+		concoctions.get( DENSE.getItemID() ).initial = DENSE.getCount( availableIngredients );
+		concoctions.get( DENSE.getItemID() ).creatable = KoLCharacter.getAvailableMeat() / 1000;
+		concoctions.get( DENSE.getItemID() ).total = concoctions.get( DENSE.getItemID() ).initial + concoctions.get( DENSE.getItemID() ).creatable;
 	}
 
 	/**
@@ -420,6 +438,8 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 	private static void cachePermitted( List availableIngredients )
 	{
+		calculateMeatCombines( availableIngredients );
+
 		// It is never possible to create items which are flagged
 		// NOCREATE, and it is always possible to create items
 		// through meat paste combination.
@@ -541,6 +561,18 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 		PERMIT_METHOD[ ItemCreationRequest.MIX_SPECIAL ] = PERMIT_METHOD[ ItemCreationRequest.MIX ] && KoLCharacter.canSummonShore();
 		ADVENTURE_USAGE[ ItemCreationRequest.MIX_SPECIAL ] = ADVENTURE_USAGE[ ItemCreationRequest.MIX ];
+
+		// Using Crosby Nash's Still is possible if the person has
+		// Superhuman Cocktailcrafting and is a Moxie class
+		// character. However, until we learn how to operate the still,
+		// we'll mark it unavailable
+
+		boolean hasStillsAvailable = KoLCharacter.getStillsAvailable() > 0;
+		PERMIT_METHOD[ ItemCreationRequest.STILL_MIXER ] = hasStillsAvailable;
+		ADVENTURE_USAGE[ ItemCreationRequest.STILL_MIXER ] = 0;
+
+		PERMIT_METHOD[ ItemCreationRequest.STILL_BOOZE ] = hasStillsAvailable;
+		ADVENTURE_USAGE[ ItemCreationRequest.STILL_BOOZE ] = 0;
 	}
 
 	private static boolean isAvailable( int servantID, int clockworkID )
@@ -573,11 +605,6 @@ public class ConcoctionsDatabase extends KoLDatabase
 	public static int getMixingMethod( int itemID )
 	{	return concoctions.get( itemID ).getMixingMethod();
 	}
-
-	private static final AdventureResult SCHLITZ = new AdventureResult( 41, 1 );
-	private static final AdventureResult WILLER = new AdventureResult( 81, 1 );
-	private static final AdventureResult KETCHUP = new AdventureResult( 106, 1 );
-	private static final AdventureResult CATSUP = new AdventureResult( 107, 1 );
 
 	/**
 	 * Returns the item IDs of the ingredients for the given item.
@@ -731,8 +758,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 			for ( int i = 0; i < ingredientArray.length; ++i )
 				concoctions.get( ingredientArray[i].getItemID() ).calculate( availableIngredients );
 
-			boolean inMuscleSign = KoLCharacter.inMuscleSign();
-			this.mark( 0, 1, inMuscleSign );
+			this.mark( 0, 1 );
 
 			// With all of the data preprocessed, calculate
 			// the quantity creatable by solving the set of
@@ -750,7 +776,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 			{
 				this.total = Integer.MAX_VALUE;
 				for ( int i = 0; i < ingredientArray.length; ++i )
-					this.total = Math.min( this.total, concoctions.get( ingredientArray[i].getItemID() ).quantity( inMuscleSign ) );
+					this.total = Math.min( this.total, concoctions.get( ingredientArray[i].getItemID() ).quantity() );
 
 				// The total available for other creations is equal
 				// to the total, less the initial.
@@ -770,7 +796,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 		 * a recipe based on the modifier/multiplier of its ingredients
 		 */
 
-		private int quantity( boolean inMuscleSign )
+		private int quantity()
 		{
 			// If there is no multiplier, assume that an infinite
 			// number is available.
@@ -786,9 +812,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 			// Avoid mutual recursion.
 
-			if ( mixingMethod == ItemCreationRequest.ROLLING_PIN ||
-			     mixingMethod == ItemCreationRequest.CLOVER ||
-			     !isPermittedMethod( mixingMethod ) )
+			if ( mixingMethod == ItemCreationRequest.ROLLING_PIN || mixingMethod == ItemCreationRequest.CLOVER || !isPermittedMethod( mixingMethod ) )
 				return quantity;
 
 			// The true value is affected by the maximum value for
@@ -797,7 +821,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 			// of the linear inequality.
 
 			for ( int i = 0; quantity > 0 && i < ingredientArray.length; ++i )
-				quantity = Math.min( quantity, concoctions.get( ingredientArray[i].getItemID() ).quantity( inMuscleSign ) );
+				quantity = Math.min( quantity, concoctions.get( ingredientArray[i].getItemID() ).quantity() );
 
 			// Adventures are also considered an ingredient; if
 			// no adventures are necessary, the multiplier should
@@ -805,13 +829,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 			// no effect on the calculation.
 
 			if ( quantity > 0 && this != concoctions.get(0) )
-				quantity = Math.min( quantity, concoctions.get(0).quantity( inMuscleSign ) );
-
-			// If this is item combination and the person is in a
-			// non-muscle sign, item creation requires meat paste.
-
-			if ( quantity > 0 && mixingMethod == ItemCreationRequest.COMBINE && !inMuscleSign )
-				quantity = Math.min( quantity, concoctions.get( ItemCreationRequest.MEAT_PASTE ).quantity( inMuscleSign ) );
+				quantity = Math.min( quantity, concoctions.get(0).quantity() );
 
 			// The true value is now calculated.  Return this
 			// value to the requesting method.
@@ -824,16 +842,14 @@ public class ConcoctionsDatabase extends KoLDatabase
 		 * the given added modifier and the given additional multiplier.
 		 */
 
-		private void mark( int modifier, int multiplier, boolean inMuscleSign )
+		private void mark( int modifier, int multiplier )
 		{
 			this.modifier += modifier;
 			this.multiplier += multiplier;
 
 			// Avoid mutual recursion
 
-			if ( mixingMethod == ItemCreationRequest.ROLLING_PIN ||
-			     mixingMethod == ItemCreationRequest.CLOVER ||
-			     !isPermittedMethod( mixingMethod ) )
+			if ( mixingMethod == ItemCreationRequest.ROLLING_PIN || mixingMethod == ItemCreationRequest.CLOVER || !isPermittedMethod( mixingMethod ) )
 				return;
 
 			// Mark all the ingredients, being sure to multiply
@@ -844,34 +860,21 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 			for ( int i = 0; i < ingredientArray.length; ++i )
 			{
-				// In order to ensure that the multiplier
-				// is added correctly, make sure you count
-				// the ingredient as many times as it appears,
-				// but only multi-count the ingredient once.
-
+				boolean shouldMark = true;
 				instanceCount = ingredientArray[i].getCount();
 
 				for ( int j = 0; j < i; ++j )
-					if ( ingredientArray[i].getItemID() == ingredientArray[j].getItemID() )
-						instanceCount += ingredientArray[j].getCount();
+					shouldMark &= ingredientArray[i].getItemID() != ingredientArray[j].getItemID();
 
-				// If the ingredient has already been counted
-				// before, continue with the next ingredient.
+				if ( shouldMark )
+				{
+					for ( int j = i + 1; j < ingredientArray.length; ++j )
+						if ( ingredientArray[i].getItemID() == ingredientArray[j].getItemID() )
+							instanceCount += ingredientArray[j].getCount();
 
-				if ( instanceCount > ingredientArray[i].getCount() )
-					continue;
-
-				// Now that you know that this is the first
-				// time the ingredient has been seen, proceed.
-
-				instanceCount = ingredientArray[i].getCount();
-
-				for ( int j = i + 1; j < ingredientArray.length; ++j )
-					if ( ingredientArray[i].getItemID() == ingredientArray[j].getItemID() )
-						instanceCount += ingredientArray[j].getCount();
-
-				concoctions.get( ingredientArray[i].getItemID() ).mark(
-					(this.modifier + this.initial) * instanceCount, this.multiplier * instanceCount, inMuscleSign );
+					concoctions.get( ingredientArray[i].getItemID() ).mark(
+							(this.modifier + this.initial) * instanceCount, this.multiplier * instanceCount );
+				}
 			}
 
 			// Mark the implicit adventure ingredient, being
@@ -880,14 +883,7 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 			if ( this != concoctions.get(0) && ADVENTURE_USAGE[ mixingMethod ] != 0 )
 				concoctions.get(0).mark( (this.modifier + this.initial) * ADVENTURE_USAGE[ mixingMethod ],
-					this.multiplier * ADVENTURE_USAGE[ mixingMethod ], inMuscleSign );
-
-			// In the event that this is a standard combine request,
-			// and the person is not in a muscle sign, make sure that
-			// meat paste is marked as a limiter also.
-
-			if ( mixingMethod == ItemCreationRequest.COMBINE && !inMuscleSign )
-				concoctions.get( ItemCreationRequest.MEAT_PASTE ).mark( this.modifier + this.initial, this.multiplier, inMuscleSign );
+					this.multiplier * ADVENTURE_USAGE[ mixingMethod ] );
 		}
 
 		/**
@@ -908,9 +904,24 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 			if ( this != concoctions.get(0) )
 				concoctions.get(0).unmark();
+		}
 
-			if ( mixingMethod == ItemCreationRequest.COMBINE )
-				concoctions.get( ItemCreationRequest.MEAT_PASTE ).unmark();
+		private int getMeatPasteNeeded()
+		{
+			// Avoid mutual recursion.
+
+			if ( mixingMethod == ItemCreationRequest.ROLLING_PIN || mixingMethod == ItemCreationRequest.CLOVER || !isPermittedMethod( mixingMethod ) )
+				return 0;
+
+			// Count all the meat paste from the different
+			// levels in the creation tree.
+
+			int runningTotal = 0;
+			for ( int i = 0; i < ingredientArray.length; ++i )
+				runningTotal += concoctions.get( ingredientArray[i].getItemID() ).getMeatPasteNeeded();
+
+			runningTotal += this.creatable;
+			return runningTotal;
 		}
 
 		/**

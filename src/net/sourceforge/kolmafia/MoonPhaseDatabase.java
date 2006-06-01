@@ -35,6 +35,7 @@
 package net.sourceforge.kolmafia;
 
 import java.util.Date;
+import java.util.Calendar;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -63,11 +64,10 @@ public class MoonPhaseDatabase extends StaticEntity
 		}
 		catch ( Exception e )
 		{
-			// Because the date string was manually
-			// constructed, this error will not happen.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -86,8 +86,10 @@ public class MoonPhaseDatabase extends StaticEntity
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -141,7 +143,10 @@ public class MoonPhaseDatabase extends StaticEntity
 
 	public static final int SP_NOTHING = 0;
 	public static final int SP_HOLIDAY = 1;
-	public static int SP_STATDAY = 2;
+
+	public static int SP_MUSDAY = 2;
+	public static int SP_MYSDAY = 3;
+	public static int SP_MOXDAY = 4;
 
 	static
 	{
@@ -155,25 +160,25 @@ public class MoonPhaseDatabase extends StaticEntity
 		// KoL calendar.
 
 		for ( int i = 8; i < 96; i += 16 )
-			SPECIAL[i] = SP_STATDAY;
+			SPECIAL[i] = SP_MUSDAY;
 		for ( int i = 9; i < 96; i += 16 )
-			SPECIAL[i] = SP_STATDAY;
+			SPECIAL[i] = SP_MUSDAY;
 
 		// Mysticism days occur every phase 4 and phase 12 on the
 		// KoL calendar.
 
 		for ( int i = 4; i < 96; i += 16 )
-			SPECIAL[i] = SP_STATDAY;
+			SPECIAL[i] = SP_MYSDAY;
 		for ( int i = 12; i < 96; i += 16 )
-			SPECIAL[i] = SP_STATDAY;
+			SPECIAL[i] = SP_MYSDAY;
 
 		// Moxie days occur every phase 0 and phase 15 on the
 		// KoL calendar.
 
 		for ( int i = 0; i < 96; i += 16 )
-			SPECIAL[i] = SP_STATDAY;
+			SPECIAL[i] = SP_MOXDAY;
 		for ( int i = 15; i < 96; i += 16 )
-			SPECIAL[i] = SP_STATDAY;
+			SPECIAL[i] = SP_MOXDAY;
 
 		// Next, fill in the holidays.  These are manually
 		// computed based on the recurring day in the year
@@ -367,6 +372,15 @@ public class MoonPhaseDatabase extends StaticEntity
 
 	/**
 	 * Utility method which determines the moonlight available,
+	 * given the current moon phases.
+	 */
+
+	public static final int getMoonlight()
+	{	return getMoonlight( RONALD_PHASE, GRIMACE_PHASE );
+	}
+
+	/**
+	 * Utility method which determines the moonlight available,
 	 * given the moon phases as stated.
 	 */
 
@@ -440,19 +454,45 @@ public class MoonPhaseDatabase extends StaticEntity
 	 */
 
 	public static boolean isHoliday( Date time )
-	{	return SPECIAL[ getCalendarDay( time ) ] == SP_HOLIDAY;
+	{
+		return SPECIAL[ getCalendarDay( time ) ] == SP_HOLIDAY ||
+			getRealLifeHoliday( sdf.format( time ) ) != null;
 	}
 
 	/**
 	 * Returns whether or not the given day's most important
-	 * attribute is being a stat day.  Note that this ranks
+	 * attribute is being a muscle day.  Note that this ranks
 	 * behind being a holiday, so holidays which are also stat
 	 * days (Halloween and Oyster Egg Day, for example), will
 	 * not be recognized as "stat days" in this method.
 	 */
 
-	public static boolean isStatDay( Date time )
-	{	return SPECIAL[ getCalendarDay( time ) ] == SP_STATDAY;
+	public static boolean isMuscleDay( Date time )
+	{	return SPECIAL[ getCalendarDay( time ) ] == SP_MUSDAY;
+	}
+
+	/**
+	 * Returns whether or not the given day's most important
+	 * attribute is being a mysticality day.  Note that this ranks
+	 * behind being a holiday, so holidays which are also stat
+	 * days (Halloween and Oyster Egg Day, for example), will
+	 * not be recognized as "stat days" in this method.
+	 */
+
+	public static boolean isMysticalityDay( Date time )
+	{	return SPECIAL[ getCalendarDay( time ) ] == SP_MYSDAY;
+	}
+
+	/**
+	 * Returns whether or not the given day's most important
+	 * attribute is being a moxie day.  Note that this ranks
+	 * behind being a holiday, so holidays which are also stat
+	 * days (Halloween and Oyster Egg Day, for example), will
+	 * not be recognized as "stat days" in this method.
+	 */
+
+	public static boolean isMoxieDay( Date time )
+	{	return SPECIAL[ getCalendarDay( time ) ] == SP_MOXDAY;
 	}
 
 	/**
@@ -472,8 +512,29 @@ public class MoonPhaseDatabase extends StaticEntity
 			if ( SPECIAL[i] == SP_HOLIDAY )
 			{
 				calendarDayAsArray = convertCalendarDayToArray( i );
+				int currentEstimate = (i - currentCalendarDay + 96) % 96;
+
+				String holiday = HOLIDAYS[ calendarDayAsArray[0] ][ calendarDayAsArray[1] ];
+
+				String testDate = null;
+				String testResult = null;
+
+				Calendar holidayTester = Calendar.getInstance();
+				holidayTester.setTime( time );
+
+				for ( int j = 0; j < currentEstimate; ++j )
+				{
+					testDate = sdf.format( holidayTester.getTime() );
+					testResult = getRealLifeHoliday( testDate );
+
+					if ( testResult != null && testResult.equals( holiday ) )
+						currentEstimate = j;
+
+					holidayTester.add( Calendar.DATE, 1 );
+				}
+
 				predictionsList.add( HOLIDAYS[ calendarDayAsArray[0] ][ calendarDayAsArray[1] ] + ": " +
-					getDayCountAsString( (i - currentCalendarDay + 96) % 96 ) );
+					getDayCountAsString( currentEstimate ) );
 			}
 		}
 
@@ -490,6 +551,116 @@ public class MoonPhaseDatabase extends StaticEntity
 	public static final String getHoliday( Date time )
 	{
 		int [] calendarDayAsArray = convertCalendarDayToArray( getCalendarDay( time ) );
-		return HOLIDAYS[ calendarDayAsArray[0] ][ calendarDayAsArray[1] ];
+		String gameHoliday = HOLIDAYS[ calendarDayAsArray[0] ][ calendarDayAsArray[1] ];
+
+		if ( gameHoliday.equals( "No known holiday today." ) )
+			gameHoliday = null;
+
+		String realHoliday = getRealLifeHoliday( sdf.format( time ) );
+
+		return gameHoliday == null && realHoliday == null ? "No known holiday today." :
+			gameHoliday == null ? realHoliday : realHoliday == null ? gameHoliday :
+			realHoliday + " / " + gameHoliday;
 	}
+
+	private static String cachedYear = "";
+	private static String easter = "";
+	private static String thanksgiving = "";
+
+	public static String getRealLifeHoliday( String stringDate )
+	{
+		String currentYear = stringDate.substring( 0, 4 );
+		if ( !currentYear.equals( cachedYear ) )
+		{
+			cachedYear = currentYear;
+			Calendar holidayFinder = Calendar.getInstance();
+
+			// Apparently, Easter isn't the second Sunday in April;
+			// it actually depends on the occurrence of the first
+			// ecclesiastical full moon after the Spring Equinox
+			// (http://aa.usno.navy.mil/faq/docs/easter.html)
+
+			int y = Integer.parseInt( currentYear );
+			int c = y / 100;
+			int n = y - 19 * ( y / 19 );
+			int k = ( c - 17 ) / 25;
+			int i = c - c / 4 - ( c - k ) / 3 + 19 * n + 15;
+			i = i - 30 * ( i / 30 );
+			i = i - ( i / 28 ) * ( 1 - ( i / 28 ) * ( 29 / ( i + 1 ) ) * ( ( 21 - n ) / 11 ) );
+			int j = y + y / 4 + i + 2 - c + c / 4;
+			j = j - 7 * ( j / 7 );
+			int l = i - j;
+			int m = 3 + ( l + 40 ) / 44;
+			int d = l + 28 - 31 * ( m / 4 );
+
+			holidayFinder.set( Calendar.YEAR, y );
+			holidayFinder.set( Calendar.MONTH, m - 1 );
+			holidayFinder.set( Calendar.DAY_OF_MONTH, d );
+			easter = sdf.format( holidayFinder.getTime() );
+
+			// Calculating Thanksgiving is easier -- just detect
+			// what day is the start of November and adjust.
+
+			holidayFinder.set( Calendar.DAY_OF_MONTH, 1 );
+			holidayFinder.set( Calendar.MONTH, Calendar.NOVEMBER );
+			switch ( holidayFinder.get( Calendar.DAY_OF_WEEK ) )
+			{
+				case Calendar.FRIDAY:
+					thanksgiving = "1128";
+					break;
+				case Calendar.SATURDAY:
+					thanksgiving = "1127";
+					break;
+				case Calendar.SUNDAY:
+					thanksgiving = "1126";
+					break;
+				case Calendar.MONDAY:
+					thanksgiving = "1125";
+					break;
+				case Calendar.TUESDAY:
+					thanksgiving = "1124";
+					break;
+				case Calendar.WEDNESDAY:
+					thanksgiving = "1123";
+					break;
+				case Calendar.THURSDAY:
+					thanksgiving = "1122";
+					break;
+			}
+		}
+
+		// Real-life holiday list borrowed from JRSiebz's
+		// variables for holidays on the KoL JS Almanac
+		// (http://home.cinci.rr.com/jrsiebz/KoL/almanac.html)
+
+		if ( stringDate.endsWith( "0202" ) )
+			return "Groundhog Day";
+
+		if ( stringDate.endsWith( "0214" ) )
+			return "Valentine's Day";
+
+		if ( stringDate.endsWith( "0317" ) )
+			return "St. Sneaky Pete's Day";
+
+		if ( stringDate.endsWith( "0401" ) )
+			return "April Fool's Day";
+
+		if ( stringDate.equals( easter ) )
+			return "Oyster Egg Day";
+
+		if ( stringDate.endsWith( "0919" ) )
+			return "Talk Like a Pirate Day";
+
+		if ( stringDate.endsWith( "1031" ) )
+			return "Halloween";
+
+		if ( stringDate.endsWith( thanksgiving ) )
+			return "Feast of Boris";
+
+		if ( stringDate.endsWith( "1225" ) )
+			return "Crimbo";
+
+		return null;
+	}
+
 }

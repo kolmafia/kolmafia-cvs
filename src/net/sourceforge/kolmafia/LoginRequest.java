@@ -43,10 +43,12 @@ package net.sourceforge.kolmafia;
 
 public class LoginRequest extends KoLRequest
 {
-	private String loginname;
+	private static boolean INSTANCE_RUNNING = false;
+
+	private String username;
 	private String password;
-	private boolean getBreakfast;
 	private boolean savePassword;
+	private boolean getBreakfast;
 
 	/**
 	 * Constructs a new <code>LoginRequest</code>.  The given
@@ -58,17 +60,24 @@ public class LoginRequest extends KoLRequest
 	 * @param	getBreakfast	Whether or not the client should retrieve breakfast after login
 	 */
 
-	public LoginRequest( KoLmafia client, String loginname, String password, boolean savePassword, boolean getBreakfast )
+	public LoginRequest( KoLmafia client, String username, String password )
+	{
+		this( client, username, password, true,
+				GLOBAL_SETTINGS.getProperty( "getBreakfast." + username ) != null &&
+				GLOBAL_SETTINGS.getProperty( "getBreakfast." + username ).equals( "true" ) );
+	}
+
+	public LoginRequest( KoLmafia client, String username, String password, boolean savePassword, boolean getBreakfast )
 	{
 		super( client, "login.php" );
 
-		this.loginname = loginname;
+		this.username = username.replaceFirst( "/[qQ]", "" );
 		this.password = password;
 		this.savePassword = savePassword;
 		this.getBreakfast = getBreakfast;
 
 		addFormField( "loggingin", "Yup." );
-		addFormField( "loginname", loginname );
+		addFormField( "loginname", this.username + "/q" );
 		addFormField( "password", password );
 	}
 
@@ -79,6 +88,19 @@ public class LoginRequest extends KoLRequest
 	 */
 
 	public void run()
+	{
+		if ( INSTANCE_RUNNING )
+			return;
+
+		synchronized ( LoginRequest.class )
+		{
+			INSTANCE_RUNNING = true;
+			executeLogin();
+			INSTANCE_RUNNING = false;
+		}
+	}
+
+	public void executeLogin()
 	{
 		DEFAULT_SHELL.updateDisplay( "Determining login server..." );
 		KoLRequest.applySettings();
@@ -100,14 +122,12 @@ public class LoginRequest extends KoLRequest
 			// of success.  But first, if there was a desire to
 			// save the password, do so here.
 
-			if ( savePassword )
-				client.addSaveState( loginname.replaceFirst( "/q", "" ), password );
-			else
-				client.removeSaveState( loginname.replaceFirst( "/q", "" ) );
+			if ( this.savePassword )
+				client.addSaveState( username, password );
 
-			client.initialize( loginname.replaceFirst( "/q", "" ), formConnection.getHeaderField( "Set-Cookie" ), this.getBreakfast );
+			client.initialize( username, formConnection.getHeaderField( "Set-Cookie" ), this.getBreakfast );
 			client.cachedLogin = client.getPasswordHash() == null ? null :
-				new LoginRequest( client, loginname, password, savePassword, this.getBreakfast );
+				new LoginRequest( client, username, password );
 		}
 		else
 		{

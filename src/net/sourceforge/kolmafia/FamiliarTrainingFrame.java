@@ -64,7 +64,7 @@ import javax.swing.JEditorPane;
 import javax.swing.ImageIcon;
 
 // utilities
-import java.lang.Math;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.TreeSet;
 import java.io.File;
@@ -87,7 +87,9 @@ public class FamiliarTrainingFrame extends KoLFrame
 {
 	private static ChatBuffer results = new ChatBuffer( "Arena Tracker" );
 	private static boolean stop = false;
+
 	private FamiliarTrainingPanel training;
+	private KoLCharacterAdapter weightListener;
 
 	public static final int BASE = 1;
 	public static final int BUFFED = 2;
@@ -98,7 +100,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 	private static final int DODECAPEDE = 38;
 
 	// Familiar buffing skills and effects
-	private static final AdventureResult EMPATHY = new AdventureResult( "Empathy", 0, true );
+	public static final AdventureResult EMPATHY = new AdventureResult( "Empathy", 0, true );
 	private static final AdventureResult LEASH = new AdventureResult( "Leash of Linguini", 0, true );
 	private static final AdventureResult GREEN_TONGUE = new AdventureResult( "Green Tongue", 0, true );
 	private static final AdventureResult BLACK_TONGUE = new AdventureResult( "Black Tongue", 0, true );
@@ -108,18 +110,31 @@ public class FamiliarTrainingFrame extends KoLFrame
 	private static final AdventureResult PITH_HELMET = new AdventureResult( "plexiglass pith helmet", 0, false );
 	private static final AdventureResult LEAD_NECKLACE = new AdventureResult( "lead necklace", 0, false );
 	private static final AdventureResult RAT_HEAD_BALLOON = new AdventureResult( "rat head balloon", 0, false );
+
 	private static final int firstTinyPlastic = 969;
 	private static final int lastTinyPlastic = 988;
 	private static final int firstTinyPlasticCrimbo = 1377;
 	private static final int lastTinyPlasticCrimbo = 1378;
 
+
+	// Available skills which affect weight
+	private static boolean sympathyAvailable;
+	private static boolean leashAvailable;
+	private static boolean empathyAvailable;
+	private static boolean heavyPettingAvailable;
+
+	// Active effects which affect weight
+	private static int leashActive;
+	private static int empathyActive;
+	private static int greenTongueActive;
+	private static int blackTongueActive;
+	private static int heavyPettingActive;
+
 	public FamiliarTrainingFrame()
 	{
 		super( "Familiar Trainer" );
 
-		CardLayout cards = new CardLayout( 10, 10 );
-		framePanel.setLayout( cards );
-
+		framePanel.setLayout( new CardLayout( 10, 10 ) );
 		training = new FamiliarTrainingPanel();
 		framePanel.add( training, "" );
 
@@ -130,6 +145,8 @@ public class FamiliarTrainingFrame extends KoLFrame
 	public void dispose()
 	{
 		stop = true;
+		KoLCharacter.removeCharacterListener( weightListener );
+
 		super.dispose();
 	}
 
@@ -141,6 +158,8 @@ public class FamiliarTrainingFrame extends KoLFrame
 	{
 		private FamiliarData familiar;
 		private JComboBox familiars;
+		private JLabel winCount;
+		private JLabel prizeCounter;
 		private JLabel totalWeight;
 
 		private OpponentsPanel opponentsPanel;
@@ -177,11 +196,28 @@ public class FamiliarTrainingFrame extends KoLFrame
 			buttonPanel = new ButtonPanel();
 			buttonContainer.add( buttonPanel, BorderLayout.NORTH );
 
-			// Put the total familiar weight next
+			// List of counters at bottom
+			JPanel counterPanel = new JPanel();
+			counterPanel.setLayout( new GridLayout( 3, 1 ) );
+
+			// First the win counter
+			winCount = new JLabel( "", JLabel.CENTER );
+			counterPanel.add( winCount );
+
+			// Next the prize counter
+			prizeCounter = new JLabel( "", JLabel.CENTER );
+			counterPanel.add( prizeCounter );
+
+			// Finally the total familiar weight
 			totalWeight = new JLabel( "", JLabel.CENTER );
-			TotalWeightRefresher runnable = new TotalWeightRefresher();
-			KoLCharacter.addCharacterListener( new KoLCharacterAdapter( runnable ) );
-			buttonContainer.add( totalWeight, BorderLayout.SOUTH );
+			counterPanel.add( totalWeight );
+
+			// Make a refresher for the counters
+			weightListener = new KoLCharacterAdapter( new TotalWeightRefresher() );
+			KoLCharacter.addCharacterListener( weightListener );
+
+			// Show the counters
+			buttonContainer.add( counterPanel, BorderLayout.SOUTH );
 
 			add( buttonContainer, BorderLayout.EAST );
 		}
@@ -194,6 +230,15 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 			public void run()
 			{
+				// Arena wins
+				int arenaWins = KoLCharacter.getArenaWins();
+				winCount.setText( arenaWins + " arena wins" );
+
+				// Wins to next prize
+				int nextPrize = 10 - ( arenaWins % 10 );
+				prizeCounter.setText( nextPrize + " wins to next prize" );
+
+				// Terrarium weight
 				int totalTerrariumWeight = 0;
 
 				FamiliarData [] familiarArray = new FamiliarData[ KoLCharacter.getFamiliarList().size() ];
@@ -222,9 +267,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 			public OpponentsPanel()
 			{
 				// Get current opponents
-				LockableListModel opponents = CakeArenaManager.getOpponentList( StaticEntity.getClient() );
-				StaticEntity.getClient().enableDisplay();
-
+				LockableListModel opponents = CakeArenaManager.getOpponentList();
 				int opponentCount = opponents.size();
 
 				setLayout( new GridLayout( opponentCount, 1, 0, 20 ) );
@@ -389,8 +432,10 @@ public class FamiliarTrainingFrame extends KoLFrame
 					}
 					catch ( Exception ex )
 					{
-						ex.printStackTrace( KoLmafia.getLogStream() );
-						ex.printStackTrace();
+						// This should not happen.  Therefore, print
+						// a stack trace for debug purposes.
+
+						StaticEntity.printStackTrace( ex );
 					}
 				}
 			}
@@ -515,6 +560,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 			{
 				FamiliarData selection = (FamiliarData)getSelectedItem();
 				(new FamiliarRequest( StaticEntity.getClient(), selection )).run();
+				StaticEntity.getClient().updateDisplay( "Familiar changed." );
 				familiar = KoLCharacter.getFamiliar();
 				isChanging = false;
 			}
@@ -577,7 +623,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		results.append( "<br>" );
 
 		// Get opponent list
-		LockableListModel opponents = CakeArenaManager.getOpponentList( StaticEntity.getClient() );
+		LockableListModel opponents = CakeArenaManager.getOpponentList();
 
 		// Print the opponents
 		printOpponents( opponents );
@@ -587,7 +633,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		FamiliarTool tool = new FamiliarTool( opponents );
 
 		// Let the battles begin!
-		DEFAULT_SHELL.updateDisplay( "Starting training session." );
+		DEFAULT_SHELL.updateDisplay( "Starting training session..." );
 
 		// Iterate until we reach the goal
 		while ( !goalMet( status, goal, type) )
@@ -708,7 +754,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		results.append( "<br>" );
 
 		// Get opponent list
-		LockableListModel opponents = CakeArenaManager.getOpponentList( StaticEntity.getClient() );
+		LockableListModel opponents = CakeArenaManager.getOpponentList();
 
 		// Print the opponents
 		printOpponents( opponents );
@@ -718,7 +764,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		FamiliarTool tool = new FamiliarTool( opponents );
 
 		// Let the battles begin!
-		DEFAULT_SHELL.updateDisplay( "Starting training session." );
+		DEFAULT_SHELL.updateDisplay( "Starting training session..." );
 
 		// XP earned indexed by [event][rank]
 		int [][] xp = new int[4][3];
@@ -861,6 +907,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 	public static boolean buffFamiliar( int weight )
 	{
 		// Get current familiar. If none, punt.
+
 		FamiliarData familiar = KoLCharacter.getFamiliar();
 		if ( familiar == FamiliarData.NO_FAMILIAR )
 		{
@@ -868,49 +915,44 @@ public class FamiliarTrainingFrame extends KoLFrame
 			return false;
 		}
 
-		// See if it's heavy enough right now
+		// If the familiar is already heavy enough, nothing to do
 		if ( familiar.getModifiedWeight() >= weight )
 			return true;
 
-		// Get the status of current familiar
 		FamiliarStatus status = new FamiliarStatus();
+		boolean needBuffs = false;
+		int goal = 0;
 
-		// Initially, allow buffs
-		boolean buffs = true;
-
-		// Try to buff and equip to reach goal
-		while ( true )
+		while ( goal < weight )
 		{
-			// Find possible weights
-			int [] weights = status.getWeights( buffs );
+			// Calculate possible weights
+			int [] weights = status.getWeights( needBuffs );
+			Arrays.sort( weights );
 
-			// Examine list and see if it is possible
-			int goal = 0;
-			for (int i = 0; i < weights.length; ++i )
+			// Find the first one which meets or exceeds goal
+			for ( int i = 0; goal < weight && i < weights.length; ++i )
+				goal = Math.max( goal, weights[i] );
+
+			// If we found one, use it
+			if ( goal >= weight )
 			{
-				goal = weights[i];
-				if ( goal >= weight )
+				// Change gear and buff up
+				status.changeGear( goal, needBuffs );
+
+				// If we failed to buff, give up
+				if ( familiar.getModifiedWeight() < weight )
 					break;
+
+				// Otherwise, we're good to go
+				return true;
 			}
 
-			// Punt if goal is not possible
-			if ( goal < weight )
+			// If we've already tried using buffs, give up now
+			if ( needBuffs )
 				break;
 
-			// Change into appropriate gear
-			status.changeGear( goal, buffs );
-
-			// See if we succeeded
-			if ( StaticEntity.getClient().permitsContinue() )
-				return true;
-
-			// If we failed using only equipment, punt.
-			if ( !buffs )
-				break;
-
-			// Perhaps we failed to cast a buff. Try again
-			// using nothing but equipment.
-			buffs = false;
+			// Try again with buffs
+			needBuffs = true;
 		}
 
 		DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Can't buff and equip familiar to reach " + weight + " lbs." );
@@ -967,16 +1009,94 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 	private static boolean goalMet( FamiliarStatus status, int goal, int type )
 	{
-		switch (type)
+		switch ( type )
 		{
-		case BASE:
-			return ( status.baseWeight() >= goal );
+			case BASE:
+				return ( status.baseWeight() >= goal );
 
-		case BUFFED:
-			return ( status.maxBuffedWeight() >= goal );
+			case BUFFED:
+			{
+				boolean goalReached = status.maxBuffedWeight() >= goal;
+				if ( goalReached || !KoLCharacter.canInteract() || goal != 20 )
+					return goalReached;
 
-		case TURNS:
-			return ( status.turnsUsed() >= goal );
+				// If the player is currently out of Ronin, then they have
+				// the option of automatically purchasing their familiar item,
+				// pet-buffing spray, empathy and a green snowcone, which will
+				// boost you straight to 20 pounds without any skills.
+
+				int poundsNeeded = goal - status.maxBuffedWeight();
+
+				// If you're out of Ronin, pet-buffing spray is still
+				// available in the mall.  Check this option first.
+
+				if ( !heavyPettingAvailable && heavyPettingActive == 0 )
+				{
+					poundsNeeded -= 5;
+					DEFAULT_SHELL.executeLine( "buy Knob Goblin pet-buffing spray" );
+					status = new FamiliarStatus();
+				}
+
+				if ( poundsNeeded <= 0 )
+					return true;
+
+				// First, check their current familiar item.  If it's
+				// zero, then try to acquire the item and equip it.
+
+				if ( status.familiarItemWeight != 5 )
+				{
+					poundsNeeded -= 5 - status.familiarItemWeight;
+					String familiarItem = FamiliarsDatabase.getFamiliarItem( status.getFamiliar().getID() );
+					DEFAULT_SHELL.executeLine( "buy " + familiarItem );
+					status = new FamiliarStatus();
+				}
+
+				if ( poundsNeeded <= 0 )
+					return true;
+
+				// Acquire tiny plastic items from the mall.  Randomly
+				// choose one of the items using a random number generator.
+
+				if ( poundsNeeded <= 3 - status.tpCount )
+				{
+					String plasticItem = TradeableItemDatabase.getItemName(
+						firstTinyPlastic + RNG.nextInt( lastTinyPlastic - firstTinyPlastic ) );
+
+					DEFAULT_SHELL.executeLine( "buy " + poundsNeeded + " " + plasticItem );
+					status = new FamiliarStatus();
+					return true;
+				}
+
+				// Finally, if they need empathy, tell them that they
+				// should consider requesting it from a buffbot.
+
+				if ( !empathyAvailable && empathyActive == 0 )
+				{
+					stop = true;
+					statusMessage( ERROR_STATE, "Ask a buffbot for empathy?" );
+					return false;
+				}
+
+				// Otherwise, if it gets this far, you definitely need
+				// a snowcone; any other circumstance and you would have
+				// had enough to get by.  But, only buy a snowcone if
+				// you're really short on adventures.
+
+				if ( KoLCharacter.getAdventuresLeft() < 10 )
+				{
+					DEFAULT_SHELL.executeLine( "buy green snowcone" );
+					status = new FamiliarStatus();
+					return true;
+				}
+
+				// Now, the fall-through state is when the goal reached is
+				// definitely false.  Return this just to make certain.
+
+				return false;
+			}
+
+			case TURNS:
+				return ( status.turnsUsed() >= goal );
 		}
 
 		return false;
@@ -1122,18 +1242,6 @@ public class FamiliarTrainingFrame extends KoLFrame
 		AdventureResult familiarItem ;
 		int familiarItemWeight;
 
-		// Available skills which affect weight
-		boolean sympathyAvailable;
-		boolean leashAvailable;
-		boolean empathyAvailable;
-
-		// Active effects which affect weight
-		int leashActive;
-		int empathyActive;
-		int greenTongueActive;
-		int blackTongueActive;
-		int heavyPettingActive;
-
 		// Currently equipped gear which affects weight
 		AdventureResult hat;
 		AdventureResult item;
@@ -1245,6 +1353,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 			sympathyAvailable = KoLCharacter.hasAmphibianSympathy();
 			empathyAvailable = KoLCharacter.hasSkill( "Empathy of the Newt" );
 			leashAvailable = KoLCharacter.hasSkill( "Leash of Linguini" );
+			heavyPettingAvailable = NPCStoreDatabase.contains( "Knob Goblin pet-buffing spray" );
 
 			// Look at effects to decide which ones are active;
 			LockableListModel active = KoLCharacter.getEffects();
@@ -1492,15 +1601,19 @@ public class FamiliarTrainingFrame extends KoLFrame
 		{
 			if ( buffs )
 			{
+				int overallModifier = 0;
+
 				if ( empathyAvailable && empathyActive == 0 )
-					getItemWeights( weight + 5 );
+					overallModifier += 5;
 
 				if ( leashAvailable && leashActive == 0 )
-					getItemWeights( weight + 5 );
+					overallModifier += 5;
 
-				if ( empathyAvailable && leashAvailable &&
-				     empathyActive == 0 && leashActive == 0 )
-					getItemWeights( weight + 10 );
+				if ( heavyPettingAvailable && heavyPettingActive == 0 )
+					overallModifier += 5;
+
+				for ( int i = 5; i <= overallModifier; i += 5 )
+					getItemWeights( weight + i );
 			}
 
 			// Calculate item weights with no additional buffs
@@ -1515,7 +1628,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 			// If we have a lead necklace, use it
 			if ( leadNecklace != null )
-				getAccessoryWeights( weight + 3);
+				getAccessoryWeights( weight + 3 );
 
 			// If we have a rat head balloon, use it
 			if ( ratHeadBalloon != null )
@@ -1686,8 +1799,9 @@ public class FamiliarTrainingFrame extends KoLFrame
 			if ( next.leash && !current.leash )
 			{
 				// Cast Leash. Bail if can't.
-				(new UseSkillRequest( StaticEntity.getClient(), "Leash of Linguini", null, 1 )).run();
-				if ( !StaticEntity.getClient().permitsContinue())
+
+				DEFAULT_SHELL.executeLine( "cast Leash of Linguini" );
+				if ( !UseSkillRequest.lastUpdate.equals( "" ) )
 					return;
 
 				// Remember it
@@ -1697,12 +1811,18 @@ public class FamiliarTrainingFrame extends KoLFrame
 			if ( next.empathy && !current.empathy )
 			{
 				// Cast Empathy. Bail if can't.
-				(new UseSkillRequest( StaticEntity.getClient(), "Empathy of the Newt", null, 1 )).run();
-				if ( !StaticEntity.getClient().permitsContinue())
+				DEFAULT_SHELL.executeLine( "cast Empathy of the Newt" );
+				if ( !UseSkillRequest.lastUpdate.equals( "" ) )
 					return;
 
 				// Remember it
 				empathyActive += 10;
+			}
+
+			if ( next.spray && !current.spray )
+			{
+				DEFAULT_SHELL.executeLine( "use Knob Goblin pet-buffing spray" );
+				heavyPettingActive += 10;
 			}
 		}
 
@@ -1741,67 +1861,72 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 		private void getBuffGearSets( int weight, boolean buffs )
 		{
-			if ( leashActive > 0 && empathyActive > 0 )
-				getHatGearSets( weight, true, true );
-			else if ( leashActive > 0 )
+			// Handle base case of everything available right
+			// now with no additional casting.
+
+			getHatGearSets( weight, leashActive > 0, empathyActive > 0, heavyPettingActive > 0 );
+
+			// Handle situations where you are allowed to cast
+			// buffs on yourself during training.
+
+			if ( buffs )
 			{
-				getHatGearSets( weight, true, false );
-				if ( buffs && empathyAvailable )
-					getHatGearSets( weight, true, true );
+				boolean addLeash = buffs && leashAvailable && leashActive == 0;
+				boolean addEmpathy = buffs && empathyAvailable && empathyActive == 0;
+				boolean addSpray = buffs && heavyPettingAvailable && heavyPettingActive == 0;
+
+				if ( addLeash )
+					getHatGearSets( weight, addLeash, empathyActive > 0, heavyPettingActive > 0 );
+				if ( addLeash )
+					getHatGearSets( weight, leashActive > 0, addEmpathy, heavyPettingActive > 0 );
+				if ( addSpray )
+					getHatGearSets( weight, leashActive > 0, empathyActive > 0, addSpray );
+
+				if ( addLeash && addEmpathy )
+					getHatGearSets( weight, addLeash, addEmpathy, heavyPettingActive > 0 );
+				if ( addEmpathy && addSpray )
+					getHatGearSets( weight, leashActive > 0, addEmpathy, addSpray );
+				if ( addLeash && addSpray )
+					getHatGearSets( weight, addLeash, empathyActive > 0, addSpray );
+
+				if ( addLeash && addEmpathy && addSpray )
+					getHatGearSets( weight, addLeash, addEmpathy, addSpray );
 			}
-			else if ( empathyActive > 0 )
-			{
-				getHatGearSets( weight, false, true );
-				if ( buffs && leashAvailable )
-					getHatGearSets( weight, true, true );
-			}
-			else if ( buffs )
-			{
-				getHatGearSets( weight, false, false );
-				if ( leashAvailable )
-					getHatGearSets( weight, true, false );
-				if ( empathyAvailable )
-					getHatGearSets( weight, false, true );
-				if ( leashAvailable && empathyAvailable)
-					getHatGearSets( weight, true, true );
-			}
-			else
-				getHatGearSets( weight, false, false );
 		}
 
-		private void getHatGearSets( int weight, boolean leash, boolean empathy )
+		private void getHatGearSets( int weight, boolean leash, boolean empathy, boolean spray )
 		{
 			if ( pithHelmet != null )
-				getItemGearSets( weight, pithHelmet, leash, empathy );
+				getItemGearSets( weight, pithHelmet, leash, empathy, spray );
 
-			getItemGearSets( weight, null, leash, empathy );
+			getItemGearSets( weight, null, leash, empathy, spray );
 		}
 
-		private void getItemGearSets( int weight, AdventureResult hat, boolean leash, boolean empathy )
+		private void getItemGearSets( int weight, AdventureResult hat, boolean leash, boolean empathy, boolean spray )
 		{
 			if ( specItem != null )
-				getAccessoryGearSets( weight, specItem, hat, leash, empathy );
+				getAccessoryGearSets( weight, specItem, hat, leash, empathy, spray );
 			if ( leadNecklace != null )
-				getAccessoryGearSets( weight, leadNecklace, hat, leash, empathy );
+				getAccessoryGearSets( weight, leadNecklace, hat, leash, empathy, spray );
 			if ( ratHeadBalloon != null )
-				getAccessoryGearSets( weight, ratHeadBalloon, hat, leash, empathy );
-			getAccessoryGearSets( weight, null, hat, leash, empathy );
+				getAccessoryGearSets( weight, ratHeadBalloon, hat, leash, empathy, spray );
+			getAccessoryGearSets( weight, null, hat, leash, empathy, spray );
 		}
 
-		private void getAccessoryGearSets( int weight, AdventureResult item,  AdventureResult hat, boolean leash, boolean empathy )
+		private void getAccessoryGearSets( int weight, AdventureResult item,  AdventureResult hat, boolean leash, boolean empathy, boolean spray )
 		{
 			// No matter how many Tiny Plastic Objects we have, a
 			// configuration with none equipped is legal
-			addGearSet( weight, null, null, null, item, hat, leash, empathy );
+			addGearSet( weight, null, null, null, item, hat, leash, empathy, spray );
 			if ( tpCount == 0 )
 				return;
 
 			// If we have at least one and it started out equipped,
 			// then it might be in any of the three accessory
 			// slots.
-			addGearSet( weight, tp[0], null, null, item, hat, leash, empathy );
-			addGearSet( weight, null, tp[0], null, item, hat, leash, empathy );
-			addGearSet( weight, null, null, tp[0], item, hat, leash, empathy );
+			addGearSet( weight, tp[0], null, null, item, hat, leash, empathy, spray );
+			addGearSet( weight, null, tp[0], null, item, hat, leash, empathy, spray );
+			addGearSet( weight, null, null, tp[0], item, hat, leash, empathy, spray );
 			if ( tpCount == 1)
 				return;
 
@@ -1809,42 +1934,42 @@ public class FamiliarTrainingFrame extends KoLFrame
 			// when we came in, they'll be in one of the following
 			// patterns.
 
-			addGearSet( weight, tp[0], tp[1], null, item, hat, leash, empathy );
-			addGearSet( weight, tp[0], null, tp[1], item, hat, leash, empathy );
-			addGearSet( weight, null, tp[0], tp[1], item, hat, leash, empathy );
+			addGearSet( weight, tp[0], tp[1], null, item, hat, leash, empathy, spray );
+			addGearSet( weight, tp[0], null, tp[1], item, hat, leash, empathy, spray );
+			addGearSet( weight, null, tp[0], tp[1], item, hat, leash, empathy, spray );
 
 			// If one of the two was in the inventory, the first
 			// could have been in any of the three accessory
 			// slots. Add a pattern for where it was in the third
 			// slot.
 
-			addGearSet( weight, tp[1], null, tp[0], item, hat, leash, empathy );
+			addGearSet( weight, tp[1], null, tp[0], item, hat, leash, empathy, spray );
 
 			if ( tpCount == 2 )
 				return;
 
 			// If we have three and they were all equipped when we
 			// came in, they'll be in the following pattern
-			addGearSet( weight, tp[0], tp[1], tp[2], item, hat, leash, empathy );
+			addGearSet( weight, tp[0], tp[1], tp[2], item, hat, leash, empathy, spray );
 
 			// If two of them were equipped and the third was in
 			// the inventory, the following patterns are legal
-			addGearSet( weight, tp[0], tp[2], tp[1], item, hat, leash, empathy );
-			addGearSet( weight, tp[2], tp[0], tp[1], item, hat, leash, empathy );
+			addGearSet( weight, tp[0], tp[2], tp[1], item, hat, leash, empathy, spray );
+			addGearSet( weight, tp[2], tp[0], tp[1], item, hat, leash, empathy, spray );
 
 			// If only one was equipped, based on which
 			// two-accessory patterns are legal, the following
 			// three-accessory patterns are also legal
-			addGearSet( weight, tp[1], tp[2], tp[0], item, hat, leash, empathy );
+			addGearSet( weight, tp[1], tp[2], tp[0], item, hat, leash, empathy, spray );
 		}
 
-		private void addGearSet( int weight, AdventureResult acc1, AdventureResult acc2, AdventureResult acc3, AdventureResult item,  AdventureResult hat, boolean leash, boolean empathy )
+		private void addGearSet( int weight, AdventureResult acc1, AdventureResult acc2, AdventureResult acc3, AdventureResult item,  AdventureResult hat, boolean leash, boolean empathy, boolean spray )
 		{
-			if ( weight == gearSetWeight( acc1, acc2, acc3, item, hat, leash, empathy ) )
-				gearSets.add( new GearSet( hat, item, acc1, acc2, acc3, leash, empathy ) );
+			if ( weight == gearSetWeight( acc1, acc2, acc3, item, hat, leash, empathy, spray ) )
+				gearSets.add( new GearSet( hat, item, acc1, acc2, acc3, leash, empathy, spray ) );
 		}
 
-		private int gearSetWeight( AdventureResult acc1, AdventureResult acc2, AdventureResult acc3, AdventureResult item,  AdventureResult hat, boolean leash, boolean empathy )
+		private int gearSetWeight( AdventureResult acc1, AdventureResult acc2, AdventureResult acc3, AdventureResult item,  AdventureResult hat, boolean leash, boolean empathy, boolean spray )
 		{
 			int weight = familiar.getWeight();
 
@@ -1853,9 +1978,6 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 			// One snowcone effect at a time
 			if ( greenTongueActive > 0 || blackTongueActive > 0 )
-				weight += 5;
-
-			if ( heavyPettingActive > 0 )
 				weight += 5;
 
 			if ( hat == PITH_HELMET )
@@ -1878,6 +2000,8 @@ public class FamiliarTrainingFrame extends KoLFrame
 			if ( leash )
 				weight += 5;
 			if ( empathy )
+				weight += 5;
+			if ( spray )
 				weight += 5;
 
 			return Math.max( weight, 1 );
@@ -1961,15 +2085,17 @@ public class FamiliarTrainingFrame extends KoLFrame
 			// Add possible skills
 			if ( sympathyAvailable )
 				weight += ( familiar.getID() == DODECAPEDE ) ? -5 : 5;
-			if ( leashAvailable )
+			if ( leashAvailable || leashActive > 0 )
 				weight += 5;
-			if ( empathyAvailable )
+			if ( empathyAvailable || empathyActive > 0 )
+				weight += 5;
+			if ( heavyPettingAvailable || heavyPettingActive > 0 )
 				weight += 5;
 
 			// Add available familiar items
 			if ( specWeight > 3 )
 				weight += specWeight;
-			else if (leadNecklace != null)
+			else if ( leadNecklace != null )
 				weight += 3;
 
 			// Add available tiny plastic items
@@ -2070,16 +2196,14 @@ public class FamiliarTrainingFrame extends KoLFrame
 			public AdventureResult acc1;
 			public AdventureResult acc2;
 			public AdventureResult acc3;
+
 			public boolean leash;
 			public boolean empathy;
+			public boolean spray;
 
-			public GearSet( AdventureResult hat,
-					AdventureResult item,
-					AdventureResult acc1,
-					AdventureResult acc2,
-					AdventureResult acc3,
-					boolean leash,
-					boolean empathy )
+			public GearSet( AdventureResult hat, AdventureResult item,
+				AdventureResult acc1, AdventureResult acc2, AdventureResult acc3,
+				boolean leash, boolean empathy, boolean spray )
 			{
 				this.hat = hat;
 				this.item = item;
@@ -2088,21 +2212,17 @@ public class FamiliarTrainingFrame extends KoLFrame
 				this.acc3 = acc3;
 				this.leash = leash;
 				this.empathy = empathy;
+				this.spray = spray;
 			}
 
 			public GearSet()
 			{
-				this( FamiliarStatus.this.hat,
-				      FamiliarStatus.this.item,
-				      FamiliarStatus.this.acc[0],
-				      FamiliarStatus.this.acc[1],
-				      FamiliarStatus.this.acc[2],
-				      FamiliarStatus.this.leashActive > 0,
-				      FamiliarStatus.this.empathyActive > 0);
+				this( FamiliarStatus.this.hat, FamiliarStatus.this.item, acc[0], acc[1], acc[2],
+					leashActive > 0, empathyActive > 0, heavyPettingActive > 0 );
 			}
 
 			public int weight()
-			{	return gearSetWeight( acc1, acc2, acc3, item, hat, leash, empathy );
+			{	return gearSetWeight( acc1, acc2, acc3, item, hat, leash, empathy, spray );
 			}
 
 			public int compareTo( GearSet that )
@@ -2122,6 +2242,8 @@ public class FamiliarTrainingFrame extends KoLFrame
 				if ( this.leash != that.leash )
 					changes++;
 				if ( this.empathy != that.empathy )
+					changes++;
+				if ( this.spray != that.spray )
 					changes++;
 
 				return changes;
@@ -2159,6 +2281,8 @@ public class FamiliarTrainingFrame extends KoLFrame
 				text.append( leash );
 				text.append( ", " );
 				text.append( empathy );
+				text.append( ", " );
+				text.append( spray );
 				text.append( ")" );
 				return text.toString();
 			}
@@ -2248,6 +2372,11 @@ public class FamiliarTrainingFrame extends KoLFrame
 			this.title = title;
 			this.property = property;
 			addActionListener( this );
+
+			// Turn everything off and back on again
+			// so that it's off to start.
+
+			actionPerformed( null );
 			actionPerformed( null );
 		}
 
@@ -2261,5 +2390,9 @@ public class FamiliarTrainingFrame extends KoLFrame
 			else
 				setText( "Turn On " +  title );
 		}
+	}
+
+	public static boolean executesConflictingRequest()
+	{	return true;
 	}
 }

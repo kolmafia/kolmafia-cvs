@@ -69,7 +69,6 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 public class FlowerHunterFrame extends KoLFrame implements ListSelectionListener
 {
 	private boolean isSimple;
-	private JTabbedPane tabs;
 	private CardLayout resultCards;
 	private JPanel resultCardPanel;
 	private AttackPanel attackPanel;
@@ -133,20 +132,8 @@ public class FlowerHunterFrame extends KoLFrame implements ListSelectionListener
 		sortedModel[ index ] = new TableSorter( resultsModel[ index ], resultsTable[ index ].getTableHeader() );
 		resultsTable[ index ].setModel( sortedModel[ index ] );
 		resultsTable[ index ].getSelectionModel().addListSelectionListener( this );
-	}
-
-	public void dispose()
-	{
-		tabs = null;
-		resultCards = null;
-		resultCardPanel = null;
-
-		resultsTable = null;
-		sortedModel = null;
-		resultsModel = null;
-
-		results = null;
-		super.dispose();
+		resultsTable[ index ].setPreferredScrollableViewportSize(
+			new Dimension( (int) resultsTable[ index ].getPreferredScrollableViewportSize().getWidth(), 200 ) );
 	}
 
 	public void valueChanged( ListSelectionEvent e )
@@ -160,9 +147,9 @@ public class FlowerHunterFrame extends KoLFrame implements ListSelectionListener
 		{
 			int opponentCount = table.getSelectedRowCount();
 			if ( opponentCount == 1 )
-				attackPanel.setStatusMessage( NULL_STATE, "1 opponent selected." );
+				attackPanel.setStatusMessage( "1 opponent selected." );
 			else
-				attackPanel.setStatusMessage( NULL_STATE, opponentCount + " opponents selected." );
+				attackPanel.setStatusMessage( opponentCount + " opponents selected." );
 		}
 	}
 
@@ -215,7 +202,6 @@ public class FlowerHunterFrame extends KoLFrame implements ListSelectionListener
 			elements[2] = new VerifiableElement( "Limit: ", limitEntry );
 
 			setContent( elements, null, getRankLabel(), true, true );
-			setDefaultButton( confirmedButton );
 		}
 
 		public void actionConfirmed()
@@ -289,7 +275,6 @@ public class FlowerHunterFrame extends KoLFrame implements ListSelectionListener
 			elements[0] = new VerifiableElement( "Clan ID: ", clanID );
 
 			setContent( elements, null, getRankLabel(), true, true );
-			setDefaultButton( confirmedButton );
 		}
 
 		public void actionConfirmed()

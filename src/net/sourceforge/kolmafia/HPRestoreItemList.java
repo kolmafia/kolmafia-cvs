@@ -42,8 +42,7 @@ import javax.swing.JLabel;
 import javax.swing.JCheckBox;
 import javax.swing.JScrollPane;
 
-import net.java.dev.spellcast.utilities.SortedListModel;
-import net.java.dev.spellcast.utilities.JComponentUtilities;
+import java.util.ArrayList;
 
 /**
  * A special class used as a holder class to hold all of the
@@ -52,199 +51,138 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public abstract class HPRestoreItemList extends StaticEntity
 {
-	public static final HPRestoreItem WALRUS = new HPRestoreItem( "tongue of the walrus", 1, -3 );
-	public static final HPRestoreItem COCOON = new HPRestoreItem( "cannelloni cocoon", 1, -2 );
-	public static final HPRestoreItem REMEDY = new HPRestoreItem( "soft green echo eyedrop antidote", 1, -1 );
+	private static final HPRestoreItem REMEDY = new HPRestoreItem( "soft green echo eyedrop antidote", 0 );
+	private static final HPRestoreItem TINY_HOUSE = new HPRestoreItem( "tiny house", 22 );
 
-	public static final HPRestoreItem GALAKTIK = new HPRestoreItem( "doc galaktik", 1, Integer.MAX_VALUE - 1 );
-	public static final HPRestoreItem HOUSE = new HPRestoreItem( "rest at campsite", 1, Integer.MAX_VALUE );
+	public static final HPRestoreItem WALRUS = new HPRestoreItem( "Tongue of the Walrus", 35 );
+	public static final HPRestoreItem OTTER = new HPRestoreItem( "Tongue of the Otter", 15 );
 
-	private static Object [] restoreName = new Object[0];
-	private static JCheckBox [] restoreCheckbox = new JCheckBox[0];
-	private static SortedListModel list = new SortedListModel();
+	private static final HPRestoreItem BANDAGES = new HPRestoreItem( "Lasagna Bandages", 24 );
+	private static final HPRestoreItem COCOON = new HPRestoreItem( "Cannelloni Cocoon", Integer.MAX_VALUE );
+	private static final HPRestoreItem NAP = new HPRestoreItem( "Disco Nap", 20 );
+	private static final HPRestoreItem POWERNAP = new HPRestoreItem( "Disco Power Nap", 40 );
+	private static final HPRestoreItem PHONICS = new HPRestoreItem( "phonics down", 48 );
+	private static final HPRestoreItem CAST = new HPRestoreItem( "cast", 17 );
+	private static final HPRestoreItem ELIXIR = new HPRestoreItem( "Doc Galaktik's Homeopathic Elixir", 18 );
+	private static final HPRestoreItem BALM = new HPRestoreItem( "Doc Galaktik's Restorative Balm", 13 );
+	private static final HPRestoreItem UNGUENT = new HPRestoreItem( "Doc Galaktik's Pungent Unguent", 4 );
 
-	public static void reset()
+	public static final HPRestoreItem [] CONFIGURES = new HPRestoreItem [] { OTTER, REMEDY, TINY_HOUSE, COCOON,
+		PHONICS, CAST, ELIXIR, BALM, UNGUENT, WALRUS, BANDAGES, POWERNAP, NAP };
+
+	private static final HPRestoreItem SCROLL = new HPRestoreItem( "scroll of drastic healing", Integer.MAX_VALUE );
+	private static final HPRestoreItem HERBS = new HPRestoreItem( "Medicinal Herb's medicinal herbs", Integer.MAX_VALUE );
+	private static final HPRestoreItem OINTMENT = new HPRestoreItem( "Doc Galaktik's Ailment Ointment", 9 );
+
+	public static final HPRestoreItem [] FALLBACKS = new HPRestoreItem[] { HERBS, SCROLL, OINTMENT };
+
+	public static JCheckBox [] getCheckboxes()
 	{
-		list.clear();
-		
-		list.add( WALRUS );
-		list.add( COCOON );
-		list.add( REMEDY );
-		
-		list.add( GALAKTIK );
-		list.add( HOUSE );
+		String hpRestoreSetting = getProperty( "hpRestores" );
+		JCheckBox [] restoreCheckbox = new JCheckBox[ CONFIGURES.length + FALLBACKS.length ];
 
-		// These restores maximize your current HP.  To
-		// make sure they appear at the top, they have values
-		// which do not reflect their market value.
-
-		list.add( new HPRestoreItem( "Medicinal Herb's medicinal herbs", Integer.MAX_VALUE, 0 ) );
-		list.add( new HPRestoreItem( "scroll of drastic healing", Integer.MAX_VALUE, 0 ) );
-
-		// These HP restores come from NPCs, so they have a
-		// constant market value
-
-		list.add( new HPRestoreItem( "Doc Galaktik's Pungent Unguent", 4, 30 ) );
-		list.add( new HPRestoreItem( "Doc Galaktik's Ailment Ointment", 9, 60 ) );
-		list.add( new HPRestoreItem( "Doc Galaktik's Restorative Balm", 14, 120 ) );
-		list.add( new HPRestoreItem( "Doc Galaktik's Homeopathic Elixir", 19, 240 ) );
-
-		// Non-standard items which can also be used for HP
-		// recovery, but might be a little expensive.
-
-		list.add( new HPRestoreItem( "cast", 17, 300 ) );
-		list.add( new HPRestoreItem( "tiny house", 22, 400 ) );
-		list.add( new HPRestoreItem( "phonics down", 48, 900 ) );
-	}
-
-	public static HPRestoreItem get( int index )
-	{	return (HPRestoreItem) list.get( index );
-	}
-
-	public static int size()
-	{	return list.size();
-	}
-
-	public static JScrollPane getDisplay()
-	{
-		restoreName = list.toArray();
-		restoreCheckbox = new JCheckBox[ restoreName.length ];
-
-		JPanel checkboxPanel = new JPanel();
-		checkboxPanel.setLayout( new GridLayout( restoreCheckbox.length, 1 ) );
-
-		for ( int i = 0; i < restoreCheckbox.length; ++i )
+		for ( int i = 0; i < CONFIGURES.length; ++i )
 		{
-			restoreCheckbox[i] = new JCheckBox();
-			checkboxPanel.add( restoreCheckbox[i] );
+			restoreCheckbox[i] = new JCheckBox( CONFIGURES[i].toString() );
+			restoreCheckbox[i].setSelected( hpRestoreSetting.indexOf( CONFIGURES[i].toString().toLowerCase() ) != -1 );
 		}
 
-		JPanel labelPanel = new JPanel();
-		labelPanel.setLayout( new GridLayout( restoreName.length, 1 ) );
-		for ( int i = 0; i < restoreName.length; ++i )
-			labelPanel.add( new JLabel( restoreName[i].toString(), JLabel.LEFT ) );
-
-		JPanel restorePanel = new JPanel();
-		restorePanel.setLayout( new BorderLayout( 0, 0 ) );
-		restorePanel.add( checkboxPanel, BorderLayout.WEST );
-		restorePanel.add( labelPanel, BorderLayout.CENTER );
-
-		String HPRestoreSetting = getProperty( "hpRestoreItems" );
-
-		for ( int i = 0; i < restoreName.length; ++i )
-			if ( HPRestoreSetting.indexOf( restoreName[i].toString() ) != -1 )
-				restoreCheckbox[i].setSelected( true );
-
-		JScrollPane scrollArea = new JScrollPane( restorePanel, JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-		return scrollArea;
-	}
-
-	public static void setProperty()
-	{
-		StringBuffer HPRestoreSetting = new StringBuffer();
-
-		if ( restoreCheckbox != null )
+		for ( int i = 0; i < FALLBACKS.length; ++i )
 		{
-			for ( int i = 0; i < restoreCheckbox.length; ++i )
-			{
-				if ( restoreCheckbox[i].isSelected() )
-				{
-					HPRestoreSetting.append( restoreName[i].toString() );
-					HPRestoreSetting.append( ';' );
-				}
-			}
+			restoreCheckbox[CONFIGURES.length + i] = new JCheckBox( FALLBACKS[i].toString() );
+			restoreCheckbox[CONFIGURES.length + i].setSelected( true );
+			restoreCheckbox[CONFIGURES.length + i].setEnabled( false );
 		}
 
-		setProperty( "hpRestoreItems", HPRestoreSetting.toString() );
+		return restoreCheckbox;
 	}
 
-	public static class HPRestoreItem implements Comparable
+	public static class HPRestoreItem
 	{
+		private int skillID;
 		private String itemName;
 		private int hpPerUse;
-		private int estimatedPrice;
-		private double priceToHPRatio;
 		private AdventureResult itemUsed;
 
-		public HPRestoreItem( String itemName, int hpPerUse, int estimatedPrice )
+		public HPRestoreItem( String itemName, int hpPerUse )
 		{
 			this.itemName = itemName;
 			this.hpPerUse = hpPerUse;
-			this.estimatedPrice = estimatedPrice;
-
-			this.priceToHPRatio = hpPerUse == 0 ? Double.MAX_VALUE : (double)estimatedPrice / (double)hpPerUse;
-			this.itemUsed = new AdventureResult( itemName, 0 );
+			this.skillID = ClassSkillsDatabase.getSkillID( itemName );
+			this.itemUsed = TradeableItemDatabase.contains( itemName ) ? new AdventureResult( itemName, 0 ) : null;
 		}
 
 		public AdventureResult getItem()
 		{	return itemUsed;
 		}
 
-		public void recoverHP()
+		public void recoverHP( int needed, boolean isFallback )
 		{
+			// Remedies are only used if the player is beaten up.
+			// Otherwise, it is not used.
+
 			if ( this == REMEDY )
 			{
-				if ( UneffectRequest.REMEDY.getCount( KoLCharacter.getInventory() ) > 0 )
+				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
 					(new UneffectRequest( client, KoLAdventure.BEATEN_UP )).run();
 
 				return;
 			}
-		
-			if ( this == GALAKTIK )
+
+			// For all other instances, you will need to calculate
+			// the number of times this technique must be used.
+
+			int hpShort = needed - KoLCharacter.getCurrentHP();
+			int belowMax = KoLCharacter.getMaximumHP() - KoLCharacter.getCurrentHP();
+			int numberToUse = (int) Math.ceil( (double) hpShort / (double) hpPerUse );
+
+			if ( ClassSkillsDatabase.contains( itemName ) )
 			{
-				(new GalaktikRequest( client, GalaktikRequest.HP )).run();
+				if ( !KoLCharacter.hasSkill( itemName ) )
+					numberToUse = 0;
+			}
+			else if ( TradeableItemDatabase.contains( itemName ) )
+			{
+				// In certain instances, you are able to buy more of
+				// the given item from NPC stores, or from the mall.
+
+				int numberAvailable = itemUsed.getCount( KoLCharacter.getInventory() );
+
+				if ( !isFallback )
+					numberAvailable = Math.min( numberToUse, numberAvailable );
+				else if ( this == HERBS )
+					numberAvailable = belowMax < 20 || !NPCStoreDatabase.contains( HERBS.toString() ) ? 0 : 1;
+				else if ( this == SCROLL && KoLCharacter.canInteract() )
+					numberAvailable = 1;
+				else if ( this == OINTMENT )
+					numberAvailable = numberToUse;
+
+				numberToUse = Math.min( numberToUse, numberAvailable );
+			}
+
+			if ( numberToUse == 0 )
+				return;
+
+			if ( this == TINY_HOUSE )
+			{
+				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
+					(new ConsumeItemRequest( client, new AdventureResult( "tiny house", 1 ) )).run();
+
 				return;
 			}
 
-			if ( this == HOUSE )
+			if ( this == OTTER )
 			{
-				DEFAULT_SHELL.updateDisplay( "Resting at campground..." );
-				(new CampgroundRequest( client, "rest" )).run();
+				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
+					(new UseSkillRequest( client, toString(), "", 1 )).run();
+
 				return;
 			}
 
-			int currentHP = KoLCharacter.getCurrentHP();
-			int maximumHP = KoLCharacter.getMaximumHP();
-			int maximumMP = KoLCharacter.getMaximumMP();
-			int hpShort = maximumHP - currentHP;
-			
-			if ( this == WALRUS )
-			{
-				int mpPerCast = ClassSkillsDatabase.getMPConsumptionByID( ClassSkillsDatabase.getSkillID( "Tongue of the Walrus" ) );
-				(new UseSkillRequest( client, "Tongue of the Walrus", "", Math.min( maximumMP / mpPerCast, hpShort / 35 ) )).run();
-				return;
-			}
-
-			if ( this == COCOON )
-			{
-				int mpPerCast = ClassSkillsDatabase.getMPConsumptionByID( ClassSkillsDatabase.getSkillID( "Cannelloni Cocoon" ) );
-				(new UseSkillRequest( client, "Cannelloni Cocoon", "", 1 )).run();
-				return;
-			}
-
-			// Always buff as close to max HP as possible, in order to
-			// go as easy on the server as possible.
-
-			int numberToUse = (int) Math.ceil( hpShort / hpPerUse );
-
-			if ( StaticEntity.getProperty( "autoSatisfyChecks" ).equals( "false" ) )
-				numberToUse = Math.min( numberToUse, itemUsed.getCount( KoLCharacter.getInventory() ) );
-
-
-			if ( numberToUse < 1 )
-				numberToUse = 1;
-
-			DEFAULT_SHELL.updateDisplay( "Consuming " + numberToUse + " " + itemName + "..." );
-			(new ConsumeItemRequest( client, itemUsed.getInstance( numberToUse ) )).run();
-		}
-
-		public int compareTo( Object o )
-		{
-			if ( !(o instanceof HPRestoreItem) || o == null )
-				return -1;
-
-			double ratioDifference = this.priceToHPRatio - ((HPRestoreItem)o).priceToHPRatio;
-			return ratioDifference < 0.0 ? -1 : ratioDifference > 0.0 ? 1 : 0;
+			if ( ClassSkillsDatabase.contains( itemName ) )
+				(new UseSkillRequest( client, itemName, "", numberToUse )).run();
+			else
+				(new ConsumeItemRequest( client, itemUsed.getInstance( numberToUse ) )).run();
 		}
 
 		public String toString()

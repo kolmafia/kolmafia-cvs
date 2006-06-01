@@ -1,226 +1,142 @@
-<project name="KoLmafia" default="createjar" basedir=".">
+<project name="KoLmafia" default="rejar" basedir=".">
 
+	<!-- ========================================== -->
+	<!--  set the global properties for this build  -->
+	<!-- ========================================== -->
 
-  <!-- ========================================== -->
-  <!--  set the global properties for this build  -->
-  <!-- ========================================== -->
+	<property name="root" location="."/>
+	<property name="src" location="src"/>
+	<property name="lib" location="lib"/>
+	<property name="build" location="build"/>
+	<property name="dist" location="dist"/>
+	<property name="docs" location="${dist}/docs"/>
 
-  <property name="root" location="."/>
-  <property name="src" location="src"/>
-  <property name="lib" location="lib"/>
-  <property name="build" location="build"/>
-  <property name="dist" location="dist"/>
-  <property name="docs" location="${dist}/docs"/>
-  <property name="cvscheck" location="cvscheck"/>
+	<property name="jarfile" location="${dist}/${ant.project.name}.jar"/>
+	<property name="tarfile" location="${dist}/${ant.project.name}.tar.gz"/>
+	<property name="main-class" value="net.sourceforge.kolmafia.KoLmafia"/>
 
-  <property name="cvsroot" value=":pserver:anonymous@cvs.sourceforge.net:/cvsroot/kolmafia"/>
-  <property name="jarfile" location="${dist}/${ant.project.name}.jar"/>
-  <property name="tarfile" location="${dist}/${ant.project.name}.tar.gz"/>
-  <property name="main-class" value="net.sourceforge.kolmafia.KoLmafia"/>
 
+	<!-- ========================================== -->
+	<!--  create directories used by other targets  -->
+	<!-- ========================================== -->
 
-<!-- ============================================================================== -->
-  <!--  set the timestamp, and create directories that will be used by other targets  -->
-  <!-- ============================================================================== -->
+	<target name="init">
+		<tstamp/>
+		<mkdir dir="${build}"/>
+		<mkdir dir="${dist}"/>
+	</target>
 
-  <target name="init"
-          description="set the timestamp, and create directories that will be used by other targets">
 
-    <tstamp/>
-    <mkdir dir="${build}"/>
-    <mkdir dir="${dist}"/>
+	<!-- ======================= -->
+	<!--  clean up object files  -->
+	<!-- ======================= -->
 
-  </target>
+	<target name="clean">
 
+		<delete dir="${build}"/>
+		<delete dir="${docs}"/>
+		<delete file="${jarfile}"/>
+		<delete file="${tarfile}"/>
 
-  <!-- ============================================= -->
-  <!--  compile the source and assemble other files  -->
-  <!-- ============================================= -->
+	</target>
 
-  <target name="compile"
-          depends="init"
-          description="compile the source and assemble other files">
 
-    <javac source="1.4"
-           srcdir="${src}"
-           destdir="${build}"
-           classpath="${lib}/*.jar" />
+	<!-- ==================== -->
+	<!--  compile the source  -->
+	<!-- ==================== -->
 
-    <copy todir="${build}" preservelastmodified="true">
-       <fileset dir="${src}">
-          <exclude name="**/*.java"/>
-       </fileset>
-    </copy>
+	<target name="compile" depends="init">
 
-    <copy todir="${build}" preservelastmodified="true">
-       <fileset dir="${lib}"/>
-    </copy>
+		<javac source="1.4" srcdir="${src}" destdir="${build}" classpath="${lib}/*.jar" />
 
-  </target>
+		<copy todir="${build}" preservelastmodified="true">
+			<fileset dir="${src}">
+				<exclude name="**/*.java"/>
+			</fileset>
+		</copy>
 
-  <!-- ================================== -->
-  <!--  generate the TAR of source files  -->
-  <!-- ================================== -->
+		<copy todir="${build}" preservelastmodified="true">
+			<fileset dir="${lib}"/>
+		</copy>
 
-  <target name="createtar"
-          description="generate the TAR of source files">
+	</target>
 
-    <ant target="init"/>
 
-    <tar destfile="${tarfile}"
-         basedir="${root}"
-         compression="gzip">
+	<!-- ============================= -->
+	<!--  generate the executable JAR  -->
+	<!-- ============================= -->
 
-       <exclude name="CVS/**"/>
-       <exclude name="build/**"/>
-       <exclude name="dist/**"/>
-       <exclude name="www/data/**"/>
+	<target name="jar" depends="compile">
 
-    </tar>
+		<jar destfile="${jarfile}" basedir="${build}" update="true" index="yes">
+			<manifest>
+				<attribute name="Main-Class" value="${main-class}"/>
+			</manifest>
+		</jar>
 
-  </target>
+	</target>
 
 
-  <!-- ================================== -->
-  <!--  generate the executable JAR file  -->
-  <!-- ================================== -->
+	<!-- ================================================ -->
+	<!--  generate the executable JAR from a clean state  -->
+	<!-- ================================================ -->
 
-  <target name="createjar"
-          depends="compile"
-          description="generate the executable JAR file">
+	<target name="rejar" depends="clean">
+		<ant target="jar"/>
+	</target>
 
-    <jar destfile="${jarfile}"
-         basedir="${build}"
-         update="true"
-         index="yes">
 
-      <manifest>
-        <attribute name="Main-Class" value="${main-class}"/>
-      </manifest>
+	<!-- =========================== -->
+	<!--  generate the distribution  -->
+	<!-- =========================== -->
 
-    </jar>
+	<target name="dist">
 
-  </target>
+		<ant target="rejar"/>
 
+		<tar destfile="${tarfile}" basedir="${root}" compression="gzip">
+			<exclude name="CVS/**"/>
+			<exclude name="build/**"/>
+			<exclude name="dist/**"/>
+			<exclude name="www/data/**"/>
+		</tar>
 
-  <!-- =========================== -->
-  <!--  generate the distribution  -->
-  <!-- =========================== -->
+	</target>
 
-  <target name="dist"
-          depends="rejar,createtar"
-          description="generate the distribution">
 
-  </target>
+	<!-- ==================================================== -->
+	<!--  runs program with all needed libraries in the path  -->
+	<!-- ==================================================== -->
 
+	<target name="exec" depends="jar">
 
-  <!-- ======================================= -->
-  <!--  generate the javadocs from sourcecode  -->
-  <!-- ======================================= -->
+		<java fork="true" jar="${jarfile}" dir="${dist}">
+			<env key="PATH" path="${lib}/:${java.library.path}"/>
+			<env key="Path" path="${lib}/:${java.library.path}"/>
+		</java>
 
-  <target name="javadoc"
-          depends="compile"
-          description="generate javadocs from sourcecode">
+	</target>
 
-    <mkdir dir="${docs}"/>
-    <mkdir dir="${docs}/api"/>
 
-    <javadoc sourcepath="${src}"
-             destdir="${docs}"
-             packagenames="*">
+	<!-- ======================================= -->
+	<!--  generate the javadocs from sourcecode  -->
+	<!-- ======================================= -->
 
-       <link href="http://java.sun.com/j2se/1.4.2/docs/api/"/>
+	<target name="javadoc" depends="compile">
 
-       <classpath>
-          <pathelement location="${lib}"/>
-          <pathelement location="${build}"/>
-       </classpath>
+		<mkdir dir="${docs}"/>
+		<mkdir dir="${docs}/api"/>
 
-    </javadoc>
+		<javadoc sourcepath="${src}" destdir="${docs}" packagenames="*">
+			<link href="http://java.sun.com/j2se/1.4.2/docs/api/"/>
 
-  </target>
+			<classpath>
+				<pathelement location="${lib}"/>
+				<pathelement location="${build}"/>
+			</classpath>
 
+		</javadoc>
 
-  <!-- ================================================================================== -->
-  <!--  runs program with all needed libraries in the path (avoids UnsatisfiedLinkError)  -->
-  <!-- ================================================================================== -->
-
-  <target name="exec"
-          depends="createjar"
-          description="runs program with all needed libraries in the path (avoids UnsatisfiedLinkError)">
-
-    <java fork="true" jar="${jarfile}" dir="${dist}">
-        <env key="PATH" path="${lib}/:${java.library.path}"/>
-        <env key="Path" path="${lib}/:${java.library.path}"/>
-    </java>
-
-  </target>
-
-
-  <!-- =========================== -->
-  <!--  clean up all object files  -->
-  <!-- =========================== -->
-
-  <target name="clean"
-          description="clean up all object files">
-
-    <delete dir="${build}"/>
-    <delete dir="${docs}"/>
-    <delete file="${jarfile}"/>
-    <delete file="${tarfile}"/>
-
-  </target>
-
-
-  <!-- ========================================= -->
-  <!--  recompiles the project from clean state  -->
-  <!-- ========================================= -->
-
-  <target name="recompile"
-          description="recompiles the project from clean state">
-
-     <ant target="clean"/>
-     <ant target="compile"/>
-
-  </target>
-
-  <!-- =================================================== -->
-  <!--  generate the executable JAR file from clean state  -->
-  <!-- =================================================== -->
-
-  <target name="rejar"
-          depends="recompile,createjar"
-          description="generate the executable JAR file from clean state">
-
-  </target>
-
-  <!-- =================================================== -->
-  <!--  checks to see if the current files in CVS compile  -->
-  <!-- =================================================== -->
-
-  <target name="cvscheck"
-          description="checks to see if the current files in CVS compile">
-
-     <delete dir="${cvscheck}"/>
-     <mkdir dir="${cvscheck}"/>
-
-     <cvspass passfile="${cvscheck}/.cvspass"
-              cvsroot="${cvsroot}"
-              password=""/>
-
-     <cvs passfile="${cvscheck}/.cvspass"
-          cvsRoot="${cvsroot}"
-          package="${ant.project.name}"
-          dest="${cvscheck}"/>
-
-     <ant antfile="build.xml"
-          inheritAll="false"
-          dir="${cvscheck}/${ant.project.name}/"
-          target="compile"/>
-
-     <delete dir="${cvscheck}"/>
-
-  </target>
-
+	</target>
 
 </project>

@@ -47,29 +47,15 @@ import net.java.dev.spellcast.utilities.DataUtilities;
 
 public class KoLDatabase extends StaticEntity
 {
-	static { System.setProperty( "SHARED_MODULE_DIRECTORY", "net/sourceforge/kolmafia/" ); };
-
 	protected static BufferedReader getReader( String file )
-	{
-		File override = new File( "data/" + file );
-		if ( override.exists() )
-		{
-			try
-			{
-				return new BufferedReader( new InputStreamReader( new FileInputStream( override ) ) );
-			}
-			catch ( Exception e )
-			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
-			}
-		}
-
-		return DataUtilities.getReaderForSharedDataFile( file );
+	{	return DataUtilities.getReader( file );
 	}
 
 	protected static String [] readData( BufferedReader reader )
 	{
+		if ( reader == null )
+			return null;
+		
 		try
 		{
 			String line;
@@ -87,12 +73,10 @@ public class KoLDatabase extends StaticEntity
 		}
 		catch ( Exception e )
 		{
-			// If an exception is caught while attempting
-			// to retrieve the next tokenizer, return null.
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 			return null;
 		}
 	}
@@ -283,6 +267,25 @@ public class KoLDatabase extends StaticEntity
 				internalList.add( "" );
 
 			internalList.set( index, value );
+		}
+		
+		public void add( String s )
+		{	internalList.add( s );
+		}
+		
+		public void clear()
+		{	internalList.clear();
+		}
+		
+		public String [] toArray()
+		{
+			String [] array = new String[ internalList.size() ];
+			internalList.toArray( array );
+			return array;
+		}
+		
+		public int size()
+		{	return internalList.size();
 		}
 	}
 }

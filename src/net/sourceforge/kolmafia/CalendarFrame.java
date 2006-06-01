@@ -38,7 +38,6 @@ import java.util.Date;
 import java.text.SimpleDateFormat;
 
 import java.awt.Color;
-import java.awt.CardLayout;
 import java.awt.BorderLayout;
 
 import javax.swing.JPanel;
@@ -72,7 +71,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 	// Special date formatter which formats according to
 	// the standard Western format of month, day, year.
 
-	private static final SimpleDateFormat TODAY_FORMATTER = new SimpleDateFormat( "MMMM d, yyyy" );
+	public static final SimpleDateFormat TODAY_FORMATTER = new SimpleDateFormat( "MMMM d, yyyy" );
 
 	// The following are static variables used to track the calendar.
 	// They are made static as a design decision to allow the oracle
@@ -102,11 +101,10 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 		}
 		catch ( Exception e )
 		{
-			// Should not happen - you're having the parser
-			// parse something that it formatted.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e );
 		}
 
 		calculatePhases( selectedDate );
@@ -125,7 +123,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 		predictDisplay.setEditable( false );
 		predictBuffer.setChatDisplay( predictDisplay );
 
-		JTabbedPane tabs = new JTabbedPane();
+		tabs = new JTabbedPane();
 		tabs.addTab( "KoL One-a-Day", dailyDisplay );
 		tabs.addTab( "Upcoming Events", predictDisplay );
 
@@ -176,13 +174,10 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 			}
 			catch ( Exception e1 )
 			{
-				// If an exception happens somewhere in this
-				// process, that means it didn't get to the
-				// HTML updating stage.  In that case, you
-				// have nothing to do.
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
-				e1.printStackTrace( KoLmafia.getLogStream() );
-				e1.printStackTrace();
+				StaticEntity.printStackTrace( e1 );
 			}
 		}
 	}
@@ -226,24 +221,16 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 	private static final void calculatePhases( Date time )
 	{
-		try
-		{
-			// In order to ensure that everything is computed
-			// based on new-year, wrap the date inside of the
-			// formatter (which strips time information) and
-			// reparse the date.
+		// In order to ensure that everything is computed
+		// based on new-year, wrap the date inside of the
+		// formatter (which strips time information) and
+		// reparse the date.
 
-			int calendarDay = MoonPhaseDatabase.getCalendarDay( time );
-			int phaseStep = ((calendarDay % 16) + 16) % 16;
+		int calendarDay = MoonPhaseDatabase.getCalendarDay( time );
+		int phaseStep = ((calendarDay % 16) + 16) % 16;
 
-			ronaldPhase = phaseStep % 8;
-			grimacePhase = phaseStep / 2;
-		}
-		catch ( Exception e )
-		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-		}
+		ronaldPhase = phaseStep % 8;
+		grimacePhase = phaseStep / 2;
 	}
 
 	/**
@@ -260,7 +247,6 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 			dailyBuffer.append( "<center><h1>White Wednesday</h1></center>" );
 			return;
 		}
-
 
 		StringBuffer displayHTML = new StringBuffer();
 
@@ -369,11 +355,11 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 		displayHTML.append( TODAY_FORMATTER.format( selectedDate ) );
 		displayHTML.append( "</u></b><br><i>" );
 		displayHTML.append( MoonPhaseDatabase.getCalendarDayAsString( selectedDate ) );
-		displayHTML.append( "</i><br><br>" );
+		displayHTML.append( "</i>" );
 
 		// Next display the upcoming stat days.
 
-		displayHTML.append( "<b>Muscle Day</b>:&nbsp;" );
+		displayHTML.append( "<p><b>Muscle Day</b>:&nbsp;" );
 		displayHTML.append( MoonPhaseDatabase.getDayCountAsString( Math.min( (24 - phaseStep) % 16, (25 - phaseStep) % 16 ) ) );
 		displayHTML.append( "<br>" );
 
@@ -383,7 +369,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 		displayHTML.append( "<b>Moxie Day</b>:&nbsp;" );
 		displayHTML.append( MoonPhaseDatabase.getDayCountAsString( Math.min( (16 - phaseStep) % 16, (31 - phaseStep) % 16 ) ) );
-		displayHTML.append( "<br><br>" );
+		displayHTML.append( "</p><p>" );
 
 		// Next display the upcoming holidays.  This is done
 		// through loop calculations in order to minimize the
@@ -396,6 +382,8 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 			displayHTML.append( holidayPredictions[i].replaceAll( ":", ":</b>&nbsp;" ) );
 			displayHTML.append( "<br>" );
 		}
+
+		displayHTML.append( "</p>" );
 
 		// Now that the HTML has been completely
 		// constructed, clear the display dailyBuffer
@@ -439,7 +427,8 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 	public static class OracleTable extends JTable
 	{
 		private CalendarTableModel model;
-		private DefaultTableCellRenderer normalRenderer, todayRenderer, specialRenderer, holidayRenderer, statdayRenderer;
+		private DefaultTableCellRenderer normalRenderer, todayRenderer, specialRenderer, holidayRenderer;
+		private DefaultTableCellRenderer muscleRenderer, mysticalityRenderer, moxieRenderer;
 
 		public OracleTable( CalendarTableModel model )
 		{
@@ -450,19 +439,27 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 			todayRenderer = new DefaultTableCellRenderer();
 			todayRenderer.setForeground( new Color( 255, 255, 255 ) );
-			todayRenderer.setBackground( new Color( 0, 0, 128 ) );
+			todayRenderer.setBackground( new Color( 128, 128, 128 ) );
 
 			specialRenderer = new DefaultTableCellRenderer();
 			specialRenderer.setForeground( new Color( 255, 255, 255 ) );
 			specialRenderer.setBackground( new Color( 0, 0, 0 ) );
 
 			holidayRenderer = new DefaultTableCellRenderer();
-			holidayRenderer.setForeground( new Color( 255, 255, 255 ) );
-			holidayRenderer.setBackground( new Color( 192, 0, 0 ) );
+			holidayRenderer.setForeground( new Color( 0, 0, 0 ) );
+			holidayRenderer.setBackground( new Color( 255, 255, 204 ) );
 
-			statdayRenderer = new DefaultTableCellRenderer();
-			statdayRenderer.setForeground( new Color( 0, 0, 0 ) );
-			statdayRenderer.setBackground( new Color( 192, 192, 0 ) );
+			muscleRenderer = new DefaultTableCellRenderer();
+			muscleRenderer.setForeground( new Color( 0, 0, 0 ) );
+			muscleRenderer.setBackground( new Color( 255, 204, 204 ) );
+
+			mysticalityRenderer = new DefaultTableCellRenderer();
+			mysticalityRenderer.setForeground( new Color( 0, 0, 0 ) );
+			mysticalityRenderer.setBackground( new Color( 204, 204, 255 ) );
+
+			moxieRenderer = new DefaultTableCellRenderer();
+			moxieRenderer.setForeground( new Color( 0, 0, 0 ) );
+			moxieRenderer.setBackground( new Color( 204, 255, 204 ) );
 		}
 
 		public TableCellRenderer getCellRenderer( int row, int column )
@@ -496,13 +493,21 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 				if ( MoonPhaseDatabase.isHoliday( cellDate ) )
 					return holidayRenderer;
 
-				if ( MoonPhaseDatabase.isStatDay( cellDate ) )
-					return statdayRenderer;
+				if ( MoonPhaseDatabase.isMuscleDay( cellDate ) )
+					return muscleRenderer;
+
+				if ( MoonPhaseDatabase.isMysticalityDay( cellDate ) )
+					return mysticalityRenderer;
+
+				if ( MoonPhaseDatabase.isMoxieDay( cellDate ) )
+					return moxieRenderer;
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+
+				StaticEntity.printStackTrace( e );
 			}
 
 			return normalRenderer;

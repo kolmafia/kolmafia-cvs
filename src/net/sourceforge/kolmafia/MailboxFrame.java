@@ -38,6 +38,7 @@ package net.sourceforge.kolmafia;
 import java.awt.Dimension;
 import javax.swing.JButton;
 import javax.swing.JList;
+import javax.swing.JToolBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JEditorPane;
@@ -81,10 +82,6 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 	private MailSelectList messageListSaved;
 
 	public MailboxFrame()
-	{	this( null );
-	}
-
-	public MailboxFrame( String initialTab )
 	{
 		super( "IcePenguin Express" );
 
@@ -128,39 +125,32 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 		JComponentUtilities.setComponentSize( splitPane, 500, 300 );
 		getContentPane().add( splitPane );
 
-		toolbarPanel.add( new SaveAllButton() );
-		toolbarPanel.add( new DeleteButton() );
-		toolbarPanel.add( new RefreshButton() );
+		JToolBar toolbarPanel = getToolbar();
 
-		if ( initialTab == null )
+		if ( toolbarPanel != null )
+		{
+			toolbarPanel.add( new SaveAllButton() );
+			toolbarPanel.add( new DeleteButton() );
+			toolbarPanel.add( new RefreshButton() );
+		}
+
+		if ( StaticEntity.getClient().shouldMakeConflictingRequest() )
 			(new RequestMailboxThread( "Inbox" )).start();
-	}
-
-	public void dispose()
-	{
-		displayed = null;
-		messageContent = null;
-		tabbedListDisplay = null;
-		mailBuffer = null;
-
-		messageListInbox = null;
-		messageListPvp = null;
-		messageListOutbox = null;
-		messageListSaved = null;
-
-		super.dispose();
+		else
+			mailBuffer.append( "You are currently adventuring, so the mailbox won't be loaded." );
 	}
 
 	public void setEnabled( boolean isEnabled )
 	{
-		refreshMailManager();
-
 		if ( tabbedListDisplay != null )
 			for ( int i = 0; i < tabbedListDisplay.getTabCount(); ++i )
 				tabbedListDisplay.setEnabledAt( i, isEnabled );
 
 		if ( messageListInbox != null )
 			messageListInbox.setEnabled( isEnabled );
+
+		if ( messageListPvp != null )
+			messageListPvp.setEnabled( isEnabled );
 
 		if ( messageListOutbox != null )
 			messageListOutbox.setEnabled( isEnabled );
@@ -292,11 +282,14 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 			{
 				if ( e.getKeyCode() == KeyEvent.VK_BACK_SPACE || e.getKeyCode() == KeyEvent.VK_DELETE )
 				{
+					Object [] messages = getSelectedValues();
+					if ( messages.length == 0 )
+						return;
+
 					if ( JOptionPane.YES_OPTION == JOptionPane.showConfirmDialog( null,
 						"Would you like to delete the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
 					{
-						KoLMailManager.deleteMessages( mailboxName, getSelectedValues() );
-						StaticEntity.getClient().enableDisplay();
+						KoLMailManager.deleteMessages( mailboxName, messages );
 					}
 
 					return;
@@ -304,11 +297,14 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 
 				if ( e.getKeyCode() == KeyEvent.VK_S && mailboxName.equals( "Inbox" ) )
 				{
+					Object [] messages = getSelectedValues();
+					if ( messages.length == 0 )
+						return;
+
 					if ( JOptionPane.YES_OPTION == JOptionPane.showConfirmDialog( null,
 						"Would you like to save the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
 					{
-						KoLMailManager.saveMessages( getSelectedValues() );
-						StaticEntity.getClient().enableDisplay();
+						KoLMailManager.saveMessages( messages );
 					}
 
 					return;
@@ -319,62 +315,77 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 
 	private class SaveAllButton extends JButton implements ActionListener, Runnable
 	{
+		private Object [] messages = null;
+
 		public SaveAllButton()
 		{
-			super( JComponentUtilities.getSharedImage( "saveall.gif" ) );
+			super( JComponentUtilities.getImage( "saveall.gif" ) );
 			addActionListener( this );
-			setToolTipText( "Save All" );
+			setToolTipText( "Save Selected" );
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	(new RequestThread( this )).start();
+		{
+			messages = null;
+			String currentTabName = tabbedListDisplay.getTitleAt( tabbedListDisplay.getSelectedIndex() );
+
+			if ( currentTabName.equals( "Inbox" ) )
+				messages = messageListInbox.getSelectedValues();
+			if ( currentTabName.equals( "PvP" ) )
+				messages = messageListPvp.getSelectedValues();
+
+			if ( messages == null || messages.length == 0 )
+				return;
+
+			if ( JOptionPane.NO_OPTION == JOptionPane.showConfirmDialog( null,
+					"Would you like to save the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
+						return;
+
+			(new RequestThread( this )).start();
 		}
 
 		public void run()
-		{
-			String currentTabName = tabbedListDisplay.getTitleAt( tabbedListDisplay.getSelectedIndex() );
-			if ( currentTabName.equals( "Inbox" ) || currentTabName.equals( "PvP" ) )
-			{
-				if ( JOptionPane.YES_OPTION == JOptionPane.showConfirmDialog( null,
-					"Would you like to save the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
-				{
-					KoLMailManager.saveMessages( messageListInbox.getSelectedValues() );
-				}
-			}
-			else
-			{
-				JOptionPane.showMessageDialog( null, "Messages in this mailbox cannot be saved." );
-			}
+		{	KoLMailManager.saveMessages( messages );
 		}
 	}
 
 	private class DeleteButton extends JButton implements ActionListener, Runnable
 	{
+		private String currentTabName = null;
+		private Object [] messages = null;
+
 		public DeleteButton()
 		{
-			super( JComponentUtilities.getSharedImage( "delete.gif" ) );
+			super( JComponentUtilities.getImage( "delete.gif" ) );
 			addActionListener( this );
-			setToolTipText( "Delete" );
+			setToolTipText( "Delete Selected" );
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	(new RequestThread( this )).start();
+		{
+			messages = null;
+			currentTabName = tabbedListDisplay.getTitleAt( tabbedListDisplay.getSelectedIndex() );
+			if ( currentTabName.equals( "Inbox" ) )
+				messages = messageListInbox.getSelectedValues();
+			else if ( currentTabName.equals( "PvP" ) )
+				messages = messageListPvp.getSelectedValues();
+			else if ( currentTabName.equals( "Outbox" ) )
+				messages = messageListOutbox.getSelectedValues();
+			else if ( currentTabName.equals( "Saved" ) )
+				messageListSaved.getSelectedValues();
+
+			if ( messages ==  null || messages.length == 0 )
+				return;
+
+			if ( JOptionPane.NO_OPTION == JOptionPane.showConfirmDialog( null,
+					"Would you like to delete the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
+						return;
+
+			(new RequestThread( this )).start();
 		}
 
 		public void run()
-		{
-			if ( JOptionPane.NO_OPTION == JOptionPane.showConfirmDialog( null,
-				"Would you like to delete the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
-					return;
-
-			String currentTabName = tabbedListDisplay.getTitleAt( tabbedListDisplay.getSelectedIndex() );
-
-			if ( currentTabName.equals( "Inbox" ) )
-				KoLMailManager.deleteMessages( "Inbox", messageListInbox.getSelectedValues() );
-			else if ( currentTabName.equals( "Outbox" ) )
-				KoLMailManager.deleteMessages( "Outbox", messageListOutbox.getSelectedValues() );
-			else
-				KoLMailManager.deleteMessages( "Saved", messageListSaved.getSelectedValues() );
+		{	KoLMailManager.deleteMessages( currentTabName, messages );
 		}
 	}
 
@@ -382,7 +393,7 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 	{
 		public RefreshButton()
 		{
-			super( JComponentUtilities.getSharedImage( "refresh.gif" ) );
+			super( JComponentUtilities.getImage( "refresh.gif" ) );
 			addActionListener( this );
 			setToolTipText( "Refresh" );
 		}
@@ -417,16 +428,16 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 			//     sendmessage.php?toid=<playerid>
 			// If you click on [quote]:
 			//     sendmessage.php?toid=<playerid>&quoteid=xxx&box=xxx
+
 			StringTokenizer tokens = new StringTokenizer( location, "?=&" );
 			tokens.nextToken();  tokens.nextToken();
 
 			String recipient = tokens.nextToken();
 
-			Object [] parameters = new Object[ tokens.hasMoreTokens() ? 3 : 2 ];
-			parameters[0] = StaticEntity.getClient();
-			parameters[1] = recipient;
+			Object [] parameters = new Object[ tokens.hasMoreTokens() ? 2 : 1 ];
+			parameters[0] = recipient;
 
-			if ( parameters.length == 3 )
+			if ( parameters.length == 2 )
 			{
 				String rawText = displayed.getMessageHTML();
 				int start = rawText.indexOf( "<br><br>" ) + 8;
@@ -434,15 +445,18 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 
 				// Replace <br> tags with a line break and
 				// quote the following line
+
 				text = text.replaceAll( "<br>", LINE_BREAK + "> " );
 
 				// Remove all other HTML tags
+
 				text = text.replaceAll( "><", "" ).replaceAll( "<.*?>", "" );
 
 				// Quote first line and end with a line break
+
 				text = "> " + text + LINE_BREAK;
 
-				parameters[2] = text;
+				parameters[1] = text;
 			}
 
 			(new CreateFrameRunnable( GreenMessageFrame.class, parameters )).run();

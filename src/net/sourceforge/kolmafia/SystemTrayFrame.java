@@ -25,8 +25,14 @@ public class SystemTrayFrame extends KoLDesktop implements Runnable
 		KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
 		existingFrames.toArray( frames );
 
+		String interfaceSetting = GLOBAL_SETTINGS.getProperty( "initialDesktop" );
+
 		for ( int i = 0; i < frames.length; ++i )
-			frames[i].setVisible( isVisible );
+			if ( interfaceSetting.indexOf( frames[i].getFrameName() ) == -1 )
+				frames[i].setVisible( isVisible );
+
+		if ( KoLDesktop.instanceExists() )
+			KoLDesktop.getInstance().setVisible( isVisible );
 	}
 
 	public static void updateTooltip()
@@ -46,7 +52,7 @@ public class SystemTrayFrame extends KoLDesktop implements Runnable
 
 			if ( !library.exists() )
 			{
-				InputStream input = DataUtilities.getFileInputStream( "", "", "DesktopIndicator.dll" );
+				InputStream input = DataUtilities.getInputStream( "", "DesktopIndicator.dll" );
 				OutputStream output = new FileOutputStream( library );
 
 				byte [] buffer = new byte[ 1024 ];
@@ -65,7 +71,7 @@ public class SystemTrayFrame extends KoLDesktop implements Runnable
 
 			if ( !trayicon.exists() )
 			{
-				java.io.InputStream input = DataUtilities.getFileInputStream( "", "", "KoLmelionIcon.ico" );
+				java.io.InputStream input = DataUtilities.getInputStream( "", "KoLmelionIcon.ico" );
 				java.io.OutputStream output = new java.io.FileOutputStream( trayicon );
 
 				byte [] buffer = new byte[ 1024 ];
@@ -93,8 +99,10 @@ public class SystemTrayFrame extends KoLDesktop implements Runnable
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
 		}
 	}
 

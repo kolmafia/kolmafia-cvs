@@ -46,9 +46,9 @@ import java.util.Arrays;
 
 import java.io.File;
 import java.io.FileInputStream;
-
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import net.java.dev.spellcast.utilities.LockableListModel;
-import net.java.dev.spellcast.utilities.SortedListModel;
 
 /**
  * Container class for <code>BuffBotManager</code>
@@ -69,7 +69,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 	private static String thanksMessage;
 
 	private static Map buffCostMap = new TreeMap();
-	private static SortedListModel buffCostTable = new SortedListModel();
+	private static LockableListModel buffCostTable = new LockableListModel();
 	private static String [] whiteListArray = new String[0];
 
 	public static final String MEAT_REGEX = "<img src=\"http://images.kingdomofloathing.com/itemimages/meat.gif\" height=30 width=30 alt=\"Meat\">You gain ([\\d,]+) Meat";
@@ -108,6 +108,8 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 				}
 			}
 		}
+		
+		saveBuffs();
 	}
 
 	/**
@@ -115,7 +117,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 	 * this buffbot.
 	 */
 
-	public static SortedListModel getBuffCostTable()
+	public static LockableListModel getBuffCostTable()
 	{	return buffCostTable;
 	}
 
@@ -153,6 +155,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 
 		castList.add( newCast );
 		buffCostTable.add( newCast );
+		buffCostTable.sort();
 
 		saveBuffs();
 	}
@@ -189,16 +192,146 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		StringBuffer sellerSetting = new StringBuffer();
 		BuffBotCaster currentCast;
 
-		if ( buffCostTable.size() > 0 )
-			sellerSetting.append( ((BuffBotCaster) buffCostTable.get(0)).toSettingString() );
+		PrintStream document = null;
 
-		for ( int i = 1; i < buffCostTable.size(); ++i )
+		try
 		{
-			sellerSetting.append( ';' );
-			sellerSetting.append( ((BuffBotCaster) buffCostTable.get(i)).toSettingString() );
+			File xmlfile = new File( "buffs/" + KoLCharacter.getUsername() + ".xml" );
+			if ( xmlfile.exists() )
+				xmlfile.delete();
+			
+			document = new PrintStream( new FileOutputStream( xmlfile, false ) );
+		}
+		catch ( Exception e )
+		{
+			StaticEntity.printStackTrace( e );
+		}
+		
+		BuffBotCaster [] casters = new BuffBotCaster[ buffCostTable.size() ];
+		buffCostTable.toArray( casters );
+		
+		if ( document != null )
+		{
+			document.println( "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" );
+			document.println( "<?xml-stylesheet type=\"text/xsl\" href=\"http://kolmafia.sourceforge.net/buffbot.xsl\"?>" );
+			document.println();
+			
+			document.println( "<botdata>" );
+			document.println( "<name>" + KoLCharacter.getUsername() + "</name>" );
+			document.println( "<playerid>" + KoLCharacter.getUserID() + "</playerid>" );
+
+			document.println( "<free-list>" );
+		}
+		
+		TreeMap [] nameMap = new TreeMap[4];
+		for ( int i = 0; i < 4; ++i )
+			nameMap[i] = new TreeMap();
+
+		ArrayList currentList;
+
+		for ( int i = 0; i < casters.length; ++i )
+		{
+			// First, append the buff to the setting string, then
+			// print the buff to the XML tree.
+			
+			if ( i > 0 )
+				sellerSetting.append( ';' );
+
+			sellerSetting.append( casters[i].toSettingString() );
+
+			// Don't print the cast to the XML tree if it happens
+			// to be restricted.
+			
+			if ( casters[i].restricted || document == null )
+				continue;
+
+			if ( casters[i].philanthropic )
+			{
+				document.println( "\t<buffdata>" );
+				document.println( "\t\t<name>" + casters[i].getBuffName() + "</name>" );
+				document.println( "\t\t<skillid>" + casters[i].getBuffID() + "</skillid>" );
+				document.println( "\t\t<price>" + casters[i].getPrice() + "</price>" );
+				document.println( "\t\t<turns>" + casters[i].getTurnCount() + "</turns>" );
+				document.println( "\t\t<philanthropic>" + casters[i].philanthropic + "</philanthropic>" );
+				document.println( "\t</buffdata>" );
+			}
+			else
+			{
+				int index = casters[i].getBuffID() / 2000;
+				if ( !nameMap[ index ].containsKey( casters[i].getBuffName() ) )
+					nameMap[ index ].put( casters[i].getBuffName(), new ArrayList() );
+				
+				currentList = (ArrayList) nameMap[ index ].get( casters[i].getBuffName() );
+				currentList.add( casters[i] );
+			}
 		}
 
 		setProperty( "buffBotCasting", sellerSetting.toString() );
+		if ( document == null )
+			return;
+
+		document.println( "</free-list>" );
+		document.println( "<normal-list>" );
+
+		for ( int k = 0; k < 4; ++k )
+		{
+			if ( nameMap[k].isEmpty() )
+				continue;
+			
+			document.println( "\t<skillset>" );
+			document.print( "\t\t<name>" );
+			
+			switch ( k )
+			{
+				case 0:
+					document.print( "Non-Specific Buffs" );
+					break;
+				case 1:
+					document.print( "Turtle Tamer Buffs" );
+					break;
+				case 2:
+					document.print( "Sauceror Buffs" );
+					break;
+				case 3:
+					document.print( "Accordion Thief Buffs" );
+					break;
+			}
+			
+			document.println( "</name>" );
+			Object [] keys = nameMap[k].keySet().toArray();
+		
+			for ( int j = 0; j < keys.length; ++j )
+			{
+				currentList = (ArrayList) nameMap[k].get( keys[j] );
+				casters = new BuffBotCaster[ currentList.size() ];
+				currentList.toArray( casters );
+	
+				document.println( "\t\t<buffset>" );
+				document.println( "\t\t\t<name>" + casters[0].getBuffName() + "</name>" );
+	
+				for ( int i = 0; i < casters.length; ++i )
+				{
+					document.println( "\t\t\t<buffdata>" );
+		
+					document.println( "\t\t\t\t<name>" + casters[i].getBuffName() + "</name>" );
+					document.println( "\t\t\t\t<skillid>" + casters[i].getBuffID() + "</skillid>" );
+					document.println( "\t\t\t\t<price>" + casters[i].getPrice() + "</price>" );
+					document.println( "\t\t\t\t<turns>" + casters[i].getTurnCount() + "</turns>" );
+					document.println( "\t\t\t\t<philanthropic>" + casters[i].philanthropic + "</philanthropic>" );
+		
+					document.println( "\t\t\t</buffdata>" );
+				}
+	
+				document.println( "\t\t</buffset>" );
+			}
+			
+			document.println( "\t</skillset>" );
+		}
+
+		document.println( "</normal-list>" );
+		
+		document.println( "</botdata>" );
+		document.close();
 	}
 
 	/**
@@ -321,13 +454,14 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		try
 		{
 			processMessage( success );
-			client.updateDisplay( "" );
+			client.forceContinue();
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 			
+			StaticEntity.printStackTrace( e );
 			return success;
 		}
 
@@ -571,6 +705,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		private int buffID;
 		private String buffName;
 		private int castCount;
+		private int turnCount;
 
 		private String target;
 		private boolean restricted;
@@ -586,6 +721,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 			this.buffName = buffName;
 			this.price = price;
 			this.castCount = castCount;
+			this.turnCount = buffID > 6000 ? castCount * 15 : buffID < 1000 ? castCount * 5 : castCount * 10;
 
 			this.restricted = restricted;
 			this.philanthropic = philanthropic;
@@ -598,9 +734,11 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 			stringForm.append( " time" );
 
 			if ( castCount != 1 )
-				stringForm.append( 's' );
-
-			stringForm.append( " for " );
+				stringForm.append( "s" );
+			
+			stringForm.append( " (" );
+			stringForm.append( turnCount );
+			stringForm.append( " turns) for " );
 			stringForm.append( price );
 			stringForm.append( " meat" );
 
@@ -649,43 +787,27 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 			// Figure out how much MP the buff will take, and then identify
 			// the number of casts per request that this character can handle.
 
-			int castsRemaining = castCount;
-			double mpPerCast = ClassSkillsDatabase.getMPConsumptionByID( buffID );
-			double maximumMP = KoLCharacter.getMaximumMP();
-
-			int currentCast, mpPerEvent;
-
 			BuffBotHome.update( BuffBotHome.BUFFCOLOR, "Casting " + buffName + ", " + castCount + " times on " +
 				target + " for " + price + " meat... " );
 
-			while ( castsRemaining > 0 )
+			(new UseSkillRequest( client, buffName, target, castCount )).run();
+
+			if ( UseSkillRequest.lastUpdate.equals( "" ) )
 			{
-				currentCast = (int) Math.min( castsRemaining, Math.floor( maximumMP / mpPerCast ) );
-				mpPerEvent = (int) (mpPerCast * currentCast);
-
-				// Attempt to cast the buff.  In the event that it
-				// fails, make sure to report it and return whether
-				// or not at least one cast was completed.
-
-				(new UseSkillRequest( client, buffName, target, currentCast )).run();
-
-				if ( !client.permitsContinue() )
-				{
-					BuffBotHome.update( BuffBotHome.ERRORCOLOR, " ---> Could not cast " + buffName + " on " + target );
-					return castsRemaining != castCount;
-				}
-
-				// Otherwise, you have completed the correct number
-				// of casts.  Deduct it from the number of casts
-				// remaining and continue.
-
-				castsRemaining -= currentCast;
-				BuffBotHome.update( BuffBotHome.BUFFCOLOR, " ---> Successfully cast " + buffName + " " + currentCast + " times" );
+				BuffBotHome.update( BuffBotHome.BUFFCOLOR, " ---> Successfully cast " + buffName + " on " + target );
+				return true;
 			}
-
-			return true;
+			else
+			{
+				BuffBotHome.update( BuffBotHome.ERRORCOLOR, " ---> Could not cast " + buffName + " on " + target );
+				return false;
+			}
 		}
 
+		public int getBuffID()
+		{	return buffID;
+		}
+		
 		public String getBuffName()
 		{	return buffName;
 		}
@@ -694,6 +816,10 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		{	return price;
 		}
 
+		public int getTurnCount()
+		{	return turnCount;
+		}
+		
 		public int getCastCount()
 		{	return castCount;
 		}

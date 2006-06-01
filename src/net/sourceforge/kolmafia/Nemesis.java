@@ -150,7 +150,7 @@ public abstract class Nemesis extends StaticEntity
 
 		// Save currently equipped weapon so we can re-equip it for the final battle.
 
-		String weapon = KoLCharacter.getEquipment( KoLCharacter.WEAPON );
+		String weapon = KoLCharacter.getCurrentEquipmentName( KoLCharacter.WEAPON );
 		boolean needsWeapon = false;
 
 		// Pass the obstacles one at a time.
@@ -168,7 +168,7 @@ public abstract class Nemesis extends StaticEntity
 
 					if ( KoLCharacter.getEquipment( KoLCharacter.WEAPON ).indexOf( "fly" ) == -1 )
 					{
-						(new EquipmentRequest( client, FLY_SWATTER.getName() )).run();
+						DEFAULT_SHELL.executeLine( "equip Gnollish flyswatter" );
 						needsWeapon = true;
 					}
 
@@ -195,7 +195,7 @@ public abstract class Nemesis extends StaticEntity
 
 					if ( KoLCharacter.getEquipment( KoLCharacter.WEAPON ).indexOf( "tongs" ) == -1 )
 					{
-						(new EquipmentRequest( client, TONGS.getName() )).run();
+						DEFAULT_SHELL.executeLine( "equip Knob Goblin tongs" );
 						needsWeapon = true;
 					}
 
@@ -215,7 +215,7 @@ public abstract class Nemesis extends StaticEntity
 					// changed (according to variable resets).
 
 					if ( needsWeapon )
-						(new EquipmentRequest( client, weapon )).run();
+						DEFAULT_SHELL.executeLine( "equip " + weapon );
 
 					action = "end";
 					DEFAULT_SHELL.updateDisplay( "Fighting your nemesis..." );
@@ -223,10 +223,10 @@ public abstract class Nemesis extends StaticEntity
 			}
 
 			// Visit the cave
-			request = new AdventureRequest( client, "cave.php", action );
+			request = new KoLRequest( client, "cave.php?action=" + action );
 			request.run();
 
-			if ( request.responseText.indexOf( "You must have at least one Adventure left to fight your nemesis." ) != -1 )
+			if ( request.responseText != null && request.responseText.indexOf( "You must have at least one Adventure left to fight your nemesis." ) != -1 )
 			{
 				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You're out of adventures." );
 				return;
@@ -256,7 +256,8 @@ public abstract class Nemesis extends StaticEntity
 			}
 		}
 
-		if ( client.getCurrentRequest().responseText.indexOf( "WINWINWIN") == -1 )
+		if ( client.getCurrentRequest() != null &&  client.getCurrentRequest().responseText != null &&
+			client.getCurrentRequest().responseText.indexOf( "WINWINWIN") == -1 )
 		{
 			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "KoLmafia was unable to defeat your nemesis." );
 			return;

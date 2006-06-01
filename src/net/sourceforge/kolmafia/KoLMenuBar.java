@@ -131,10 +131,16 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		// Add the refresh menu, which holds the ability to refresh
 		// everything in the session.
 
-		statusMenu.add( new DisplayFrameMenuItem( "Main Interface", AdventureFrame.class ) );
-		statusMenu.add( new DisplayRequestMenuItem( "Mini-Browser", "main.php" ) );
+		statusMenu.add( new DisplayFrameMenuItem( "Adventure", AdventureFrame.class ) );
+		statusMenu.add( new DisplayFrameMenuItem( "Purchases", MallSearchFrame.class ) );
 		statusMenu.add( new DisplayFrameMenuItem( "Graphical CLI", CommandDisplayFrame.class ) );
 		statusMenu.add( new DisplayFrameMenuItem( "Preferences", OptionsFrame.class ) );
+
+		statusMenu.add( new JSeparator() );
+
+		statusMenu.add( new DisplayFrameMenuItem( "Mini-Browser", RequestFrame.class ) );
+		statusMenu.add( new InvocationMenuItem( "Relay Browser", StaticEntity.getClient(), "startRelayServer" ) );
+		statusMenu.add( new InvocationMenuItem( "KoL Simulator", StaticEntity.getClient(), "launchSimulator" ) );
 
 		statusMenu.add( new JSeparator() );
 
@@ -155,12 +161,14 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 		toolsMenu.add( new InvocationMenuItem( "Clear Results", StaticEntity.getClient(), "resetSession" ) );
 		toolsMenu.add( new StopEverythingItem() );
-		toolsMenu.add( new InvocationMenuItem( "Complete Refresh", StaticEntity.getClient(), "refreshSession" ) );
+		toolsMenu.add( new InvocationMenuItem( "Refresh All", StaticEntity.getClient(), "refreshSession" ) );
 		toolsMenu.add( new InvocationMenuItem( "Session Time-In", StaticEntity.getClient(), "executeTimeInRequest" ) );
 
 		toolsMenu.add( new JSeparator() );
 
-		toolsMenu.add( new DisplayFrameMenuItem( "Buffbot Manager", BuffBotFrame.class ) );
+		toolsMenu.add( new DisplayFrameMenuItem( "Skill Casting", SkillBuffFrame.class ) );
+		toolsMenu.add( new DisplayFrameMenuItem( "Auto Restore", RestoreOptionsFrame.class ) );
+		toolsMenu.add( new DisplayFrameMenuItem( "Run a Buffbot", BuffBotFrame.class ) );
 		toolsMenu.add( new DisplayFrameMenuItem( "Purchase Buffs", BuffRequestFrame.class ) );
 
 		toolsMenu.add( new JSeparator() );
@@ -168,6 +176,10 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		toolsMenu.add( new DisplayFrameMenuItem( "Flower Hunter", FlowerHunterFrame.class ) );
 		toolsMenu.add( new DisplayFrameMenuItem( "Mushroom Plot", MushroomFrame.class ) );
 		toolsMenu.add( new DisplayFrameMenuItem( "Familiar Trainer", FamiliarTrainingFrame.class ) );
+
+		toolsMenu.add( new JSeparator() );
+		toolsMenu.add( new DisplayFrameMenuItem( "Meat Manager", MeatManageFrame.class ) );
+		toolsMenu.add( new DisplayFrameMenuItem( "The Meatsink", MoneyMakingGameFrame.class ) );
 
 		// Add the old-school people menu.
 
@@ -177,6 +189,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		peopleMenu.add( new DisplayFrameMenuItem( "Read KoLmail", MailboxFrame.class ) );
 		peopleMenu.add( new InvocationMenuItem( "KoLmafia Chat", KoLMessenger.class, "initialize" ) );
 		peopleMenu.add( new DisplayFrameMenuItem( "Clan Manager", ClanManageFrame.class ) );
+		peopleMenu.add( new DisplayFrameMenuItem( "Recent Events", EventsFrame.class ) );
 
 		peopleMenu.add( new JSeparator() );
 
@@ -192,7 +205,6 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 		travelMenu.add( new InvocationMenuItem( "Doc Galaktik", StaticEntity.getClient(), "makeGalaktikRequest" ) );
 		travelMenu.add( new InvocationMenuItem( "Mind Control", StaticEntity.getClient(), "makeMindControlRequest" ) );
-		travelMenu.add( new InvocationMenuItem( "Get Breakfast", StaticEntity.getClient(), "getBreakfast" ) );
 
 		travelMenu.add( new JSeparator() );
 
@@ -216,7 +228,8 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		questsMenu.add( new JSeparator() );
 
 		questsMenu.add( new InvocationMenuItem( "Nemesis Quest", Nemesis.class, "faceNemesis" ) );
-		questsMenu.add( new InvocationMenuItem( "Strange Leaflet", StrangeLeaflet.class, "robStrangeLeaflet" ) );
+		questsMenu.add( new InvocationMenuItem( "Leaflet (No Magic)", StrangeLeaflet.class, "leafletNoMagic" ) );
+		questsMenu.add( new InvocationMenuItem( "Leaflet (With Magic)", StrangeLeaflet.class, "leafletWithMagic" ) );
 
 		questsMenu.add( new JSeparator() );
 
@@ -268,12 +281,10 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		helperMenu.add( new JSeparator() );
 
 		helperMenu.add( new DisplayPageMenuItem( "Subjunctive KoL", "http://www.subjunctive.net/kol/FrontPage.html" ) );
-		helperMenu.add( new DisplayPageMenuItem( "Jinya's Visual Wiki", "http://kol.coldfront.net/thekolwiki/index.php/Main_Page" ) );
-		helperMenu.add( new DisplayPageMenuItem( "Ohayou's Item Effects", "http://www.lysator.liu.se/~jhs/KoL/effects/" ) );
-		helperMenu.add( new DisplayPageMenuItem( "Moxie Survival Lookup", "http://kol.network-forums.com/cgi-bin/moxie.cgi" ) );
+		helperMenu.add( new DisplayPageMenuItem( "KoL Visual Wiki", "http://kol.coldfront.net/thekolwiki/index.php/Main_Page" ) );
 
 		if ( !(container instanceof JMenuBar) )
-			container.add( new InvocationMenuItem( "End Session", this, "dispose" ) );
+			container.add( new InvocationMenuItem( "End Session", SystemTrayFrame.class, "removeTrayIcon" ) );
 	}
 
 	/**
@@ -312,7 +323,10 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		}
 
 		public JComponent [] getHeaders()
-		{	return new JComponent[0];
+		{
+			JComponent [] headers = new JComponent[1];
+			headers[0] = new WindowDisplayMenuItem( null );
+			return headers;
 		}
 
 		private class WindowDisplayMenuItem extends JMenuItem implements ActionListener
@@ -321,17 +335,39 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 			public WindowDisplayMenuItem( KoLFrame frame )
 			{
-				super( frame.toString() );
-				frameReference = new WeakReference( frame );
+				super( frame == null ? "Show All Displays" : frame.toString() );
+				frameReference = frame == null ? null : new WeakReference( frame );
 				addActionListener( this );
 			}
 
 			public void actionPerformed( ActionEvent e )
 			{
+				if ( frameReference == null )
+				{
+					KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
+					existingFrames.toArray( frames );
+
+					String interfaceSetting = GLOBAL_SETTINGS.getProperty( "initialDesktop" );
+
+					for ( int i = 0; i < frames.length; ++i )
+						if ( interfaceSetting.indexOf( frames[i].getFrameName() ) == -1 )
+							frames[i].setVisible( true );
+
+					if ( KoLDesktop.instanceExists() )
+						KoLDesktop.getInstance().setVisible( true );
+
+					return;
+				}
+
 				KoLFrame frame = (KoLFrame) frameReference.get();
 				if ( frame != null )
 				{
-					frame.setVisible( true );
+					boolean appearsInTab = GLOBAL_SETTINGS.getProperty( "initialDesktop" ).indexOf(
+						frame instanceof ChatFrame ? "KoLMessenger" : frame.getFrameName() ) != -1;
+
+					if ( !appearsInTab )
+						frame.setVisible( true );
+
 					frame.requestFocus();
 				}
 			}
@@ -365,16 +401,11 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 		public JComponent [] getHeaders()
 		{
-			JComponent [] headers = new JComponent[6];
+			JComponent [] headers = new JComponent[3];
 
 			headers[0] = new AddBookmarkMenuItem();
 			headers[1] = new KoLPanelFrameMenuItem( "Manage Bookmarks", new BookmarkManagePanel() );
-			headers[2] = new JSeparator();
-
-			headers[3] = new DisplayRequestMenuItem( "Announcements", "chatlaunch.php" );
-			headers[4] = new DisplayFrameMenuItem( "Council of Loathing", CouncilFrame.class );
-
-			headers[5] = new DisplayRequestMenuItem( "Weird Records Board", "records.php?which=0" );
+			headers[2] = new DisplayFrameMenuItem( "Council of Loathing", CouncilFrame.class );
 
 			return headers;
 		}
@@ -546,21 +577,21 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 	{
 		public ToggleDebugMenuItem()
 		{
-			super( JComponentUtilities.getSharedImage( "debug.gif" ) );
+			super( JComponentUtilities.getImage( "debug.gif" ) );
 			addActionListener( this );
-			setText( KoLmafia.getLogStream() instanceof NullStream ? "Begin recording debug..." : "Stop recording debug" );
+			setText( KoLmafia.getDebugStream() instanceof NullStream ? "Begin recording debug..." : "Stop recording debug" );
 		}
 
 		public void actionPerformed( ActionEvent e )
 		{
-			if ( KoLmafia.getLogStream() instanceof NullStream )
+			if ( KoLmafia.getDebugStream() instanceof NullStream )
 			{
-				KoLmafia.openDebugLog();
+				KoLmafia.openDebugStream();
 				debugMenuItem.setText( "Stop recording debug" );
 			}
 			else
 			{
-				KoLmafia.closeDebugLog();
+				KoLmafia.closeDebugStream();
 				debugMenuItem.setText( "Begin recording debug..." );
 			}
 		}
@@ -570,7 +601,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 	{
 		public ToggleMacroMenuItem()
 		{
-			super( JComponentUtilities.getSharedImage( "command.gif" ) );
+			super( JComponentUtilities.getImage( "command.gif" ) );
 			addActionListener( this );
 			setText( KoLmafia.getMacroStream() instanceof NullStream ? "Begin recording script..." : "Stop recording script" );
 		}
@@ -645,6 +676,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			if ( executePath == null )
 				return;
 
+			StaticEntity.getClient().forceContinue();
 			DEFAULT_SHELL.executeLine( executePath );
 		}
 	}
@@ -658,16 +690,14 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 	protected class DisplayFrameMenuItem extends JMenuItem implements ActionListener
 	{
 		private Class frameClass;
-		private CreateFrameRunnable displayer;
+		private Object [] parameters;
 
 		public DisplayFrameMenuItem( String title, Class frameClass )
 		{
 			super( title );
 			addActionListener( this );
-
 			this.frameClass = frameClass;
 
-			Object [] parameters;
 			if ( frameClass == LicenseDisplay.class )
 			{
 				parameters = new Object[4];
@@ -680,12 +710,10 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			{
 				parameters = new Object[0];
 			}
-
-			this.displayer = new CreateFrameRunnable( frameClass, parameters );
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	SwingUtilities.invokeLater( displayer );
+		{	(new RequestThread( new CreateFrameRunnable( frameClass, parameters ) )).start();
 		}
 	}
 
@@ -744,8 +772,10 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+
+				StaticEntity.printStackTrace( e );
 			}
 		}
 
@@ -758,12 +788,14 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			try
 			{
 				if ( method != null )
-					method.invoke( object, null );
+					method.invoke( object instanceof KoLmafia ? StaticEntity.getClient() : object, null );
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+
+				StaticEntity.printStackTrace( e );
 			}
 		}
 	}
@@ -782,10 +814,9 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			super( title );
 			addActionListener( this );
 
-			Object [] parameters = new Object[3];
-			parameters[0] = StaticEntity.getClient();
-			parameters[1] = title;
-			parameters[2] = panel;
+			Object [] parameters = new Object[2];
+			parameters[0] = title;
+			parameters[1] = panel;
 
 			creator = new CreateFrameRunnable( KoLPanelFrame.class, parameters );
 		}
@@ -816,7 +847,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		public VersionDataPanel()
 		{
 			JPanel versionPanel = new JPanel( new BorderLayout( 20, 20 ) );
-			versionPanel.add( new JLabel( JComponentUtilities.getSharedImage( "penguin.gif" ), JLabel.CENTER ), BorderLayout.NORTH );
+			versionPanel.add( new JLabel( JComponentUtilities.getImage( "penguin.gif" ), JLabel.CENTER ), BorderLayout.NORTH );
 
 			JPanel labelPanel = new JPanel( new GridLayout( versionData.length, 1 ) );
 			for ( int i = 0; i < versionData.length; ++i )
@@ -824,7 +855,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 			versionPanel.add( labelPanel, BorderLayout.CENTER );
 
-			JButton donateButton = new JButton( JComponentUtilities.getSharedImage( "paypal.gif" ) );
+			JButton donateButton = new JButton( JComponentUtilities.getImage( "paypal.gif" ) );
 			JComponentUtilities.setComponentSize( donateButton, 74, 31 );
 			donateButton.addActionListener( new DisplayPageMenuItem( "", "http://sourceforge.net/donate/index.php?user_id=813949" ) );
 
@@ -871,9 +902,10 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
+				StaticEntity.printStackTrace( e );
 				return null;
 			}
 

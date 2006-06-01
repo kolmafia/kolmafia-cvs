@@ -71,6 +71,10 @@ public class CharpaneRequest extends KoLRequest
 	}
 
 	protected void processResults()
+	{	processCharacterPane( this.responseText );
+	}
+
+	public static synchronized void processCharacterPane( String responseText )
 	{
 		// By refreshing the KoLCharacter pane, you can
 		// determine whether or not you are in compact
@@ -83,43 +87,57 @@ public class CharpaneRequest extends KoLRequest
 		// only data that requires synchronization is the
 		// modified stat values, health and mana.
 
-		try
+		if ( responseText.indexOf( "<img src=\"http://images.kingdomofloathing.com/otherimages/inf_small.gif\">" ) == -1 )
 		{
 			if ( isCompactMode )
-				handleCompactMode();
+				handleCompactMode( responseText );
 			else
-				handleExpandedMode();
+				handleExpandedMode( responseText );
 		}
-		catch ( Exception e )
+		else
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			KoLCharacter.setStatPoints( 1, 0, 1, 0, 1, 0 );
+			KoLCharacter.setHP( 1, 1, 1 );
+			KoLCharacter.setMP( 1, 1, 1 );
+			KoLCharacter.setAvailableMeat( 0 );
+			KoLCharacter.setAdventuresLeft( 0 );
+			KoLCharacter.setMindControlLevel( 0 );
 		}
 
 		KoLCharacter.updateStatus();
 	}
 
-	private void handleCompactMode() throws Exception
+	private static void handleCompactMode( String responseText )
 	{
-		if ( responseText.indexOf( "<img src=\"http://images.kingdomofloathing.com/otherimages/inf_small.gif\">" ) == -1 )
+		try
 		{
-			handleStatPoints( "Mus", "Mys", "Mox" );
-			handleMiscPoints( "HP", "MP", "Meat", "Adv", "" );
-			handleMindControl( "MC" );
+			handleStatPoints( responseText, "Mus", "Mys", "Mox" );
+			handleMiscPoints( responseText, "HP", "MP", "Meat", "Adv", "", "<b>", "</b>" );
+			handleMindControl( responseText, "MC" );
+		}
+		catch ( Exception e )
+		{
+			StaticEntity.printStackTrace( e, "Character pane error", new String [] {
+				responseText } );
 		}
 	}
 
-	private void handleExpandedMode() throws Exception
+	private static void handleExpandedMode( String responseText )
 	{
-		if ( responseText.indexOf( "<img src=\"http://images.kingdomofloathing.com/otherimages/inf_small.gif\">" ) == -1 )
+		try
 		{
-			handleStatPoints( "Muscle", "Mysticality", "Moxie" );
-			handleMiscPoints( "hp\\.gif", "mp\\.gif", "meat\\.gif", "hourglass\\.gif", "&nbsp;" );
-			handleMindControl( "Mind Control" );
+			handleStatPoints( responseText, "Muscle", "Mysticality", "Moxie" );
+			handleMiscPoints( responseText, "hp\\.gif", "mp\\.gif", "meat\\.gif", "hourglass\\.gif", "&nbsp;", "<span.*?>", "</span>" );
+			handleMindControl( responseText, "Mind Control" );
+		}
+		catch ( Exception e )
+		{
+			StaticEntity.printStackTrace( e, "Character pane error", new String [] {
+				responseText } );
 		}
 	}
 
-	private void handleStatPoints( String musString, String mysString, String moxString ) throws Exception
+	private static void handleStatPoints( String responseText, String musString, String mysString, String moxString ) throws Exception
 	{
 		int [] modified = new int[3];
 
@@ -129,11 +147,13 @@ public class CharpaneRequest extends KoLRequest
 		{
 			for ( int i = 0; i < 3; ++i )
 			{
-				Matcher modifiedMatcher = Pattern.compile( "<font color=blue>(.*?)</font>&nbsp;\\((.*?)\\)" ).matcher(
+				Matcher modifiedMatcher = Pattern.compile( "<font color=blue>(\\d+)</font>&nbsp;\\((\\d+)\\)" ).matcher(
 					statMatcher.group( i + 1 ) );
 
-				modified[i] = modifiedMatcher.find() ? df.parse( modifiedMatcher.group(1) ).intValue() :
-					df.parse( statMatcher.group( i + 1 ) ).intValue();
+				if ( modifiedMatcher.find() )
+					modified[i] = Integer.parseInt( modifiedMatcher.group(1) );
+				else
+					modified[i] = Integer.parseInt( statMatcher.group( i + 1 ).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" ) );
 			}
 
 			KoLCharacter.setStatPoints( modified[0], KoLCharacter.getTotalMuscle(), modified[1],
@@ -141,31 +161,45 @@ public class CharpaneRequest extends KoLRequest
 		}
 	}
 
-	private void handleMiscPoints( String hpString, String mpString, String meatString, String advString, String spacerString ) throws Exception
+	private static void handleMiscPoints( String responseText, String hpString, String mpString, String meatString, String advString, String spacer, String openTag, String closeTag ) throws Exception
 	{
-		Matcher miscMatcher = Pattern.compile( hpString + ".*?(<font.*?>)?<font.*?>(.*?)" + spacerString + "/" + spacerString + "(.*?)</font>.*?" +
-			mpString + ".*?<b>(<font.*?>)?(.*?)" + spacerString + "/" + spacerString + "(.*?)(</font>)?</b>.*?" +
-			meatString + ".*?<b>(<font.*?>)?(.*?)(</font>)?</b>.*?" + advString + ".*?<b>(<font.*?>)?(.*?)(</font>)?</b>" ).matcher( responseText );
+		// On the other hand, health and all that good stuff
+		// is complicated, has nested images, and lots of other
+		// weird stuff.  Handle it in a non-modular fashion.
+
+		Matcher miscMatcher = Pattern.compile(
+			hpString + ".*?" + openTag + "(.*?)" + spacer + "/" + spacer + "(.*?)" + closeTag + ".*?" +
+			mpString + ".*?" + openTag + "(.*?)" + spacer + "/" + spacer + "(.*?)" + closeTag + ".*?" +
+			meatString + ".*?" + openTag + "(.*?)" + closeTag + ".*?" + advString + ".*?" + openTag + "(.*?)" + closeTag ).matcher( responseText );
 
 		if ( miscMatcher.find() )
 		{
-			KoLCharacter.setHP( df.parse( miscMatcher.group(2) ).intValue(), df.parse( miscMatcher.group(3) ).intValue(), df.parse( miscMatcher.group(3) ).intValue() );
-			KoLCharacter.setMP( df.parse( miscMatcher.group(5) ).intValue(), df.parse( miscMatcher.group(6) ).intValue(), df.parse( miscMatcher.group(6) ).intValue() );
+			String currentHP = miscMatcher.group(1).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" );
+			String maximumHP = miscMatcher.group(2).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" );
 
-			KoLCharacter.setAvailableMeat( df.parse( miscMatcher.group(9) ).intValue() );
+			String currentMP = miscMatcher.group(3).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" );
+			String maximumMP = miscMatcher.group(4).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" );
 
+			KoLCharacter.setHP( Integer.parseInt( currentHP ), Integer.parseInt( maximumHP ), Integer.parseInt( maximumHP ) );
+			KoLCharacter.setMP( Integer.parseInt( currentMP ), Integer.parseInt( maximumMP ), Integer.parseInt( maximumMP ) );
+
+			String availableMeat = miscMatcher.group(5).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" );
+			KoLCharacter.setAvailableMeat( Integer.parseInt( availableMeat ) );
+
+			String adventuresLeft = miscMatcher.group(6).replaceAll( "<[^>]*>", "" ).replaceAll( "[^\\d]+", "" );
 			int oldAdventures = KoLCharacter.getAdventuresLeft();
-			int newAdventures = df.parse( miscMatcher.group(12) ).intValue();
-
-			client.processResult( new AdventureResult( AdventureResult.ADV, newAdventures - oldAdventures ) );
+			int newAdventures = Integer.parseInt( adventuresLeft );
+			StaticEntity.getClient().processResult( new AdventureResult( AdventureResult.ADV, newAdventures - oldAdventures ) );
 		}
 	}
 
-	private void handleMindControl( String mcString ) throws Exception
+	private static void handleMindControl( String responseText, String mcString ) throws Exception
 	{
-		Matcher matcher = Pattern.compile( mcString + "</a>: ?(</td><td>)?<b>(.*?)</b>" ).matcher( responseText );
+		Matcher matcher = Pattern.compile( mcString + "</a>: ?(</td><td>)?<b>(\\d+)</b>" ).matcher( responseText );
 
 		if ( matcher.find() )
-			KoLCharacter.setMindControlLevel( df.parse( matcher.group(2) ).intValue() );
+			KoLCharacter.setMindControlLevel( Integer.parseInt( matcher.group(2) ) );
+		else
+			KoLCharacter.setMindControlLevel( 0 );
 	}
 }

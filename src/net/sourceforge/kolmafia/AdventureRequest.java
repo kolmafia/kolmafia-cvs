@@ -47,9 +47,9 @@ import java.util.StringTokenizer;
 
 public class AdventureRequest extends KoLRequest
 {
+	private String adventureName;
 	private String formSource;
 	private String adventureID;
-	private boolean hasLuckyVersion;
 	protected int adventuresUsed;
 
 	public static final AdventureResult ABRIDGED = new AdventureResult( 534, -1 );
@@ -64,13 +64,15 @@ public class AdventureRequest extends KoLRequest
 	 * notifying the given client of results (or errors).
 	 *
 	 * @param	client	The client to which results will be reported
+	 * @param	adventureName	The name of the adventure location
 	 * @param	formSource	The form to which the data will be posted
 	 * @param	adventureID	The identifer for the adventure to be executed
 	 */
 
-	public AdventureRequest( KoLmafia client, String formSource, String adventureID )
+	public AdventureRequest( KoLmafia client, String adventureName, String formSource, String adventureID )
 	{
 		super( client, formSource );
+		this.adventureName = adventureName;
 		this.formSource = formSource;
 		this.adventureID = adventureID;
 
@@ -83,11 +85,6 @@ public class AdventureRequest extends KoLRequest
 
 		if ( formSource.equals( "adventure.php" ) )
 			addFormField( "snarfblat", adventureID );
-		else if ( formSource.equals( "cave.php" ) )
-		{
-			addFormField( "action", adventureID );
-			this.adventuresUsed = adventureID.equals( "end" ) ? 1 : 0;
-		}
 		else if ( formSource.equals( "shore.php" ) )
 		{
 			addFormField( "whichtrip", adventureID );
@@ -128,17 +125,6 @@ public class AdventureRequest extends KoLRequest
 			addFormField( "place", adventureID );
 		else if ( !formSource.equals( "rats.php" ) )
 			addFormField( "action", adventureID );
-
-		hasLuckyVersion = hasLuckyVersion( adventureID );
-	}
-
-	public static final boolean hasLuckyVersion( String adventureID )
-	{
-		for ( int i = 0; i < AdventureDatabase.CLOVER_ADVS.length; ++i )
-			if ( AdventureDatabase.CLOVER_ADVS[i].equals( adventureID ) )
-				return true;
-
-		return false;
 	}
 
 	/**
@@ -151,24 +137,30 @@ public class AdventureRequest extends KoLRequest
 
 	public void run()
 	{
-		if ( hasLuckyVersion && client.isLuckyCharacter() && getProperty( "cloverProtectActive" ).equals( "true" ) )
-			(new ItemStorageRequest( client, ItemStorageRequest.CLOSET_YOUR_CLOVERS )).run();
-
 		// Prevent the request from happening if the client attempted
 		// to cancel in the delay period.
 
 		if ( !client.permitsContinue() )
 			return;
 
+		if ( getProperty( "cloverProtectActive" ).equals( "true" ) )
+			DEFAULT_SHELL.executeLine( "use * ten-leaf clover" );
+
 		super.run();
+
+		if ( getProperty( "cloverProtectActive" ).equals( "true" ) )
+			DEFAULT_SHELL.executeLine( "use * ten-leaf clover" );
 	}
 
 	protected void processResults()
 	{
 		// If this is a lucky adventure, then remove a clover
-		// from the player's inventory.
+		// from the player's inventory -- this will occur when
+		// you see either "Your ten-leaf clover" or "your
+		// ten-leaf clover" (shorten to "our ten-leaf clover"
+		// for substring matching)
 
-		if ( hasLuckyVersion && client.isLuckyCharacter() )
+		if ( responseText.indexOf( "our ten-leaf clover" ) != -1 )
 			client.processResult( SewerRequest.CLOVER );
 
 		// Sometimes, there's no response from the server.
@@ -181,46 +173,56 @@ public class AdventureRequest extends KoLRequest
 			return;
 		}
 
-		Matcher encounterMatcher = Pattern.compile( "<center><b>(.*?)</b>" ).matcher( responseText );
-		if ( encounterMatcher.find() )
-			client.registerEncounter( encounterMatcher.group(1) );
+		// If you haven't unlocked the orc chasm yet,
+		// try doing so now.
 
-		// Certain one-time adventures do not cost a turn.
+		if ( adventureID.equals( "80" ) && responseText.indexOf( "You shouldn't be here." ) != -1 )
+		{
+			(new AdventureRequest( client, "The Orc Chasm (Pre-Bridge)", "mountains.php", "" )).run();
+			if ( client.permitsContinue() )
+				this.run();
+
+			return;
+		}
 
 		// We're missing an item, haven't been given a quest yet, or otherwise
 		// trying to go somewhere not allowed.
 
-		if ( responseText.indexOf( "You shouldn't be here." ) != -1 || responseText.indexOf( "into the spectral mists" ) != -1 )
+		if ( responseText.indexOf( "You shouldn't be here." ) != -1 || responseText.indexOf( "not yet be accessible" ) != -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You can't get to that area." );
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You can't get to that area yet." );
 			return;
 		}
 
-		// If we gained nothing, assume adventure didn't take place.
-
-		if ( !formSource.equals( "dungeons.php" ) && responseText.indexOf( "You lose" ) == -1 && responseText.indexOf( "You acquire" ) == -1 && responseText.indexOf( "You gain" ) == -1 )
+		if ( responseText.indexOf( "into the spectral mists" ) != -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "No results detected." );
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "No one may know of its coming or going." );
 			return;
 		}
 
-		// If you're at the casino, each of the different slot
-		// machines deducts meat from your tally
-
-		if ( formSource.equals( "casino.php" ) )
+		if ( responseText.indexOf( "temporal rift in the plains has closed" ) != -1 )
 		{
-			if ( adventureID.equals( "1" ) )
-				client.processResult( new AdventureResult( AdventureResult.MEAT, -5 ) );
-			else if ( adventureID.equals( "2" ) )
-				client.processResult( new AdventureResult( AdventureResult.MEAT, -10 ) );
-			else if ( adventureID.equals( "11" ) )
-				client.processResult( new AdventureResult( AdventureResult.MEAT, -10 ) );
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "The temporal rift has closed." );
+			return;
 		}
 
-		if ( adventureID.equals( "70" ) )
-			client.processResult( new AdventureResult( AdventureResult.MEAT, -10 ) );
-		else if ( adventureID.equals( "71" ) )
-			client.processResult( new AdventureResult( AdventureResult.MEAT, -30 ) );
+		// Cold protection is required for the area.  This only happens at
+		// the peak.  Abort and notify.
+
+		if ( responseText.indexOf( "need some sort of protection" ) != -1 )
+		{
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You need cold protection." );
+			return;
+		}
+
+		// Stench protection is required for the area.	This only
+		// happens at the Guano Junction.  Abort and notify.
+
+		if ( responseText.indexOf( "need stench protection to adventure here" ) != -1 )
+		{
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You need stench protection." );
+			return;
+		}
 
 		// This is a server error. Hope for the
 		// best and repeat the request.
@@ -229,18 +231,6 @@ public class AdventureRequest extends KoLRequest
 		{
 			DEFAULT_SHELL.updateDisplay( "Server error.  Repeating request..." );
 			this.run();
-			return;
-		}
-
-		// If you haven't unlocked the orc chasm yet,
-		// try doing so now.
-
-		if ( adventureID.equals( "80" ) && responseText.indexOf( "You shouldn't be here." ) != -1 )
-		{
-			(new AdventureRequest( client, "mountains.php", "" )).run();
-			if ( client.permitsContinue() )
-				this.run();
-
 			return;
 		}
 
@@ -263,13 +253,25 @@ public class AdventureRequest extends KoLRequest
 		// defeated the goblin king, go into pending state.
 
 		if ( formSource.equals( "knob.php" ) && responseText.indexOf( "You've already slain the Goblin King" ) != -1 )
+		{
 			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You already defeated the Goblin King." );
+			return;
+		}
 
 		// The Haert of the Cyrpt: if you've already defeated
 		// the bonerdagon, go into pending state.
 
 		if ( formSource.equals( "cyrpt.php" ) && responseText.indexOf( "Bonerdagon has been defeated" ) != -1 )
+		{
 			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "You already defeated the Bonerdagon." );
+			return;
+		}
+
+		if ( responseText.indexOf( "already undefiled" ) != -1 )
+		{
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Cyrpt area cleared." );
+			return;
+		}
 
 		// The Orc Chasm (pre-bridge)
 
@@ -301,13 +303,8 @@ public class AdventureRequest extends KoLRequest
 			}
 
 			if ( responseText.indexOf( "the path to the Valley is clear" ) != -1 )
-			{
-				DEFAULT_SHELL.updateDisplay( "You can now cross the Orc Chasm." );
 				client.processResult( BRIDGE );
-				return;
-			}
 
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You've already crossed the Orc Chasm." );
 			return;
 		}
 
@@ -325,18 +322,39 @@ public class AdventureRequest extends KoLRequest
 				client.processResult( CANDLES );
 				client.processResult( BUTTERKNIFE );
 
-				DEFAULT_SHELL.updateDisplay( "Taint cleansed." );
-			}
-			else
-			{
-				// Even after you've performed the ritual:
-				// "You don't appear to have all of the elements
-				// necessary to perform the ritual."
+				Matcher learnedMatcher = Pattern.compile( "You emerge with a (.*?) of Steel" ).matcher( responseText );
+				if ( learnedMatcher.find() )
+					KoLCharacter.addAvailableSkill( new UseSkillRequest( client, learnedMatcher.group(1) + " of Steel", "", 1 ) );
 
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You can't perform the ritual." );
+				DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Taint cleansed." );
 				return;
 			}
+
+			// Even after you've performed the ritual:
+			// "You don't appear to have all of the elements
+			// necessary to perform the ritual."
+
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You can't perform the ritual." );
+			return;
 		}
+
+		// If you're at the casino, each of the different slot
+		// machines deducts meat from your tally
+
+		if ( formSource.equals( "casino.php" ) )
+		{
+			if ( adventureID.equals( "1" ) )
+				client.processResult( new AdventureResult( AdventureResult.MEAT, -5 ) );
+			else if ( adventureID.equals( "2" ) )
+				client.processResult( new AdventureResult( AdventureResult.MEAT, -10 ) );
+			else if ( adventureID.equals( "11" ) )
+				client.processResult( new AdventureResult( AdventureResult.MEAT, -10 ) );
+		}
+
+		if ( adventureID.equals( "70" ) )
+			client.processResult( new AdventureResult( AdventureResult.MEAT, -10 ) );
+		else if ( adventureID.equals( "71" ) )
+			client.processResult( new AdventureResult( AdventureResult.MEAT, -30 ) );
 
 		// Shore Trips cost 500 meat each; handle
 		// the processing here.
@@ -356,7 +374,80 @@ public class AdventureRequest extends KoLRequest
 		super.processResults();
 	}
 
+	public static String registerEncounter( KoLRequest request )
+	{
+		String urlString = request.getURLString();
+		if ( !(request instanceof AdventureRequest) && !containsEncounter( urlString, request.responseText ) )
+			return "";
+
+		// The first round is unique in that there is no
+		// data fields.  Therefore, it will equal fight.php
+		// exactly every single time.
+
+		if ( urlString.equals( "fight.php" ) )
+		{
+			Matcher encounterMatcher = Pattern.compile( "<span id='monname'>(.*?)</span>" ).matcher( request.responseText );
+			if ( encounterMatcher.find() )
+			{
+				String encounter = encounterMatcher.group(1).toLowerCase();
+				DEFAULT_SHELL.printLine( "Encounter: " + encounter );
+				StaticEntity.getClient().registerEncounter( encounter );
+				return encounter;
+			}
+		}
+		else
+		{
+			Matcher encounterMatcher = Pattern.compile( "<center><b>(.*?)</b>" ).matcher( request.responseText );
+			if ( encounterMatcher.find() )
+			{
+				String encounter = encounterMatcher.group(1).toLowerCase();
+				DEFAULT_SHELL.printLine( "Encounter: " + encounter );
+				StaticEntity.getClient().registerEncounter( encounter );
+				return encounter;
+			}
+		}
+
+		return "";
+	}
+
+	private static boolean containsEncounter( String formSource, String responseText )
+	{
+		// The first round is unique in that there is no
+		// data fields.  Therefore, it will equal fight.php
+		// exactly every single time.
+
+		if ( formSource.startsWith( "fight.php" ) )
+			return formSource.equals( "fight.php" );
+
+		// All other adventures can be identified via their
+		// form data and the place they point to.
+
+		else if ( formSource.startsWith( "adventure.php" ) )
+			return true;
+		else if ( formSource.startsWith( "cave.php" ) && formSource.indexOf( "end" ) != -1 )
+			return true;
+		else if ( formSource.equals( "shore.php" ) && formSource.indexOf( "whichtrip" ) != -1 )
+			return true;
+		else if ( formSource.equals( "dungeon.php" ) && formSource.indexOf( "action" ) != -1 )
+			return true;
+		else if ( formSource.equals( "knob.php" ) && formSource.indexOf( "king" ) != -1 )
+			return true;
+		else if ( formSource.equals( "cyrpt.php" ) && formSource.indexOf( "action" ) != -1 )
+			return true;
+		else if ( formSource.equals( "rats.php" ) )
+			return true;
+
+		// It is not a known adventure.  Therefore,
+		// do not log the encounter yet.
+
+		return false;
+	}
+
 	public int getAdventuresUsed()
-	{	return client.permitsContinue() ? adventuresUsed : 0;
+	{	return client.permitsContinue() && ( responseText == null || responseText.indexOf( "oyster egg" ) == -1 ) ? adventuresUsed : 0;
+	}
+
+	public String toString()
+	{	return adventureName;
 	}
 }

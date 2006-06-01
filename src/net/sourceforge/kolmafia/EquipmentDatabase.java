@@ -82,8 +82,10 @@ public class EquipmentDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 
 		reader = getReader( "outfits.dat" );
@@ -150,6 +152,32 @@ public class EquipmentDatabase extends KoLDatabase
 			return 0;
 
 		return getHands( itemID );
+	}
+
+	public static boolean isRanged( int itemID )
+	{
+		String req = requirement.get( itemID );
+		return req != null && req.startsWith( "Mox:" );
+	}
+
+	public static boolean isRanged( String itemName )
+	{
+		int itemID = TradeableItemDatabase.getItemID( itemName );
+
+		if ( itemID == -1 )
+			return false;
+
+		return isRanged( itemID );
+	}
+
+	public static boolean dualWieldable( String itemName )
+	{
+		int itemID = TradeableItemDatabase.getItemID( itemName );
+
+		if ( itemID == -1 )
+			return false;
+
+		return getHands( itemID ) == 1 && !isRanged( itemID );
 	}
 
 	public static boolean hasOutfit( int id )
@@ -258,9 +286,9 @@ public class EquipmentDatabase extends KoLDatabase
 		if ( outfitID < 1 )
 			return;
 
-		String [] missingPieces = outfits.get( outfitID ).getMissingPieces();
-		for ( int i = 0; i < missingPieces.length; ++i )
-			DEFAULT_SHELL.executeConditionsCommand( "add " + missingPieces[i] );
+		String [] pieces = outfits.get( outfitID ).getPieces();
+		for ( int i = 0; i < pieces.length; ++i )
+			DEFAULT_SHELL.executeConditionsCommand( "add " + pieces[i] );
 	}
 
 	/**

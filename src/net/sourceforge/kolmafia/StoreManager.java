@@ -36,6 +36,7 @@ package net.sourceforge.kolmafia;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,14 +46,23 @@ import net.java.dev.spellcast.utilities.SortedListModel;
 
 public abstract class StoreManager extends StaticEntity
 {
+	private static final int RECENT_FIRST = 1;
+	private static final int OLDEST_FIRST = 2;
+	private static final int GROUP_BY_NAME = 3;
+	
+	private static int currentLogSort = RECENT_FIRST;
+	private static boolean sortItemsByName = false;
+
 	private static long potentialEarnings = 0;
 	private static LockableListModel storeLog = new LockableListModel();
-	private static LockableListModel soldItemList = new SortedListModel();
+	private static LockableListModel soldItemList = new LockableListModel();
+	private static LockableListModel sortedSoldItemList = new LockableListModel();
 
 	public static void reset()
 	{
 		potentialEarnings = 0;
 		soldItemList.clear();
+		sortedSoldItemList.clear();
 	}
 
 	/**
@@ -63,8 +73,8 @@ public abstract class StoreManager extends StaticEntity
 
 	public static SoldItem registerItem( int itemID, int quantity, int price, int limit, int lowest )
 	{
-		if ( price != 999999999 )
-			potentialEarnings += price * quantity;
+		if ( price < 50000000 )
+			potentialEarnings += (long) price * (long) quantity;
 
 		SoldItem newItem = new SoldItem( itemID, quantity, price, limit, lowest );
 		int itemIndex = soldItemList.indexOf( newItem );
@@ -75,6 +85,7 @@ public abstract class StoreManager extends StaticEntity
 		if ( itemIndex == -1 )
 		{
 			soldItemList.add( newItem );
+			sortedSoldItemList.add( newItem );
 		}
 		else
 		{
@@ -85,7 +96,10 @@ public abstract class StoreManager extends StaticEntity
 			SoldItem oldItem = (SoldItem) soldItemList.get( itemIndex );
 
 			if ( oldItem.getQuantity() != newItem.getQuantity() || oldItem.getPrice() != newItem.getPrice() || oldItem.getLimit() != newItem.getLimit() || oldItem.getLowest() != newItem.getLowest() )
+			{
 				soldItemList.set( itemIndex, newItem );
+				sortedSoldItemList.set( sortedSoldItemList.indexOf( newItem ), newItem );
+			}
 		}
 
 		return newItem;
@@ -107,27 +121,46 @@ public abstract class StoreManager extends StaticEntity
 		return currentPrice;
 	}
 
-	/**
-	 * Returns a list of the items which are handled by
-	 * the current store manager.  Note that this list
-	 * may or may not be up-to-date.
-	 */
-
 	public static LockableListModel getSoldItemList()
 	{	return soldItemList;
+	}
+	
+	public static LockableListModel getSortedSoldItemList()
+	{	return sortedSoldItemList;
 	}
 
 	public static LockableListModel getStoreLog()
 	{	return storeLog;
 	}
+	
+	public static void sortStoreLog( boolean cycleSortType )
+	{
+		if ( cycleSortType )
+		{
+			switch ( currentLogSort )
+			{
+				case RECENT_FIRST:
+					currentLogSort = OLDEST_FIRST;
+					break;
+				case OLDEST_FIRST:
+					currentLogSort = GROUP_BY_NAME;
+					break;
+				case GROUP_BY_NAME:
+					currentLogSort = RECENT_FIRST;
+					break;
+			}
+		}
+		
+		// Because StoreLogEntry objects use the current
+		// internal variable to decide how to sort, a simple
+		// function call will suffice.
+
+		storeLog.sort();
+	}
 
 	public static void update( String storeText, boolean isPriceManagement )
 	{
 		potentialEarnings = 0;
-
-		// Now that the item list has been cleared, begin
-		// parsing the store text.
-
 		ArrayList newItems = new ArrayList();
 
 		if ( isPriceManagement )
@@ -137,18 +170,21 @@ public abstract class StoreManager extends StaticEntity
 			// The item matcher here examines each row in the table
 			// displayed in the price management page.
 
-			Matcher priceMatcher = Pattern.compile( "<tr>.*?<td>([\\d,]+)</td>.*?\"(\\d+)\" name=price(\\d+).*?value=\"(\\d+)\".*?<td>([\\d,]+)</td>" ).matcher( storeText );
+			Matcher priceMatcher = Pattern.compile( "<tr><td><b>(.*?)\\&nbsp;.*?<td>([\\d,]+)</td>.*?\"(\\d+)\" name=price(\\d+).*?value=\"(\\d+)\".*?<td>([\\d,]+)</td>" ).matcher( storeText );
 
 			try
 			{
 				while ( priceMatcher.find() )
 				{
-					itemID = Integer.parseInt( priceMatcher.group(3) );
-					quantity = df.parse( priceMatcher.group(1) ).intValue();
+					itemID = Integer.parseInt( priceMatcher.group(4) );
+					if ( TradeableItemDatabase.getItemName( itemID ) == null )
+						TradeableItemDatabase.registerItem( itemID, priceMatcher.group(1) );
 
-					price = df.parse( priceMatcher.group(2) ).intValue();
-					limit = df.parse( priceMatcher.group(4) ).intValue();
-					lowest = df.parse( priceMatcher.group(5) ).intValue();
+					quantity = df.parse( priceMatcher.group(2) ).intValue();
+
+					price = df.parse( priceMatcher.group(3) ).intValue();
+					limit = df.parse( priceMatcher.group(5) ).intValue();
+					lowest = df.parse( priceMatcher.group(6) ).intValue();
 
 					// Now that all the data has been retrieved, register
 					// the item that was discovered.
@@ -158,28 +194,57 @@ public abstract class StoreManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				// Because of the way the regular expressions are
-				// set up, this should not happen.
-
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 		}
 		else
 		{
 			AdventureResult item;
-			int price, limit;
+			int itemID, price, limit;
 
 			// The item matcher here examines each row in the table
 			// displayed in the standard item-addition page.
 
-			Matcher itemMatcher = Pattern.compile( "<tr><td><img src.*?></td><td>(.*?)</td><td>([\\d,]+)</td><td>(.*?)</td>" ).matcher( storeText );
+			Matcher itemMatcher = Pattern.compile( "<tr><td><img src.*?></td><td>(.*?)</td><td>([\\d,]+)</td><td>(.*?)</td><td.*?(\\d+)" ).matcher( storeText );
 
 			try
 			{
 				while ( itemMatcher.find() )
 				{
-					item = AdventureResult.parseResult( itemMatcher.group(1) );
+					itemID = Integer.parseInt( itemMatcher.group(4) );
+					if ( TradeableItemDatabase.getItemName( itemID ) == null )
+					{
+						String itemName = itemMatcher.group(1);
+						if ( itemName.indexOf( "(" ) != -1 )
+							itemName = itemName.substring( 0, itemName.indexOf( "(" ) ).trim();
+
+						TradeableItemDatabase.registerItem( itemID, itemName );
+					}
+
+					// Remove parenthesized number and match again.
+					StringTokenizer parsedItem = new StringTokenizer( itemMatcher.group(1), "()" );
+					String name = parsedItem.nextToken().trim();
+					int count = 1;
+
+					if ( parsedItem.hasMoreTokens() )
+					{
+						try
+						{
+							count = df.parse( parsedItem.nextToken() ).intValue();
+						}
+						catch ( Exception e )
+						{
+							// This should not happen.  Therefore, print
+							// a stack trace for debug purposes.
+							
+							StaticEntity.printStackTrace( e );
+						}
+					}
+					
+					item = new AdventureResult( name, count, false );
 					price = df.parse( itemMatcher.group(2) ).intValue();
 
 					// In this case, the limit could appear as "unlimited",
@@ -195,20 +260,21 @@ public abstract class StoreManager extends StaticEntity
 			}
 			catch ( Exception e )
 			{
-				// Because of the way the regular expressions are
-				// set up, this should not happen.
-
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 		}
 
-		// Only keep the elements which were added to the new
-		// item list -- make use of retainAll for this.  This
-		// is slightly better than constantly clearing and then
-		// re-adding the items to your store.
-
 		soldItemList.retainAll( newItems );
+		sortedSoldItemList.retainAll( newItems );
+
+		sortItemsByName = true;
+		soldItemList.sort();
+
+		sortItemsByName = false;
+		sortedSoldItemList.sort();
 
 		// Now, update the title of the store manage
 		// frame to reflect the new price.
@@ -228,12 +294,53 @@ public abstract class StoreManager extends StaticEntity
 		Matcher logMatcher = Pattern.compile( "<span.*?</span>" ).matcher( logText );
 		if ( logMatcher.find() )
 		{
+			if ( logMatcher.group().indexOf( "<br>" ) == -1 )
+				return;
+			
 			String [] entries = logMatcher.group().split( "<br>" );
-			for ( int i = 0; i < entries.length; ++i )
-				entries[i] = (entries.length - i - 1) + ":  " + entries[i].replaceAll( "<.*?>", "" );
+		
+			for ( int i = 0; i < entries.length - 1; ++i )
+				storeLog.add( new StoreLogEntry( entries.length - i - 1, entries[i].replaceAll( "<.*?>", "" ) ) );
 
-			for ( int i = entries.length - 2; i >= 0; --i )
-				storeLog.add( entries[i] );
+			sortStoreLog( false );
+		}
+	}
+	
+	private static class StoreLogEntry implements Comparable
+	{
+		private int id;
+		private String text;
+		private String stringForm;
+		
+		public StoreLogEntry( int id, String text )
+		{
+			this.id = id;
+
+			String [] pieces = text.split( " " );
+			this.text = text.substring( pieces[0].length() + pieces[1].length() + 2 );
+			this.stringForm = id + ": " + text;
+		}
+		
+		public String toString()
+		{	return stringForm;
+		}
+		
+		public int compareTo( Object o )
+		{
+			if ( o == null || !(o instanceof StoreLogEntry) )
+				return -1;
+			
+			switch ( currentLogSort )
+			{
+				case RECENT_FIRST:
+					return ((StoreLogEntry)o).id - id;
+				case OLDEST_FIRST:
+					return id - ((StoreLogEntry)o).id;
+				case GROUP_BY_NAME:
+					return text.compareToIgnoreCase( ((StoreLogEntry)o).text );
+				default:
+					return -1;
+			}
 		}
 	}
 
@@ -242,9 +349,9 @@ public abstract class StoreManager extends StaticEntity
 	 * given item.
 	 */
 
-	public static void searchMall( String itemName, List priceSummary )
+	public static void searchMall( String itemName, List resultSummary, int maximumResults, boolean toString )
 	{
-		priceSummary.clear();
+		resultSummary.clear();
 		if ( itemName == null )
 			return;
 
@@ -253,7 +360,12 @@ public abstract class StoreManager extends StaticEntity
 		// With the item name properly formatted, issue
 		// the search request.
 
-		(new SearchMallRequest( client, itemName, 10, results, true )).run();
+		(new SearchMallRequest( client, itemName, maximumResults, results, true )).run();
+		if ( !toString )
+		{
+			resultSummary.addAll( results );
+			return;
+		}
 
 		MallPurchaseRequest [] resultsArray = new MallPurchaseRequest[ results.size() ];
 		results.toArray( resultsArray );
@@ -276,7 +388,7 @@ public abstract class StoreManager extends StaticEntity
 		prices.keySet().toArray( priceArray );
 
 		for ( int i = 0; i < priceArray.length; ++i )
-			priceSummary.add( "  " + df.format( ((Integer)prices.get( priceArray[i] )).intValue() ) + " @ " + df.format( priceArray[i].intValue() ) + " meat" );
+			resultSummary.add( "  " + df.format( ((Integer)prices.get( priceArray[i] )).intValue() ) + " @ " + df.format( priceArray[i].intValue() ) + " meat" );
 	}
 
 	/**
@@ -287,6 +399,7 @@ public abstract class StoreManager extends StaticEntity
 	public static class SoldItem implements Comparable
 	{
 		private int itemID;
+		private String itemName;
 		private int quantity;
 		private int price;
 		private int limit;
@@ -295,6 +408,7 @@ public abstract class StoreManager extends StaticEntity
 		public SoldItem( int itemID, int quantity, int price, int limit, int lowest )
 		{
 			this.itemID = itemID;
+			this.itemName = TradeableItemDatabase.getItemName( itemID );
 			this.quantity = quantity;
 			this.price = price;
 			this.limit = limit;
@@ -303,6 +417,10 @@ public abstract class StoreManager extends StaticEntity
 
 		public int getItemID()
 		{	return itemID;
+		}
+		
+		public String getItemName()
+		{	return itemName;
 		}
 
 		public int getQuantity()
@@ -327,8 +445,19 @@ public abstract class StoreManager extends StaticEntity
 
 		public int compareTo( Object o )
 		{
-			return o == null || !(o instanceof SoldItem) ? -1 :
-				TradeableItemDatabase.getItemName( itemID ).compareToIgnoreCase( TradeableItemDatabase.getItemName( ((SoldItem)o).itemID ) );
+			if ( o == null || !(o instanceof SoldItem) )
+				return -1;
+
+			if ( price != 999999999 && ((SoldItem)o).price == 999999999 )
+				return -1;
+			
+			if ( price == 999999999 && ((SoldItem)o).price != 999999999 )
+				return 1;
+			
+			if ( price == 999999999 && ((SoldItem)o).price == 999999999 )
+				return itemName.compareToIgnoreCase( ((SoldItem)o).itemName );
+
+			return sortItemsByName ? itemName.compareToIgnoreCase( ((SoldItem)o).itemName ) : price - ((SoldItem)o).price;
 		}
 
 		public String toString()

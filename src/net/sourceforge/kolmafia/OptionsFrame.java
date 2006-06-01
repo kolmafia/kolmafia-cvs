@@ -52,7 +52,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.JComponent;
 import javax.swing.JButton;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 import javax.swing.JLabel;
 import javax.swing.JTextField;
 import javax.swing.JPasswordField;
@@ -67,13 +66,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JOptionPane;
 import javax.swing.AbstractButton;
 import javax.swing.Box;
-import javax.swing.JTree;
-import javax.swing.tree.DefaultTreeModel;
 
 // utilities
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.StringTokenizer;
 
 import java.io.File;
@@ -109,21 +105,13 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class OptionsFrame extends KoLFrame
 {
-	private JTabbedPane tabs;
-	private JTabbedPane customTabs;
-
-	private JTree displayTree;
-	private DefaultTreeModel displayModel;
-
 	/**
 	 * Constructs a new <code>OptionsFrame</code> that will be
-	 * associated with the given StaticEntity.getClient().  When this frame is
+	 * associated with the given client.  When this frame is
 	 * closed, it will attempt to return focus to the currently
-	 * active frame; note that if this is done while the StaticEntity.getClient()
+	 * active frame; note that if this is done while the client
 	 * is shuffling active frames, closing the window will not
 	 * properly transfer focus.
-	 *
-	 * @param	StaticEntity.getClient()	The StaticEntity.getClient() to be associated with this <code>OptionsFrame</code>
 	 */
 
 	public OptionsFrame()
@@ -132,40 +120,12 @@ public class OptionsFrame extends KoLFrame
 		tabs = new JTabbedPane();
 
 		addTab( "General", new GeneralOptionsPanel() );
-		addTab( "Area List", new AreaOptionsPanel() );
-		addTab( "Choice Handling", new ChoiceOptionsPanel() );
+		addTab( "Zone List", new AreaOptionsPanel() );
+		addTab( "Relay Browser", new RelayOptionsPanel() );
 		addTab( "Chat Options", new ChatOptionsPanel() );
-
-		if ( StaticEntity.getClient().getPasswordHash() != null )
-		{
-			JPanel customContainer = new JPanel( new BorderLayout() );
-			customTabs = new JTabbedPane();
-
-			displayTree = new JTree();
-			displayModel = (DefaultTreeModel) displayTree.getModel();
-
-			JScrollPane treeScroller = new JScrollPane( displayTree, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-
-			customTabs.add( "View", treeScroller );
-			customTabs.add( "Modify", new CustomCombatPanel() );
-
-			customContainer.add( customTabs, BorderLayout.CENTER );
-			tabs.add( "Custom Combat", customContainer );
-		}
 
 		framePanel.setLayout( new CardLayout( 10, 10 ) );
 		framePanel.add( tabs, "" );
-	}
-
-	public void dispose()
-	{
-		tabs = null;
-		customTabs = null;
-		displayTree = null;
-		displayModel = null;
-
-		super.dispose();
 	}
 
 	private void addTab( String name, JComponent panel )
@@ -175,35 +135,35 @@ public class OptionsFrame extends KoLFrame
 		tabs.add( name, scroller );
 	}
 
-	private class AreaOptionsPanel extends OptionsPanel
+	private class RelayOptionsPanel extends OptionsPanel
 	{
-		private String [] zones;
-		private JCheckBox [] options;
+		private JCheckBox [] optionBoxes;
 
-		public AreaOptionsPanel()
+		private final String [][] options =
 		{
-			super( "Adventure List", new Dimension( 370, 16 ), new Dimension( 20, 16 ) );
+			{ "relayAddsUseLinks", "Add [use] links when acquiring items" },
+			{ "relayAddsCommandLineLinks", "Add gCLI tool links to chat launcher" },
+			{ "relayAddsSimulatorLinks", "Add Ayvuir's Simulator of Loathing link" },
+			{ "relayMovesManeuver", "Move moxious maneuver button into skills list" }
+		};
 
-			zones = new String[ AdventureDatabase.ZONE_NAMES.size() ];
-			options = new JCheckBox[ AdventureDatabase.ZONE_NAMES.size() + 2 ];
+		/**
+		 * Constructs a new <code>StartupOptionsPanel</code>, containing a
+		 * place for the users to select their desired server and for them
+		 * to modify any applicable proxy settings.
+		 */
+
+		public RelayOptionsPanel()
+		{
+			super( "Relay Browser", new Dimension( 370, 16 ), new Dimension( 20, 16 ) );
+			VerifiableElement [] elements = new VerifiableElement[ options.length ];
+
+			optionBoxes = new JCheckBox[ options.length ];
+			for ( int i = 0; i < options.length; ++i )
+				optionBoxes[i] = new JCheckBox();
 
 			for ( int i = 0; i < options.length; ++i )
-				options[i] = new JCheckBox();
-
-			VerifiableElement [] elements = new VerifiableElement[ AdventureDatabase.ZONE_NAMES.size() + 3 ];
-
-			elements[0] = new VerifiableElement( "Sort adventure list", JLabel.LEFT, options[0] );
-			elements[1] = new VerifiableElement( "Show associated zone", JLabel.LEFT, options[1] );
-			elements[2] = new VerifiableElement( " ", new JLabel( "" ) );
-
-			String [] names = new String[ AdventureDatabase.ZONE_NAMES.keySet().size() ];
-			AdventureDatabase.ZONE_NAMES.keySet().toArray( names );
-
-			for ( int i = 0; i < names.length; ++i )
-			{
-				zones[i] = (String) AdventureDatabase.ZONE_NAMES.get( names[i] );
-				elements[i+3] = new VerifiableElement( "Hide " + AdventureDatabase.ZONE_DESCRIPTIONS.get( names[i] ), JLabel.LEFT, options[i+2] );
-			}
+				elements[i] = new VerifiableElement( options[i][1], JLabel.LEFT, optionBoxes[i] );
 
 			setContent( elements, false );
 			actionCancelled();
@@ -211,61 +171,30 @@ public class OptionsFrame extends KoLFrame
 
 		protected void actionConfirmed()
 		{
-			setProperty( "sortAdventures", String.valueOf( options[0].isSelected() ) );
-			setProperty( "showAdventureZone", String.valueOf( options[1].isSelected() ) );
+			for ( int i = 0; i < options.length; ++i )
+				setProperty( options[i][0], String.valueOf( optionBoxes[i].isSelected() ) );
 
-			StringBuffer areas = new StringBuffer();
-
-			for ( int i = 2; i < options.length; ++i )
-			{
-				if ( options[i].isSelected() )
-				{
-					if ( areas.length() != 0 )
-						areas.append( ',' );
-
-					areas.append( zones[i-2] );
-				}
-			}
-
-			setProperty( "zoneExcludeList", areas.toString() );
 			super.actionConfirmed();
-
-			LockableListModel adventureList = AdventureDatabase.getAsLockableListModel();
-
-			if ( options[0].isSelected() )
-				Collections.sort( adventureList );
 		}
 
 		protected void actionCancelled()
 		{
-			options[0].setSelected( getProperty( "sortAdventures" ).equals( "true" ) );
-			options[1].setSelected( getProperty( "showAdventureZone" ).equals( "true" ) );
-
-			String excluded = getProperty( "zoneExcludeList" );
-			for ( int i = 0; i < zones.length; ++i )
-				options[i+2].setSelected( excluded.indexOf( zones[i] ) != -1 );
+			for ( int i = 0; i < options.length; ++i )
+				optionBoxes[i].setSelected( getProperty( options[i][0] ).equals( "true" ) );
 		}
 	}
-
-	/**
-	 * This panel handles all of the things related to login
-	 * options, including which server to use for login and
-	 * all other requests, as well as the user's proxy settings
-	 * (if applicable).
-	 */
-
+	
 	private class GeneralOptionsPanel extends OptionsPanel
 	{
 		private JCheckBox [] optionBoxes;
 
 		private final String [][] options =
 		{
-			{ "synchronizeFightFrame", "Show requests in mini-browser" },
+			{ "showAllRequests", "Show requests in mini-browser" },
+			{ "keepSessionLogs", "Maintain dated player session log" },
 			{ "serverFriendly", "Use server-friendlier request speed" },
-			{ "forceReconnect", "Automatically time-in on time-out" },
-
-			{ "cloverProtectActive", "Guard against accidental clover usage" },
-			{ "autoSatisfyChecks", "Automatically satisfy conditions on check" },
+			{ "autoSatisfyChecks", "Allow mall purchases on conditions check" },
+			{ "guiUsesOneWindow", "Close windows automatically" },
 		};
 
 		/**
@@ -296,6 +225,11 @@ public class OptionsFrame extends KoLFrame
 				setProperty( options[i][0], String.valueOf( optionBoxes[i].isSelected() ) );
 
 			super.actionConfirmed();
+
+			if ( getProperty( "keepSessionLogs" ).equals( "true" ) )
+				KoLmafia.openSessionStream();
+			else
+				KoLmafia.closeSessionStream();
 		}
 
 		protected void actionCancelled()
@@ -393,176 +327,6 @@ public class OptionsFrame extends KoLFrame
 	}
 
 	/**
-	 * This panel allows the user to select which item they would like
-	 * to do for each of the different choice adventures.
-	 */
-
-	private class ChoiceOptionsPanel extends KoLPanel
-	{
-		private JComboBox [] optionSelects;
-		private JComboBox castleWheelSelect;
-
-		/**
-		 * Constructs a new <code>ChoiceOptionsPanel</code>.
-		 */
-
-		public ChoiceOptionsPanel()
-		{
-			super( new Dimension( 130, 20 ), new Dimension( 260, 20 ) );
-
-			optionSelects = new JComboBox[ AdventureDatabase.CHOICE_ADVS.length ];
-			for ( int i = 0; i < AdventureDatabase.CHOICE_ADVS.length; ++i )
-			{
-				optionSelects[i] = new JComboBox();
-
-				boolean ignorable = AdventureDatabase.ignoreChoiceOption( AdventureDatabase.CHOICE_ADVS[i][0][0] ) != null;
-				optionSelects[i].addItem( ignorable ?
-										  "Ignore this adventure" :
-										  "Can't ignore this adventure" );
-
-				for ( int j = 0; j < AdventureDatabase.CHOICE_ADVS[i][2].length; ++j )
-					optionSelects[i].addItem( AdventureDatabase.CHOICE_ADVS[i][2][j] );
-			}
-
-			castleWheelSelect = new JComboBox();
-			castleWheelSelect.addItem( "Turn to map quest position" );
-			castleWheelSelect.addItem( "Turn to muscle position" );
-			castleWheelSelect.addItem( "Turn to mysticality position" );
-			castleWheelSelect.addItem( "Turn to moxie position" );
-			castleWheelSelect.addItem( "Ignore this adventure" );
-
-			VerifiableElement [] elements = new VerifiableElement[ optionSelects.length + 1 ];
-			elements[0] = new VerifiableElement( "Castle Wheel", castleWheelSelect );
-
-			for ( int i = 1; i < elements.length; ++i )
-				elements[i] = new VerifiableElement( AdventureDatabase.CHOICE_ADVS[i-1][1][0], optionSelects[i-1] );
-
-			setContent( elements );
-			actionCancelled();
-		}
-
-		protected void actionConfirmed()
-		{
-			setProperty( "luckySewerAdventure", (String) optionSelects[0].getSelectedItem() );
-			for ( int i = 1; i < optionSelects.length; ++i )
-			{
-				int index = optionSelects[i].getSelectedIndex();
-				String choice = AdventureDatabase.CHOICE_ADVS[i][0][0];
-				boolean ignorable = AdventureDatabase.ignoreChoiceOption( choice ) != null;
-
-				if ( ignorable || index != 0 )
-					setProperty( choice, String.valueOf( index ) );
-				else
-					optionSelects[i].setSelectedIndex( Integer.parseInt( getProperty( choice ) ) );
-			}
-
-			//              The Wheel:
-
-			//              Muscle
-			// Moxie          +         Mysticality
-			//            Map Quest
-
-			// Option 1: Turn the wheel counterclockwise
-			// Option 2: Turn the wheel clockwise
-			// Option 3: Leave the wheel alone
-
-			switch ( castleWheelSelect.getSelectedIndex() )
-			{
-				case 0: // Map quest position (choice adventure 11)
-					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
-					setProperty( "choiceAdventure10", "1" );  // Turn the mysticality position clockwise
-					setProperty( "choiceAdventure11", "3" );  // Leave the map quest position alone
-					setProperty( "choiceAdventure12", "2" );  // Turn the moxie position counterclockwise
-					break;
-
-				case 1: // Muscle position (choice adventure 9)
-					setProperty( "choiceAdventure9", "3" );	  // Leave the muscle position alone
-					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
-					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
-					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
-					break;
-
-				case 2: // Mysticality position (choice adventure 10)
-					setProperty( "choiceAdventure9", "1" );	  // Turn the muscle position clockwise
-					setProperty( "choiceAdventure10", "3" );  // Leave the mysticality position alone
-					setProperty( "choiceAdventure11", "2" );  // Turn the map quest position counterclockwise
-					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
-					break;
-
-				case 3: // Moxie position (choice adventure 12)
-					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
-					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
-					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
-					setProperty( "choiceAdventure12", "3" );  // Leave the moxie position alone
-					break;
-
-				case 4: // Ignore this adventure
-					setProperty( "choiceAdventure9", "3" );	  // Leave the muscle position alone
-					setProperty( "choiceAdventure10", "3" );  // Leave the mysticality position alone
-					setProperty( "choiceAdventure11", "3" );  // Leave the map quest position alone
-					setProperty( "choiceAdventure12", "3" );  // Leave the moxie position alone
-					break;
-			}
-		}
-
-		protected void actionCancelled()
-		{
-			optionSelects[0].setSelectedItem( getProperty( "luckySewerAdventure" ) );
-			for ( int i = 1; i < optionSelects.length; ++i )
-				optionSelects[i].setSelectedIndex( Integer.parseInt( getProperty( AdventureDatabase.CHOICE_ADVS[i][0][0] ) ) );
-
-			// Determine the desired wheel position by examining
-			// which choice adventure has the "3" value.  If none
-			// exists, assume the user wishes to turn it to the map
-			// quest.
-
-			// If they are all "3", user wants the wheel left alone
-
-			int option = 11;
-			int count = 0;
-			for ( int i = 9; i < 13; ++i )
-				if ( getProperty( "choiceAdventure" + i ).equals( "3" ) )
-				{
-					option = i;
-					count++;
-				}
-
-			switch ( count )
-			{
-				default:	// Bogus saved options
-				case 0:		// Map quest position
-					castleWheelSelect.setSelectedIndex(0);
-					break;
-
-				case 1:		// One chosen target
-					switch ( option )
-					{
-					case 9: // Muscle position
-						castleWheelSelect.setSelectedIndex(1);
-						break;
-
-					case 10: // Mysticality position
-						castleWheelSelect.setSelectedIndex(2);
-						break;
-
-					case 11: // Map quest position
-						castleWheelSelect.setSelectedIndex(0);
-						break;
-
-					case 12: // Moxie position
-						castleWheelSelect.setSelectedIndex(3);
-						break;
-					}
-					break;
-
-				case 4:		// Ignore this adventure
-					castleWheelSelect.setSelectedIndex(4);
-					break;
-			}
-		}
-	}
-
-	/**
 	 * A generic panel which adds a label to the bottom of the KoLPanel
 	 * to update the panel's status.  It also provides a thread which is
 	 * guaranteed to be a daemon thread for updating the frame which
@@ -596,79 +360,71 @@ public class OptionsFrame extends KoLFrame
 		}
 	}
 
-	/**
-	 * Internal class used to handle everything related to
-	 * displaying custom combat.
-	 */
-
-	private void refreshCombatTree()
+	private class AreaOptionsPanel extends OptionsPanel
 	{
-		CombatSettings.reset();
-		displayModel.setRoot( CombatSettings.getRoot() );
-		displayTree.setRootVisible( false );
-	}
+		private String [] zones;
+		private JCheckBox [] options;
 
-	private class CustomCombatPanel extends LabeledScrollPanel
-	{
-		public CustomCombatPanel()
+		public AreaOptionsPanel()
 		{
-			super( "Custom Combat", "save", "help", new JTextArea( 12, 40 ) );
+			super( "Adventure List", new Dimension( 370, 16 ), new Dimension( 20, 16 ) );
 
-			try
+			zones = new String[ AdventureDatabase.ZONE_NAMES.size() ];
+			options = new JCheckBox[ AdventureDatabase.ZONE_NAMES.size() + 2 ];
+
+			for ( int i = 0; i < options.length; ++i )
+				options[i] = new JCheckBox();
+
+			VerifiableElement [] elements = new VerifiableElement[ AdventureDatabase.ZONE_NAMES.size() + 3 ];
+
+			elements[0] = new VerifiableElement( "Sort adventure list", JLabel.LEFT, options[0] );
+			elements[1] = new VerifiableElement( "Show associated zone", JLabel.LEFT, options[1] );
+			elements[2] = new VerifiableElement( " ", new JLabel( "" ) );
+
+			String [] names = new String[ AdventureDatabase.ZONE_NAMES.keySet().size() ];
+			AdventureDatabase.ZONE_NAMES.keySet().toArray( names );
+
+			for ( int i = 0; i < names.length; ++i )
 			{
-				BufferedReader reader = KoLDatabase.getReader( CombatSettings.settingsFileName() );
-				StringBuffer buffer = new StringBuffer();
-
-				String line;
-
-				while ( (line = reader.readLine()) != null )
-				{
-					buffer.append( line );
-					buffer.append( System.getProperty( "line.separator" ) );
-				}
-
-				reader.close();
-				reader = null;
-				((JTextArea)scrollComponent).setText( buffer.toString() );
-			}
-			catch ( Exception e )
-			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				zones[i] = (String) AdventureDatabase.ZONE_NAMES.get( names[i] );
+				elements[i+3] = new VerifiableElement( "Hide " + AdventureDatabase.ZONE_DESCRIPTIONS.get( names[i] ), JLabel.LEFT, options[i+2] );
 			}
 
-			refreshCombatTree();
+			setContent( elements, false );
+			actionCancelled();
 		}
 
 		protected void actionConfirmed()
 		{
-			try
-			{
-				PrintStream writer = new PrintStream( new FileOutputStream( DATA_DIRECTORY + CombatSettings.settingsFileName() ) );
-				writer.println( ((JTextArea)scrollComponent).getText() );
-				writer.close();
-				writer = null;
+			setProperty( "sortAdventures", String.valueOf( options[0].isSelected() ) );
+			setProperty( "showAdventureZone", String.valueOf( options[1].isSelected() ) );
 
-				int customIndex = KoLCharacter.getBattleSkillIDs().indexOf( "custom" );
-				KoLCharacter.getBattleSkillIDs().setSelectedIndex( customIndex );
-				KoLCharacter.getBattleSkillNames().setSelectedIndex( customIndex );
-				setProperty( "battleAction", "custom" );
-			}
-			catch ( Exception e )
+			StringBuffer areas = new StringBuffer();
+
+			for ( int i = 2; i < options.length; ++i )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				if ( options[i].isSelected() )
+				{
+					if ( areas.length() != 0 )
+						areas.append( ',' );
+
+					areas.append( zones[i-2] );
+				}
 			}
 
-			// After storing all the data on disk, go ahead
-			// and reload the data inside of the tree.
-
-			refreshCombatTree();
-			customTabs.setSelectedIndex(0);
+			setProperty( "zoneExcludeList", areas.toString() );
+			super.actionConfirmed();
+			AdventureDatabase.refreshAdventureList();
 		}
 
 		protected void actionCancelled()
-		{	StaticEntity.openSystemBrowser( "http://kolmafia.sourceforge.net/combat.html" );
+		{
+			options[0].setSelected( getProperty( "sortAdventures" ).equals( "true" ) );
+			options[1].setSelected( getProperty( "showAdventureZone" ).equals( "true" ) );
+
+			String excluded = getProperty( "zoneExcludeList" );
+			for ( int i = 0; i < zones.length; ++i )
+				options[i+2].setSelected( excluded.indexOf( zones[i] ) != -1 );
 		}
 	}
 }

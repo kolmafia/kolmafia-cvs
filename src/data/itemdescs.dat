@@ -195,7 +195,7 @@
 187	534717073	loose teeth
 188	255139922	bat guano
 189	720857924	guano coffee cup
-190			guild pants
+190		guild pants
 191	606865770	Boss Bat bandana
 192	990969530	batskin belt
 193	525458096	birthday candle
@@ -788,16 +788,16 @@
 780	700840454	scroll of pasta summoning
 781	535591885	mafia aria
 782	23525325	Mr. Exploiter
-783	1261246		'Villa' document
+783	1261246	'Villa' document
 784	35798378	Acqua Del Piatto Merlot
 785	488779797	Mystery Raffle Ticket #5
-786	521666		strawberry
+786	521666	strawberry
 787	124295227	bottle of rum
 788	400889977	strawberry daiquiri
 789	405289977	rum and cola
 790	33846846	grog
 791	13555353	Mafia bow tie
-792	125353		Golden Mr. Accessory
+792	125353	Golden Mr. Accessory
 793	1231231234	potion of chalky equality
 794	123123333	alarming strawberry juice
 795	155798378	Acque Luride Grezze Cabernet
@@ -805,7 +805,7 @@
 797	152547062	rockin' wagon
 798	544547062	ocean motion
 799	557887062	fuzzbump
-800	46522		poutine
+800	46522	poutine
 801	12312455	Knob stir-fry
 802	
 803	
@@ -833,7 +833,7 @@
 825	206200011	fizzy potion
 826	407001621	dark potion
 827	301022011	murky potion
-828	8374657		baby killer bee
+828	8374657	baby killer bee
 829	82346664	anti-anti-antidote
 830	90050040	royal jelly
 831	1553500054	small box
@@ -850,9 +850,9 @@
 842	63331253	beertini
 843	25581788	salty slug
 844	155535035	papaya slung
-845	31337		MAHI fez
-846			especially homoerotic frat-paddle
-847	1997970		heteroerotic frat-paddle
+845	31337	MAHI fez
+846		especially homoerotic frat-paddle
+847	1997970	heteroerotic frat-paddle
 848	10000001	hypodermic needle
 849	10616161	Meat detector
 850	10045001	many-eyed glasses
@@ -872,8 +872,8 @@
 864	10330001	brass stinger
 865	10005201	lead necklace
 866	84623514	shaving cream
-867	7532159		pine tar
-868	
+867	7532159	pine tar
+868
 869	764985213	forest tears
 870	869858134	fetus-smashing club
 871	777055201	meatcar model
@@ -938,13 +938,13 @@
 930	
 931	649788552	spiced rum
 932	246426544	eggnog
-933	6445454		candy cane
+933	6445454	candy cane
 934	64545412	gingerbread bugbear
 935	452221212	imitation nice watch
 936	63338787	Hanukkimbo dreidl
 937	95141525	menorette
 938	775545454	tiny plastic sword
-939	5551212		small Crimbo Pressie
+939	5551212	small Crimbo Pressie
 940	18004564	bow
 941	34323536	Crimbo stocking
 942	572095636	bowler
@@ -994,7 +994,7 @@
 986	534203164	tiny plastic killer bee
 987	633909836	tiny plastic Cheshire bat
 988	727439462	tiny plastic coffee pixie
-989	624148858	tiny plastic bitchin' meat car
+989	624148858	tiny plastic bitchin' meatcar
 990	521569533	tiny plastic hermit
 991	440543108	tiny plastic Boris
 992	485391755	tiny plastic Jarlsberg
@@ -1103,7 +1103,7 @@
 1095	451323108	deactivated MicroMechaMech
 1096	522619640	clockwork endoskeleton
 1097	784552896	clockwork hat
-1098	452265075	clockwork trenchcoat
+1098	452265075	clockwork trench coat
 1099	781471734	clockwork pants
 1100	953712819	gnauga hide chaps
 1101	10030401	false eyelashes
@@ -1122,7 +1122,7 @@
 1114	566765807	tisket
 1115	598623036	tasket
 1116	272150426	annoying pitchfork 
-1117	4440444		Stupid University Diploma
+1117	4440444	Stupid University Diploma
 1118	783161030	pregnant flaming mushroom
 1119	148465385	pregnant frozen mushroom
 1120	167284460	pregnant stinky mushroom
@@ -1364,7 +1364,7 @@
 1356	979085501	bunny liver
 1357	709454102	Mt. Noob Pale Ale
 1358	271254707	pirate zombie head
-1359	959802882	ninja pirate zombie head
+1359	959802882	ninja pirate zombie robot head
 1360	520455613	pirate zombie robot head
 1361	451451982	disembodied smile
 1362
@@ -1394,7 +1394,7 @@
 1386	980286026	felt
 1387	356512263	wooden block
 1388	251533125	toy wheel
-1389	866359737	yoyo
+1389	866359737	yo-yo
 1390	329670804	top
 1391	598617076	ball
 1392	873567675	kite
@@ -1503,7 +1503,136 @@
 1495	219278794	blue traffic cone
 1496	823384974	gloomy mushroom wine
 1497	585493054	oily mushroom wine
+1498	609823250	McPhee's Grimoire of Hilarious Object Summoning
+1499	900614362	whoopie cushion
+1500	486691439	fake fake vomit
+1501	553549138	explosion-flavored chewing gum
+1502	574804473	clown hammer
+1503	466647669	rubber emo roe
+1504	902814366	yellow snowcone
+1505	899463113	magical ice cube with a fly in it
+1506	156547621	calle de miel with a fly in it
+1507	237474151	rockin' wagon with a fly in it
+1508	596795087	perpendicular hula with a fly in it
+1509	684534052	slap and tickle with a fly in it
+1510	274299402	bag of airline peanuts
+1511	826737671	fake hand
 1512	972920674	Knob Goblin pet-buffing spray
 1513	588931144	Knob Goblin learning pill
 1514	883126629	Knob Goblin eyedrops
 1515	618000270	Knob Goblin nasal spray
+1516	186460114	KWE-brand transistor radio
+1517	
+1518	446675937	vampire heart
+1519	198576981	Talisman of Bakula
+1520	734862192	Radio KoL Coffee Mug
+1521	583310077	Frank Gorshin trophy
+1522	243892104	Radio Free Jersey
+1523	694242575	bottle of used blood
+1524	931763248	wind-up chattering teeth
+1525	770189132	joybuzzer
+1526	770189132	pet rock "Snooty" disguise
+1527	295507224	diamond-studded fronts
+1528	918456221	portable corkscrew
+1529	583705083	St. Sneaky Pete's Day goodies basket
+1530	885049658	fake plastic grass
+1531	761419701	grass skirt
+1532	173784115	grass hat
+1533	562599473	grass blade
+1534	
+1535	
+1536	228156172	homeless hobo spirit
+1537	659845184	weegee sqouija
+1538	241990328	sparkly engagement ring
+1539	371800199	lucky Tam O'Shatner
+1540	
+1541	
+1542	
+1543	
+1544	
+1545	
+1546	
+1547	255393659	Codex of Capsaicin Conjuration
+1548	947111850	Gazpacho's Glacial Grimoire
+1549	
+1550	948184900	second-hand knockoff engagement ring
+1551	174093721	bottle of Domesticated Turkey
+1552	990285202	bottle of Definit
+1553	722764479	bottle of Calcutta Emerald
+1554	976812603	bottle of Lieutenant Freeman
+1555	142180127	bottle of Jorge Sinsonte
+1556	743810388	boxed champagne
+1557	722478345	kumquat
+1558	812913725	tangerine
+1559	898021546	tonic water
+1560	745814141	cocktail onion
+1561	544757027	raspberry
+1562	395663447	kiwi
+1563	672455481	whiskey bittersweet
+1564	782817773	mimosette
+1565	255615817	tequila sunset
+1566	416364014	zmobie
+1567	846304712	gin and tonic
+1568	131549816	vodka and tonic
+1569	948329555	vodka gibson
+1570	585531284	gibson
+1571	169302876	parisian cathouse
+1572	967782013	rabbit punch
+1573	986635723	caipifruta
+1574	786210282	teqiwila
+1575	399917071	Divine
+1576	906458312	Gordon Bennet
+1577	798649121	tangarita
+1578	651195970	mandarina colada
+1579	237514263	gimlet
+1580	252231956	yellow brick road
+1581	936760207	vodka stratocaster
+1582	803710671	neuromancer
+1583	120055462	prussian cathouse
+1584	934455536	Mae West
+1585	275197081	Mon Tiki
+1586	569727989	teqiwila slammer
+1587	
+1588	
+1589	
+1590	
+1591	
+1592	
+1593	
+1594	
+1595	
+1596	
+1597	914015743	Junior LAAAAME merit badge
+1598	382823864	Senior LAAAAME merit badge
+1599	224353604	jazz soap
+1600	615496606	tangarita with a fly in it
+1601	440247765	mandarina colada with a fly in it
+1602	978043304	prussian cathouse with a fly in it
+1603	637723210	Mae West with a fly in it
+1604	695048778	astronaut ice-cream
+1605	
+1606	
+1607	
+1608	
+1609	
+1610	
+1611	
+1612	
+1613	395533477	coffin lid
+1614	860285539	white satin shield
+1615	
+1616	
+1617	
+1618	
+1619	
+1620	
+1621	
+1622	
+1623	
+1624	
+1625	
+1626	
+1627	
+1628	
+1629	222722921	raspberry beret
+1630	683181924	pixel shield

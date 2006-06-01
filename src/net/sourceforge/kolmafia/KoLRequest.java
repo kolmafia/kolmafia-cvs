@@ -57,6 +57,9 @@ import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.swing.SwingUtilities;
+import net.java.dev.spellcast.utilities.LockableListModel;
+
 /**
  * Most aspects of Kingdom of Loathing are accomplished by submitting
  * forms and their accompanying data.  This abstract class is designed
@@ -87,7 +90,7 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	private URL formURL;
 	private boolean followRedirects;
-	private String formURLString;
+	protected String formURLString;
 
 	private String sessionID;
 	private List data;
@@ -133,9 +136,10 @@ public class KoLRequest implements Runnable, KoLConstants
 				}
 				catch ( UnknownHostException e )
 				{
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
 
+					StaticEntity.printStackTrace( e, "Error in proxy setup" );
 					System.setProperty( "http.proxyHost", proxyHost );
 				}
 
@@ -164,13 +168,10 @@ public class KoLRequest implements Runnable, KoLConstants
 		}
 		catch ( Exception e )
 		{
-			// An exception here means that the attempt to set up the proxy
-			// server failed or the attempt to set the login server failed.
-			// Because these result in default values, pretend nothing
-			// happened and carry on with business.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e, "Error in proxy setup" );
 		}
 	}
 
@@ -228,25 +229,27 @@ public class KoLRequest implements Runnable, KoLConstants
 	protected KoLRequest( KoLmafia client, String formURLString, boolean followRedirects )
 	{
 		this.client = client;
-
-		String [] splitURLString = formURLString.split( "\\?" );
-
-		this.formURLString = splitURLString[0];
 		this.data = new ArrayList();
+		this.followRedirects = followRedirects;
 
-		if ( splitURLString.length > 1 )
+		constructURLString( formURLString );
+	}
+
+	private void constructURLString( String newURLString )
+	{
+		this.data.clear();
+		if ( newURLString.startsWith( "/" ) )
+			newURLString = newURLString.substring(1);
+
+		if ( newURLString.indexOf( "?" ) == -1 || newURLString.endsWith( "?" ) )
 		{
-			String [] currentComponent;
-			String [] components = splitURLString[1].split( "&" );
-
-			for ( int i = 0; i < components.length; ++i )
-			{
-				currentComponent = components[i].split( "=" );
-				addFormField( currentComponent[0], currentComponent.length > 1 ? currentComponent[1] : "", true );
-			}
+			this.formURLString = newURLString;
+			return;
 		}
 
-		this.followRedirects = followRedirects;
+		String [] splitURLString = newURLString.split( "\\?" );
+		this.formURLString = splitURLString[0];
+		addEncodedFormFields( splitURLString[1] );
 	}
 
 	/**
@@ -288,27 +291,20 @@ public class KoLRequest implements Runnable, KoLConstants
 			return;
 		}
 
-		String encodedName = null;
-		String encodedValue = null;
+		String encodedName = name == null ? "" : name;
+		String encodedValue = value == null ? "" : value;
 
 		try
 		{
-			encodedName = URLEncoder.encode( name, "UTF-8" ) + "=";
-			encodedValue = URLEncoder.encode( value, "UTF-8" );
+			encodedName = URLEncoder.encode( encodedName, "UTF-8" ) + "=";
+			encodedValue = URLEncoder.encode( encodedValue, "UTF-8" );
 		}
 		catch ( Exception e )
 		{
-			// In this case, you failed to encode the appropriate
-			// name and value data.	 So, just print this to the
-			// appropriate log stream and add in the unencoded
-			// data (in case it's fine).
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			KoLmafia.getLogStream().println( "Could not encode: " + name + "=" + value );
-			data.add( name + "=" + value );
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-
+			StaticEntity.printStackTrace( e );
 			return;
 		}
 
@@ -347,14 +343,34 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	protected void addFormField( String element )
 	{
-		String [] currentComponent = element.split( "=" );
+		int equalIndex = element.indexOf( "=" );
+		if ( equalIndex == -1 )
+		{
+			addFormField( element, "", false );
+			return;
+		}
 
-		if ( currentComponent[0].equals( "pwd" ) || currentComponent[0].equals( "phash" ) )
-			addFormField( currentComponent[0], "", false );
-		else if ( currentComponent.length == 1 )
-			addFormField( currentComponent[0], "", true );
+		String name = element.substring( 0, equalIndex ).trim();
+		String value = element.substring( equalIndex + 1 ).trim();
+
+		if ( name.equals( "pwd" ) || name.equals( "phash" ) )
+		{
+			// If you were in Valhalla on login, then
+			// make sure you discover the password hash
+			// in some other way.
+
+			if ( (client.getPasswordHash() == null || client.getPasswordHash().equals( "" )) && value.length() != 0 )
+				client.setPasswordHash( value );
+
+			addFormField( name, "", false );
+		}
 		else
-			addFormField( currentComponent[0], currentComponent[1], true );
+		{
+			// Otherwise, add the name-value pair as was
+			// specified in the original method.
+
+			addFormField( name, value, true );
+		}
 	}
 
 	/**
@@ -365,17 +381,67 @@ public class KoLRequest implements Runnable, KoLConstants
 	protected void addEncodedFormField( String element )
 	{
 		// Just decode it first
-		String decoded;
+		String decoded = element;
+
 		try
 		{
 			decoded = URLDecoder.decode( element, "UTF-8" );
 		}
 		catch ( UnsupportedEncodingException e )
 		{
-			// Say what?
-			decoded = element;
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
+			return;
 		}
+
 		addFormField( decoded );
+	}
+
+	protected void addEncodedFormFields( String fields )
+	{
+		if ( fields.indexOf( "&" ) == -1 )
+		{
+			addEncodedFormField( fields );
+			return;
+		}
+
+		String [] tokens = fields.split( "&" );
+		for ( int i = 0; i < tokens.length; ++i )
+		{
+			if ( (tokens[i].indexOf( "+" ) == -1 && tokens[i].indexOf( "%") == -1) || tokens[i].indexOf( " " ) != -1 )
+				addFormField( tokens[i] );
+			else
+				addEncodedFormField( tokens[i] );
+		}
+	}
+
+	protected String getFormField( String key )
+	{
+		String [] elements = new String[ data.size() ];
+		data.toArray( elements );
+
+		for ( int i = 0; i < elements.length; ++i )
+		{
+			if ( elements[i].indexOf( "=" ) == -1 )
+				continue;
+
+			String [] tokens = elements[i].split( "=" );
+			if ( tokens[0].equals( key ) )
+			{
+				try
+				{
+					return URLDecoder.decode( tokens[1], "UTF-8" );
+				}
+				catch ( Exception e )
+				{
+					return tokens[1];
+				}
+			}
+		}
+
+		return null;
 	}
 
 	private String getDataString( boolean includeHash )
@@ -403,6 +469,9 @@ public class KoLRequest implements Runnable, KoLConstants
 				dataBuffer.append( elements[i] );
 		}
 
+		if ( dataBuffer.indexOf( "whichskill=moxman" ) != -1 )
+			return "action=moxman";
+
 		return dataBuffer.toString();
 	}
 
@@ -415,62 +484,76 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	public void run()
 	{
-		// Returning to thread synchronization.  Because requests
-		// are forced to occur in separate threads, and the only
-		// loop is the time-in loop, this should not cause a deadlock.
+		if ( !isDelayExempt() && client.refusesContinue() )
+			return;
 
-		if ( !isDelayExempt() )
+		if ( !isDelayExempt() && !(this instanceof FightRequest) && client.getCurrentRequest() instanceof FightRequest && client.getCurrentRequest().getAdventuresUsed() == 0 )
 		{
-			synchronized ( KoLRequest.class )
-			{
-				KoLRequest.isServerFriendly = getProperty( "serverFriendly" ).equals( "true" );
-				execute();
-			}
+			DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Unexpected request attempted mid-fight." );
+			return;
 		}
-		else
-			execute();
+
+		KoLRequest.isServerFriendly = getProperty( "serverFriendly" ).equals( "true" );
+		execute();
+
+		if ( getURLString().equals( "main.php?refreshtop=true&noobmessage=true" ) )
+			client.handleAscension();
 	}
-	
+
 	public void execute()
 	{
-		// You are allowed a maximum of four attempts
-		// to run the request.  This prevents KoLmafia
-		// from spamming the servers.
+		client.setCurrentRequest( this );
+
+		if ( getClass() == KoLRequest.class )
+			client.getSessionStream().println( getURLString() );
+		else
+		{
+			String requestName = getClass().getName();
+			requestName = requestName.substring( requestName.lastIndexOf( "." ) + 1 );
+			client.getSessionStream().println( requestName + ": " + toString() );
+		}
+
+		// If you're about to fight the Naughty Sorceress,
+		// clear your list of effects.
+
+		if ( getURLString().equals( "lair6.php?place=5" ) )
+			KoLCharacter.getEffects().clear();
 
 		do
 		{
 			statusChanged = false;
-
-			// Only add in a delay when you're out of login.
-			// If you're still doing the login process, ignore
-			// the delay to avoid people switching the option
-			// off just to avoid login slowdown.
-
-			if ( !isDelayExempt() )
-			{
-				if ( isServerFriendly )
-					KoLRequest.delay();
-				else if ( getProperty( "synchronizeFightFrame" ).equals( "true" ) )
-					KoLRequest.delay( 1000 );
-			}
+			if ( !isDelayExempt() && ( getProperty( "showAllRequests" ).equals( "true" ) || isServerFriendly ) )
+				KoLRequest.delay();
 		}
 		while ( !prepareConnection() || !postClientData() || !retrieveServerReply() );
 
-		// If the user wants to show all the requests in the browser, then
-		// make sure it's updated.
-
 		if ( responseCode == 200 )
 		{
-			// Synchronize if requested
+			if ( !(this instanceof FightRequest) )
+				AdventureRequest.registerEncounter( this );
 
-			if ( !isDelayExempt() )
-			{
-				client.setCurrentRequest( this );
+			if ( !isDelayExempt() && !(this instanceof SearchMallRequest) )
 				showInBrowser( false );
-			}
 
-			processResults();
+			if ( getClass() == KoLRequest.class || this instanceof LocalRelayRequest )
+			{
+				if ( !shouldIgnoreResults() )
+					processResults();
+			}
+			else
+				processResults();
 		}
+		else
+		{
+			client.setCurrentRequest( null );
+		}
+	}
+
+	private boolean shouldIgnoreResults()
+	{
+		return formURLString.startsWith( "http" ) || formURLString.startsWith( "messages.php" ) || formURLString.startsWith( "mall.php" ) ||
+			formURLString.startsWith( "searchmall.php" ) || formURLString.startsWith( "clan" ) ||
+			formURLString.startsWith( "manage" ) || formURLString.startsWith( "sell" ) || formURLString.indexOf( "chat" ) != -1;
 	}
 
 	/**
@@ -506,13 +589,15 @@ public class KoLRequest implements Runnable, KoLConstants
 		}
 		catch ( InterruptedException e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
 	private boolean isDelayExempt()
-	{	return client == null || this instanceof LoginRequest || this instanceof ChatRequest || this instanceof CharpaneRequest;
+	{	return getClass() == KoLRequest.class || this instanceof LoginRequest || this instanceof ChatRequest || this instanceof CharpaneRequest || this instanceof LocalRelayRequest;
 	}
 
 	/**
@@ -525,10 +610,10 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	private boolean prepareConnection()
 	{
-		KoLmafia.getLogStream().println( "Connecting to " + formURLString + "..." );
+		if ( !(this instanceof ChatRequest) )
+			KoLmafia.getDebugStream().println( "Connecting to " + formURLString + "..." );
 
-		if ( client != null )
-			this.sessionID = client.getSessionID();
+		this.sessionID = client.getSessionID();
 
 		// Make sure that all variables are reset before you reopen
 		// the connection.  Invoke the garbage collector to minimize
@@ -544,15 +629,15 @@ public class KoLRequest implements Runnable, KoLConstants
 
 		try
 		{
-			this.formURL = new URL( KOL_ROOT + formURLString );
+			this.formURL = formURLString.startsWith( "http:" ) ?
+				new URL( formURLString ) : new URL( KOL_ROOT + formURLString );
 		}
 		catch ( MalformedURLException e )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Error in URL: " + KOL_ROOT + formURLString );
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-
+			StaticEntity.printStackTrace( e, "Error in URL: " + KOL_ROOT + formURLString );
 			KoLRequest.delay();
 			return false;
 		}
@@ -562,7 +647,9 @@ public class KoLRequest implements Runnable, KoLConstants
 			// For now, because there isn't HTTPS support, just open the
 			// connection and directly cast it into an HttpURLConnection
 
-			KoLmafia.getLogStream().println( "Attempting to establish connection..." );
+			if ( !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( "Attempting to establish connection..." );
+
 			formConnection = (HttpURLConnection) formURL.openConnection();
 		}
 		catch ( Exception e )
@@ -571,17 +658,15 @@ public class KoLRequest implements Runnable, KoLConstants
 			// that there was a timeout; return false and let the loop
 			// attempt to connect again
 
-			if ( formURLString.indexOf( "chat" ) == -1 && ( client == null || !BuffBotHome.isBuffBotActive() ) )
-				KoLmafia.getLogStream().println( "Error opening connection.  Retrying..." );
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			if ( !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( "Error opening connection.  Retrying..." );
 
 			KoLRequest.delay();
 			return false;
 		}
 
-		KoLmafia.getLogStream().println( "Connection established." );
+		if ( !(this instanceof ChatRequest) )
+			KoLmafia.getDebugStream().println( "Connection established." );
 
 		formConnection.setDoInput( true );
 		formConnection.setDoOutput( !data.isEmpty() );
@@ -615,14 +700,15 @@ public class KoLRequest implements Runnable, KoLConstants
 		if ( data.isEmpty() )
 			return true;
 
-		KoLmafia.getLogStream().println( "Posting form data..." );
+		if ( !(this instanceof ChatRequest) )
+			KoLmafia.getDebugStream().println( "Posting form data..." );
 
 		try
 		{
 			String dataString = getDataString( true );
 
-			if ( client != null && client.getPasswordHash() != null )
-				KoLmafia.getLogStream().println( dataString.replaceAll( client.getPasswordHash(), "" ) );
+			if ( client.getPasswordHash() != null && !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( dataString.replaceAll( client.getPasswordHash(), "" ) );
 
 			formConnection.setRequestMethod( "POST" );
 			BufferedWriter ostream = new BufferedWriter( new OutputStreamWriter( formConnection.getOutputStream() ) );
@@ -632,13 +718,15 @@ public class KoLRequest implements Runnable, KoLConstants
 			ostream.close();
 			ostream = null;
 
-			KoLmafia.getLogStream().println( "Posting data posted." );
+			if ( !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( "Posting data posted." );
+
 			return true;
 		}
 		catch ( Exception e )
 		{
-			if ( formURLString.indexOf( "chat" ) == -1 && ( client == null || !BuffBotHome.isBuffBotActive() ) )
-				KoLmafia.getLogStream().println( "Connection timed out during post.  Retrying..." );
+			if ( !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( "Connection timed out during post.  Retrying..." );
 
 			KoLRequest.delay();
 			return false;
@@ -666,8 +754,8 @@ public class KoLRequest implements Runnable, KoLConstants
 			// one that results in something happening), or an error-type one
 			// (ie: maintenance).
 
-			if ( client != null )
-				KoLmafia.getLogStream().println( "Retrieving server reply..." );
+			if ( !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( "Retrieving server reply..." );
 
 			responseText = "";
 			redirectLocation = "";
@@ -678,6 +766,7 @@ public class KoLRequest implements Runnable, KoLConstants
 
 			istream = new BufferedReader( new InputStreamReader( formConnection.getInputStream() ) );
 			responseCode = formConnection.getResponseCode();
+			redirectLocation = formConnection.getHeaderField( "Location" );
 		}
 		catch ( Exception e )
 		{
@@ -687,13 +776,10 @@ public class KoLRequest implements Runnable, KoLConstants
 
 			if ( e instanceof FileNotFoundException )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Page <" + formURLString + "> not found." );
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
-				if ( client != null )
-				{
-					KoLmafia.getLogStream().println( e );
-					e.printStackTrace( KoLmafia.getLogStream() );
-				}
+				StaticEntity.printStackTrace( e, "Page <" + formURLString + "> not found." );
 
 				// In this case, it's like a false redirect, but to
 				// a page which no longer exists.  Pretend it's the
@@ -706,7 +792,8 @@ public class KoLRequest implements Runnable, KoLConstants
 				return true;
 			}
 
-			KoLmafia.getLogStream().println( "Connection timed out during response.  Retrying..." );
+			if ( !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( "Connection timed out during response.  Retrying..." );
 
 			// Add in an extra delay in the event of a time-out in order
 			// to be nicer on the KoL servers.
@@ -715,156 +802,151 @@ public class KoLRequest implements Runnable, KoLConstants
 			return false;
 		}
 
+		if ( this instanceof LocalRelayRequest && responseCode != 200 )
+			return true;
+
 		boolean shouldStop = true;
 
-		if ( client != null )
+		if ( !(this instanceof ChatRequest) )
+			KoLmafia.getDebugStream().println( "Server response code: " + responseCode );
+
+		if ( responseCode >= 300 && responseCode <= 399 )
 		{
-			KoLmafia.getLogStream().println( "Server response code: " + responseCode );
+			// Redirect codes are all the ones that occur between
+			// 300 and 399.  All these notify the user of a location
+			// to return to; deal with the ones which are errors.
 
-			if ( responseCode >= 300 && responseCode <= 399 )
+			if ( redirectLocation.equals( "maint.php" ) )
 			{
-				// Redirect codes are all the ones that occur between
-				// 300 and 399.  All these notify the user of a location
-				// to return to; deal with the ones which are errors.
+				// If the system is down for maintenance, the user must be
+				// notified that they should try again later.
 
-				redirectLocation = formConnection.getHeaderField( "Location" );
+				DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Nightly maintenance." );
+				shouldStop = true;
+			}
+			else if ( redirectLocation.startsWith( "login.php" ) )
+			{
+				DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Session timed out." );
+				shouldStop = true;
+			}
+			else if ( followRedirects )
+			{
+				// Re-setup this request to follow the redirect
+				// desired and rerun the request.
 
-				if ( redirectLocation.equals( "maint.php" ) )
+				constructURLString( redirectLocation );
+				return false;
+			}
+			else if ( redirectLocation.startsWith( "valhalla.php" ) )
+			{
+				client.setPasswordHash( "" );
+				shouldStop = true;
+			}
+			else if ( redirectLocation.equals( "fight.php" ) && !(this instanceof LocalRelayRequest) )
+			{
+				// You have been redirected to a fight!  Here, you need
+				// to complete the fight before you can continue.
+
+				FightRequest battle = new FightRequest( client );
+				battle.run();
+
+				return this instanceof AdventureRequest || getClass() == KoLRequest.class;
+			}
+			else if ( redirectLocation.equals( "choice.php" ) && !(this instanceof LocalRelayRequest) )
+			{
+				shouldStop = processChoiceAdventure();
+			}
+			else
+			{
+				shouldStop = true;
+				KoLmafia.getDebugStream().println( "Redirected: " + redirectLocation );
+			}
+		}
+		else if ( responseCode == 200 )
+		{
+			String line = null;
+			StringBuffer replyBuffer = new StringBuffer();
+			StringBuffer rawBuffer = new StringBuffer();
+
+			try
+			{
+				line = istream.readLine();
+
+				// There's a chance that there was no content in the reply
+				// (header-only reply) - if that's the case, the line will
+				// be null and you've hit an error state.
+
+				if ( line == null )
 				{
-					// If the system is down for maintenance, the user must be
-					// notified that they should try again later.
-
-					DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Nightly maintenance." );
-
-					if ( !(this instanceof LoginRequest) && client.getSettings().getProperty( "forceReconnect" ).equals( "true" ) )
-					{
-						client.executeTimeInRequest();
-						return false;
-					}
-					else
-					{
-						shouldStop = true;
-					}
+					KoLmafia.getDebugStream().println( "No reply content.  Retrying..." );
 				}
-				else if ( redirectLocation.startsWith( "login.php" ) )
+
+				// Check for MySQL errors, since those have been getting more
+				// frequent, and would cause an IOException to be thrown
+				// unnecessarily, when a re-request would do.  I'm not sure
+				// how they work right now (which line the MySQL error is
+				// printed to), but for now, assume
+				// that it's the first line.
+
+				else if ( line.indexOf( "error" ) != -1 )
 				{
-					DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Session timed out." );
-
-					if ( !formURLString.equals( "login.php" ) && client.getSettings().getProperty( "forceReconnect" ).equals( "true" ) )
-						client.executeTimeInRequest();
-					else
-						shouldStop = true;
+					if ( !(this instanceof ChatRequest) )
+						KoLmafia.getDebugStream().println( "Encountered MySQL error.  Retrying..." );
 				}
-				else if ( followRedirects )
-				{
-					// Re-setup this request to follow the redirect
-					// desired and rerun the request.
 
-					this.formURLString = redirectLocation;
-					this.data.clear();
-					this.followRedirects = followRedirects;
+				// The remaining lines form the rest of the content.  In order
+				// to make it easier for string parsing, the line breaks will
+				// ultimately be preserved.
 
-					return false;
-				}
-				else if ( redirectLocation.equals( "fight.php" ) )
-				{
-					// You have been redirected to a fight!  Here, you need
-					// to complete the fight before you can continue.
-
-					FightRequest battle = new FightRequest( client );
-					battle.run();
-
-					return this instanceof AdventureRequest || getClass() == KoLRequest.class;
-				}
-				else if ( redirectLocation.equals( "choice.php" ) )
-				{
-					shouldStop = processChoiceAdventure();
-				}
 				else
 				{
-					shouldStop = true;
-					KoLmafia.getLogStream().println( "Redirected: " + redirectLocation );
+					if ( !(this instanceof ChatRequest) )
+						KoLmafia.getDebugStream().println( "Reading page content..." );
+
+					// Line breaks bloat the log, but they are important
+					// inside <textarea> input fields.
+
+					boolean insideTextArea = false;
+
+					do
+					{
+						replyBuffer.append( line );
+						rawBuffer.append( line );
+						rawBuffer.append( LINE_BREAK );
+
+						if ( line.indexOf( "</textarea" ) != -1 )
+							insideTextArea = false;
+						else if ( line.indexOf( "<textarea" ) != -1 )
+							insideTextArea = true;
+
+						if ( insideTextArea )
+							replyBuffer.append( LINE_BREAK );
+					}
+					while ( (line = istream.readLine()) != null );
 				}
 			}
-			else if ( responseCode == 200 )
+			catch ( Exception e )
 			{
-				String line = null;
-				StringBuffer replyBuffer = new StringBuffer();
+				// An Exception is clearly an error; here it will be reported
+				// to the client, but another attempt will be made
 
-				try
-				{
-					line = istream.readLine();
-
-					// There's a chance that there was no content in the reply
-					// (header-only reply) - if that's the case, the line will
-					// be null and you've hit an error state.
-
-					if ( line == null )
-					{
-						KoLmafia.getLogStream().println( "No reply content.  Retrying..." );
-					}
-
-					// Check for MySQL errors, since those have been getting more
-					// frequent, and would cause an I/O Exception to be thrown
-					// unnecessarily, when a re-request would do.  I'm not sure
-					// how they work right now (which line the MySQL error is
-					// printed to), but for now, assume
-					// that it's the first line.
-
-					else if ( line.indexOf( "error" ) != -1 )
-					{
-						KoLmafia.getLogStream().println( "Encountered MySQL error.  Retrying..." );
-					}
-
-					// The remaining lines form the rest of the content.  In order
-					// to make it easier for string parsing, the line breaks will
-					// ultimately be preserved.
-
-					else
-					{
-						KoLmafia.getLogStream().println( "Reading page content..." );
-
-						// Line breaks bloat the log, but they are important
-						// inside <textarea> input fields.
-
-						boolean insideTextArea = false;
-
-						do
-						{
-							replyBuffer.append( line );
-
-							if ( line.indexOf( "</textarea" ) != -1 )
-								insideTextArea = false;
-							else if ( line.indexOf( "<textarea" ) != -1 )
-								insideTextArea = true;
-
-							if ( insideTextArea )
-								replyBuffer.append( LINE_BREAK );
-						}
-						while ( (line = istream.readLine()) != null );
-					}
-				}
-				catch ( Exception e )
-				{
-					// An Exception is clearly an error; here it will be reported
-					// to the client, but another attempt will be made
-
-					if ( formURLString.indexOf( "chat" ) == -1 )
-						KoLmafia.getLogStream().println( "Error reading server reply.  Retrying..." );
-
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
-				}
-
-				statusChanged = formURLString.indexOf( "charpane.php" ) == -1 && replyBuffer.toString().indexOf( "charpane.php" ) != -1;
-				responseText = replyBuffer.toString().replaceAll( "<script.*?</script>", "" );
-
-				if ( client != null && client.getPasswordHash() != null )
-					KoLmafia.getLogStream().println( responseText.replaceAll( client.getPasswordHash(), "" ) );
-				else
-					KoLmafia.getLogStream().println(
-						responseText.replaceAll( "name=pwd value=\"?[^>]*>", "" ).replaceAll( "pwd=[0-9a-f]+", "" ) );
+				if ( !(this instanceof ChatRequest) )
+					KoLmafia.getDebugStream().println( "Error reading server reply.  Retrying..." );
 			}
+
+			responseText = replyBuffer.toString().replaceAll( "<script.*?</script>", "" );
+
+            if ( !(this instanceof ChatRequest) )
+            {
+                    // Remove password hash before logging
+                    String response = ( client.getPasswordHash() != null ) ?
+                            responseText.replaceAll( client.getPasswordHash(), "" ) :
+                            responseText.replaceAll( "name=pwd value=\"?[^>]*>", "" ).replaceAll( "pwd=[0-9a-f]+", "" );
+                    KoLmafia.getDebugStream().println( response );
+            }
+
+			checkForNewEvents();
+			processRawResponse( rawBuffer.toString() );
 		}
 
 		try
@@ -873,11 +955,10 @@ public class KoLRequest implements Runnable, KoLConstants
 		}
 		catch ( Exception e )
 		{
-			// Errors equate to an input stream that
-			// has already been closed.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e );
 		}
 
 		// Null the pointer to help the garbage collector
@@ -886,6 +967,18 @@ public class KoLRequest implements Runnable, KoLConstants
 
 		istream = null;
 		return shouldStop;
+	}
+
+	/**
+	 * This method allows classes to process a raw, unfiltered
+	 * server response.
+	 */
+
+	protected void processRawResponse( String rawResponse )
+	{
+		statusChanged = formURLString.indexOf( "charpane.php" ) == -1 && rawResponse.indexOf( "charpane.php" ) != -1;
+		if ( statusChanged && !(this instanceof LocalRelayRequest) )
+			LocalRelayServer.addStatusMessage( "<!-- REFRESH -->" );
 	}
 
 	/**
@@ -939,7 +1032,12 @@ public class KoLRequest implements Runnable, KoLConstants
 			return (token.indexOf(",") == -1) ? Integer.parseInt( token ) : df.parse( token ).intValue();
 		}
 		catch ( Exception e )
-		{	return 0;
+		{
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
+			return 0;
 		}
 	}
 
@@ -966,7 +1064,12 @@ public class KoLRequest implements Runnable, KoLConstants
 			return (token.indexOf(",") == -1) ? Integer.parseInt( token ) : df.parse( token ).intValue();
 		}
 		catch ( Exception e )
-		{	return 0;
+		{
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
+			return 0;
 		}
 	}
 
@@ -1001,14 +1104,20 @@ public class KoLRequest implements Runnable, KoLConstants
 		// that beaten up is added to the effects.
 
 		if ( previousHP != 0 && KoLCharacter.getCurrentHP() == 0 )
-			client.processResult( KoLAdventure.BEATEN_UP.getInstance( 3 - KoLAdventure.BEATEN_UP.getCount( KoLCharacter.getEffects() ) ) );
+		{
+			// Wild hare is exempt from beaten up status if you
+			// are beaten up in the middle of a battle.
+
+			if ( !formURLString.equals( "fight.php" ) || KoLCharacter.getFamiliar().getID() != 50 )
+				client.processResult( KoLAdventure.BEATEN_UP.getInstance( 3 - KoLAdventure.BEATEN_UP.getCount( KoLCharacter.getEffects() ) ) );
+		}
 
 		if ( getAdventuresUsed() > 0 )
 			client.processResult( new AdventureResult( AdventureResult.ADV, 0 - getAdventuresUsed() ) );
 
 		if ( statusChanged && RequestFrame.willRefreshStatus() )
 			RequestFrame.refreshStatus();
-		else if ( needsRefresh )
+		else if ( statusChanged || needsRefresh )
 			CharpaneRequest.getInstance().run();
 
 		KoLCharacter.updateStatus();
@@ -1028,10 +1137,7 @@ public class KoLRequest implements Runnable, KoLConstants
 		KoLRequest request = new KoLRequest( client, "choice.php" );
 		request.run();
 
-		// Synchronize if requested
-		if ( getProperty( "synchronizeFightFrame" ).equals( "false" ) )
-			request.showInBrowser( false );
-
+		request.showInBrowser( false );
 		return handleChoiceResponse( request );
 	}
 
@@ -1055,11 +1161,7 @@ public class KoLRequest implements Runnable, KoLConstants
 			// finish by hand.
 
 			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Encountered choice adventure with no choices." );
-
-			// Finish in browser if requested
-			if ( getProperty( "synchronizeFightFrame" ).equals( "false" ) )
-				request.showInBrowser( true );
-
+			request.showInBrowser( true );
 			return false;
 		}
 
@@ -1074,7 +1176,6 @@ public class KoLRequest implements Runnable, KoLConstants
 		{
 			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unsupported choice adventure #" + choice );
 			request.showInBrowser( true );
-
 			return false;
 		}
 
@@ -1094,50 +1195,15 @@ public class KoLRequest implements Runnable, KoLConstants
 		{
 			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Can't ignore choice adventure #" + choice );
 			request.showInBrowser( true );
-
 			return false;
 		}
 
-		boolean completeOutfit = false;
-		String [] possibleDecisions = null;
+		// Only change the decision if you are told to either
+		// complete the outfit (decision 4) or if you have a
+		// non-empty list of conditions.
 
-		int decisionIndex = Integer.parseInt( decision ) - 1;
-
-		for ( int i = 0; i < AdventureDatabase.CHOICE_ADVS.length; ++i )
-			if ( AdventureDatabase.CHOICE_ADVS[i][0][0].equals( option ) )
-			{
-				if ( AdventureDatabase.CHOICE_ADVS[i].length == 4 )
-				{
-					completeOutfit = AdventureDatabase.CHOICE_ADVS[i][2][ decisionIndex ].equals( "Complete the outfit" );
-					possibleDecisions = AdventureDatabase.CHOICE_ADVS[i][3];
-				}
-			}
-
-		// Only change the decision if the user-specified option
-		// will not satisfy something on the conditions list.
-
-		if ( completeOutfit )
-		{
-			// Here, you have an outfit completion option.  Therefore
-			// determine which outfit needs to be completed. Just
-			// choose the item that the player does not have, and if
-			// they have everything, just make a random choice.
-
-			decision = null;
-					
-			for ( int i = 0; i < 3; ++i )
-				if ( possibleDecisions[i] != null && !KoLCharacter.hasItem( new AdventureResult( Integer.parseInt( possibleDecisions[0] ), 1 ), false ) )
-					decision = String.valueOf( i + 1 );
-
-			if ( decision == null )
-				decision = String.valueOf( RNG.nextInt( 3 ) + 1 );
-		}
-		else if ( possibleDecisions != null )
-		{
-			for ( int i = 0; i < possibleDecisions.length; ++i )
-				if ( possibleDecisions[i] != null && client.getConditions().contains( new AdventureResult( Integer.parseInt( possibleDecisions[i] ), 1 ) ) )
-					decision = String.valueOf( i + 1 );
-		}
+		if ( decision.equals( "4" ) || !client.getConditions().isEmpty() )
+                        decision = pickOutfitChoice( option, decision );
 
 		// If there is currently a setting which determines the
 		// decision, make that decision and submit the form.
@@ -1148,10 +1214,7 @@ public class KoLRequest implements Runnable, KoLConstants
 		request.addFormField( "option", decision );
 
 		request.run();
-
-		// Synchronize if requested
-		if ( getProperty( "synchronizeFightFrame" ).equals( "false" ) )
-			request.showInBrowser( false );
+		request.showInBrowser( false );
 
 		// Manually process any adventure usage for choice adventures,
 		// since they necessarily consume an adventure.
@@ -1186,6 +1249,40 @@ public class KoLRequest implements Runnable, KoLConstants
 		return true;
 	}
 
+	private String pickOutfitChoice( String option, String decision )
+	{
+		// Find the options for the choice we've encountered
+		String [] possibleDecisions = null;
+		for ( int i = 0; i < AdventureDatabase.CHOICE_ADVS.length; ++i )
+			if ( AdventureDatabase.CHOICE_ADVS[i][0][0].equals( option ) )
+			{
+				// Bail if it doesn't complete an outfit
+				if ( AdventureDatabase.CHOICE_ADVS[i].length < 4 )
+					return decision;
+				possibleDecisions = AdventureDatabase.CHOICE_ADVS[i][3];
+				break;
+			}
+
+		// If it's not in the table (the castle wheel, for example)
+		// return the player's chose descision.
+		if ( possibleDecisions == null )
+			return decision;
+
+		// Choose an item that the player does not have
+		for ( int i = 0; i < possibleDecisions.length; ++i )
+		{
+			if ( possibleDecisions[i] != null )
+			{
+				AdventureResult item = new AdventureResult( Integer.parseInt( possibleDecisions[i] ), 1 );
+				if ( !KoLCharacter.hasItem( item, false ) || client.getConditions().contains( item ) )
+					return String.valueOf( i + 1 );
+			}
+		}
+
+		// If they have everything, just make a random choice.
+		return String.valueOf( RNG.nextInt(3) + 1 );
+	}
+
 	/*
 	 * Method to display the current request in the Fight Frame.
 	 *
@@ -1199,10 +1296,10 @@ public class KoLRequest implements Runnable, KoLConstants
 		// in a browser.  If you're using a command-line
 		// interface, then you should not display the request.
 
-		if ( client instanceof KoLmafiaCLI )
+		if ( existingFrames.isEmpty() )
 			return;
 
-		if ( !exceptional && getProperty( "synchronizeFightFrame" ).equals( "false" ) )
+		if ( !exceptional && getProperty( "showAllRequests" ).equals( "false" ) )
 			return;
 
 		// Only show the request if the response code is
@@ -1214,5 +1311,102 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	public String getCommandForm( int iterations )
 	{	return "";
+	}
+
+	private void checkForNewEvents()
+	{
+		if ( responseText.indexOf( "bgcolor=orange><b>New Events:</b>") == -1 )
+			return;
+
+		// Capture the entire new events table in order to display the
+		// appropriate message.
+
+		Matcher eventMatcher = Pattern.compile( "<table width=.*?<table><tr><td>(.*?)</td></tr></table>.*?<td height=4></td></tr></table>" ).matcher( responseText );
+		if ( !eventMatcher.find() )
+			return;
+
+		// Make an array of events
+		String [] events = eventMatcher.group(1).replaceAll( "<br>", "\n" ).split( "\n" );
+
+		// Remove the events from the response text
+		responseText = eventMatcher.replaceFirst( "" );
+
+		// Append the events to the character's list
+		LockableListModel eventList = KoLCharacter.getEvents();
+
+		for ( int i = 0; i < events.length; ++i )
+		{
+			String event = events[i];
+
+			// The event may be marked up with color and links to
+			// user profiles. For example:
+
+			// 04/25/06 12:53:54 PM - New message received from <a target=mainpane href='showplayer.php?who=115875'><font color=green>Brianna</font></a>.
+			// 04/25/06 01:06:43 PM - <a class=nounder target=mainpane href='showplayer.php?who=115875'><b><font color=green>Brianna</font></b></a> has played a song (The Polka of Plenty) for you.
+
+			// Add in a player ID so that the events can be handled
+			// using a ShowDescriptionList.
+
+			event = event.replaceAll( "</a>", "<a>" ).replaceAll( "<[^a].*?>", "" );
+			event = event.replaceAll( "<a[^>]*showplayer\\.php\\?who=(\\d+)[^>]*>(.*?)<a>", "$2 (#$1)" );
+			event = event.replaceAll( "<.*?>", "" );
+
+			// If it's a song or a buff, must update status
+
+			// <name> has played a song (The Ode to Booze) for you
+			// An Elemental Saucesphere has been conjured around you by <name>
+			// <name> has imbued you with Reptilian Fortitude
+			// <name> has given you the Tenacity of the Snapper
+			// <name> has fortified you with Empathy of the Newt
+
+			// Add the event to the event list
+
+			if ( !KoLMessenger.isRunning() )
+				eventList.add( event );
+
+			// Print everything to the default shell; this way, the
+			// graphical CLI is also notified of events.
+
+			DEFAULT_SHELL.printLine( event );
+		}
+
+		// If we're not a GUI and there are no GUI windows open
+		// (ie: the GUI loader command wasn't used), quit now.
+
+		if ( existingFrames.isEmpty() )
+			return;
+
+		// If we are not running chat, pop up an EventsFrame to show
+		// the events.  Use the standard run method so that you wait
+		// for it to finish before calling it again on another event.
+
+		if ( !KoLMessenger.isRunning() )
+		{
+			// Don't load the initial desktop frame unless it's
+			// already visible before this is run -- this ensures
+			// that the restore options are properly reset before
+			// the frame reloads.
+
+			boolean shouldLoadEventFrame = GLOBAL_SETTINGS.getProperty( "initialFrames" ).indexOf( "EventsFrame" ) != -1;
+			shouldLoadEventFrame |= GLOBAL_SETTINGS.getProperty( "initialDesktop" ).indexOf( "EventsFrame" ) != -1 &&
+				KoLDesktop.getInstance().isVisible();
+
+			if ( shouldLoadEventFrame )
+				(new CreateFrameRunnable( EventsFrame.class )).run();
+
+			return;
+		}
+
+		// Copy the events to chat
+		for ( int i = 0; i < events.length; ++i )
+		{
+			int dash = events[i].indexOf( "-" );
+			String event = events[i].substring( dash + 2 );
+			KoLMessenger.updateChat( "<font color=green>" + event + "</font>" );
+		}
+	}
+
+	public String toString()
+	{	return getURLString();
 	}
 }

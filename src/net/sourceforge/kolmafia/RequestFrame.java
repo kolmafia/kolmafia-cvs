@@ -41,6 +41,7 @@ import java.awt.Color;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
 
+import javax.swing.JTabbedPane;
 import javax.swing.ImageIcon;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
@@ -55,8 +56,11 @@ import javax.swing.JList;
 import javax.swing.JComboBox;
 import javax.swing.JPanel;
 import javax.swing.JLabel;
+import javax.swing.JCheckBox;
 import javax.swing.Box;
 
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.event.ListDataEvent;
@@ -71,66 +75,64 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class RequestFrame extends KoLFrame
 {
-	private static String lastResponseText = "";
 	private static SidePaneRefresher REFRESHER = new SidePaneRefresher();
-	private static boolean refreshStatusDisabled = false;
+	private static boolean refreshStatusEnabled = true;
 
-	private int currentLocation = 0;
-	private List visitedLocations = new ArrayList();
+	private int locationIndex = 0;
+	private ArrayList history = new ArrayList();
+	private ArrayList shownHTML = new ArrayList();
 
 	private int combatRound;
 	private RequestFrame parent;
+	private String currentLocation;
 	private KoLRequest currentRequest;
 	private LimitedSizeChatBuffer mainBuffer;
 
-	private boolean hasSideBar;
 	private boolean isRefreshing = false;
 	private LimitedSizeChatBuffer sideBuffer;
 
-	private JTextField locationField = new JTextField();
 	protected JEditorPane sideDisplay;
 	protected JEditorPane mainDisplay;
 
+	private static BrowserComboBox functionSelect, gotoSelect;
+	private static JCheckBox runBetweenBattleChecks;
+	private JTextField locationField = new JTextField();
+
 	public RequestFrame()
-	{	this( new KoLRequest( StaticEntity.getClient(), "main.php" ) );
+	{	this( "Mini-Browser", new KoLRequest( StaticEntity.getClient(), "main.php", true ) );
 	}
 
 	public RequestFrame( KoLRequest request )
-	{	this( null, request );
+	{	this( "Mini-Browser", null, request );
+	}
+
+	public RequestFrame( String title, KoLRequest request )
+	{	this( title, null, request );
 	}
 
 	public RequestFrame( RequestFrame parent, KoLRequest request )
+	{	this( "Mini-Browser", parent, request );
+	}
+
+	public RequestFrame( String title, RequestFrame parent, KoLRequest request )
 	{
-		super( "Mini-Browser" );
+		super( title );
 		this.parent = parent;
 
-		this.currentRequest = getClass() == RequestFrame.class && StaticEntity.getClient().getCurrentRequest() instanceof FightRequest ?
-			StaticEntity.getClient().getCurrentRequest() : request;
-
-		this.hasSideBar = getClass() == RequestFrame.class &&
-			request != null &&
-			!request.getURLString().startsWith( "chat" ) &&
-			!request.getURLString().startsWith( "static" ) &&
-			!request.getURLString().startsWith( "desc" ) &&
-			!request.getURLString().startsWith( "showplayer" ) &&
-			!request.getURLString().startsWith( "doc" ) &&
-			!request.getURLString().startsWith( "searchp" );
-
-		setCombatRound( request );
-
+		setCurrentRequest( request );
 		this.mainDisplay = new JEditorPane();
 		this.mainDisplay.setEditable( false );
 
 		if ( !(this instanceof PendingTradesFrame) )
 			this.mainDisplay.addHyperlinkListener( new KoLHyperlinkAdapter() );
 
-		this.mainBuffer = new LimitedSizeChatBuffer( "Mini-Browser", false );
+		this.mainBuffer = new LimitedSizeChatBuffer( "Mini-Browser" );
 		JScrollPane mainScroller = this.mainBuffer.setChatDisplay( this.mainDisplay );
 
 		// Game text descriptions and player searches should not add
 		// extra requests to the server by having a side panel.
 
-		if ( !hasSideBar )
+		if ( !hasSideBar() )
 		{
 			this.sideBuffer = null;
 
@@ -144,7 +146,7 @@ public class RequestFrame extends KoLFrame
 			this.sideDisplay.setEditable( false );
 			this.sideDisplay.addHyperlinkListener( new KoLHyperlinkAdapter() );
 
-			this.sideBuffer = new LimitedSizeChatBuffer( "", false );
+			this.sideBuffer = new LimitedSizeChatBuffer( "Sidebar" );
 			JScrollPane sideScroller = this.sideBuffer.setChatDisplay( sideDisplay );
 			JComponentUtilities.setComponentSize( sideScroller, 150, 450 );
 
@@ -156,7 +158,7 @@ public class RequestFrame extends KoLFrame
 			// mini-browser, including inventory, character
 			// information, skills and account setup.
 
-			BrowserComboBox functionSelect = new BrowserComboBox();
+			functionSelect = new BrowserComboBox();
 			functionSelect.addItem( new BrowserComboBoxItem( " - Function - ", "" ) );
 
 			functionSelect.addItem( new BrowserComboBoxItem( "Consumables", "inventory.php?which=1" ) );
@@ -173,7 +175,7 @@ public class RequestFrame extends KoLFrame
 			// are familiar with seeing this as well.  But,
 			// place it all inside of a "travel" menu.
 
-			BrowserComboBox gotoSelect = new BrowserComboBox();
+			gotoSelect = new BrowserComboBox();
 			gotoSelect.addItem( new BrowserComboBoxItem( " - Goto (Maki) - ", "" ) );
 
 			gotoSelect.addItem( new BrowserComboBoxItem( "Main Map", "main.php" ) );
@@ -200,19 +202,29 @@ public class RequestFrame extends KoLFrame
 			RequestEditorKit.downloadImage( "http://images.kingdomofloathing.com/itemimages/smoon" + MoonPhaseDatabase.getRonaldPhase() + ".gif" );
 			RequestEditorKit.downloadImage( "http://images.kingdomofloathing.com/itemimages/smoon" + MoonPhaseDatabase.getGrimacePhase() + ".gif" );
 
-			topMenu.add( new JLabel( JComponentUtilities.getSharedImage( "itemimages/smoon" + MoonPhaseDatabase.getRonaldPhase() + ".gif" ) ) );
-			topMenu.add( new JLabel( JComponentUtilities.getSharedImage( "itemimages/smoon" + MoonPhaseDatabase.getGrimacePhase() + ".gif" ) ) );
+			topMenu.add( new JLabel( JComponentUtilities.getImage( "itemimages/smoon" + MoonPhaseDatabase.getRonaldPhase() + ".gif" ) ) );
+			topMenu.add( new JLabel( JComponentUtilities.getImage( "itemimages/smoon" + MoonPhaseDatabase.getGrimacePhase() + ".gif" ) ) );
+
+			topMenu.add( Box.createHorizontalStrut( 20 ) );
+			topMenu.add( runBetweenBattleChecks = new JCheckBox( "Run between-battle scripts" ) );
+			runBetweenBattleChecks.setOpaque( false );
 
 			functionSelect.setSelectedIndex( 0 );
 			gotoSelect.setSelectedIndex( 0 );
 
-			framePanel.setLayout( new BorderLayout() );
-			framePanel.add( topMenu, BorderLayout.NORTH );
-			framePanel.add( horizontalSplit, BorderLayout.CENTER );
+			JPanel container = new JPanel( new BorderLayout() );
+			container.add( topMenu, BorderLayout.NORTH );
+			container.add( horizontalSplit, BorderLayout.CENTER );
 
-			// Add toolbar pieces so that people can quickly
-			// go to locations they like.
+			framePanel.setLayout( new BorderLayout() );
+			framePanel.add( container, BorderLayout.CENTER );
 		}
+
+		// Add toolbar pieces so that people can quickly
+		// go to locations they like.
+
+		JToolBar toolbarPanel = new JToolBar( "KoLmafia Toolbar" );
+		getContentPane().add( toolbarPanel, BorderLayout.NORTH );
 
 		toolbarPanel.add( new BackButton() );
 		toolbarPanel.add( new ForwardButton() );
@@ -225,17 +237,16 @@ public class RequestFrame extends KoLFrame
 
 		GoButton button = new GoButton();
 		toolbarPanel.add( button );
-		getRootPane().setDefaultButton( button );
 
 		// If this has a side bar, then it will need to be notified
 		// whenever there are updates to the player status.
 
 		REFRESHER.add( this );
 
-		if ( this.hasSideBar )
+		if ( hasSideBar() )
 			refreshStatus();
 
-		(new DisplayRequestThread( this.currentRequest, true )).start();
+		(new DisplayRequestThread( request, true )).start();
 	}
 
 	private class BrowserComboBox extends JComboBox implements ActionListener
@@ -283,16 +294,14 @@ public class RequestFrame extends KoLFrame
 	 */
 
 	public boolean hasSideBar()
-	{	return hasSideBar;
+	{
+		return currentRequest != null && !currentRequest.getURLString().startsWith( "chat" ) && !currentRequest.getURLString().startsWith( "static" ) &&
+			!currentRequest.getURLString().startsWith( "desc" ) && !currentRequest.getURLString().startsWith( "showplayer" ) &&
+			!currentRequest.getURLString().startsWith( "doc" ) && !currentRequest.getURLString().startsWith( "searchp" );
 	}
 
-	/**
-	 * Utility method which returns the current URL being pointed
-	 * to by this <code>RequestFrame</code>.
-	 */
-
 	public String getCurrentLocation()
-	{	return currentRequest.getURLString();
+	{	return currentLocation;
 	}
 
 	/**
@@ -312,7 +321,7 @@ public class RequestFrame extends KoLFrame
 
 		if ( parent == null || location.startsWith( "search" ) || location.startsWith( "desc" ) )
 		{
-			setCombatRound( request );
+			setCurrentRequest( request );
 
 			// Only record raw mini-browser requests
 			if ( request.getClass() == KoLRequest.class )
@@ -324,12 +333,14 @@ public class RequestFrame extends KoLFrame
 			parent.refresh( request );
 	}
 
-	private void setCombatRound( KoLRequest request )
+	private void setCurrentRequest( KoLRequest request )
 	{
 		if ( request != null && request instanceof FightRequest )
 			combatRound = ((FightRequest)request).getCombatRound();
 		else
 			combatRound = 1;
+
+		this.currentRequest = request;
 	}
 
 	protected static String getDisplayHTML( String responseText )
@@ -356,35 +367,16 @@ public class RequestFrame extends KoLFrame
 		{
 			synchronized ( DisplayRequestThread.class )
 			{
-				if ( request == null || (request.responseText != null && !lastResponseText.equals( "" ) && request.responseText.equals( lastResponseText )) )
-					return;
-
 				mainBuffer.clearBuffer();
 				mainBuffer.append( "Retrieving..." );
 
-				if ( cloverCheckNeeded() )
-				{
-					if ( getProperty( "cloverProtectActive" ).equals( "true" ) )
-					{
-						DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You have a ten-leaf clover." );
-
-						mainBuffer.clearBuffer();
-						mainBuffer.append( "<h1><font color=\"red\">You have a ten-leaf clover.	 Please deactivate clover protection in your startup options first if you are certain you want to use your clovers while adventuring.</font></h1>" );
-						lastResponseText = "";
-						return;
-					}
-
-					StaticEntity.getClient().processResult( SewerRequest.CLOVER );
-				}
-
-				currentRequest = request;
+				currentLocation = request.getURLString();
 				setupRequest();
 
 				if ( request != null && request.responseText != null && request.responseText.length() != 0 )
 				{
 					StaticEntity.getClient().setCurrentRequest( request );
-					lastResponseText = request.responseText;
-					displayRequest();
+					displayRequest( request.responseText );
 				}
 				else
 				{
@@ -393,8 +385,8 @@ public class RequestFrame extends KoLFrame
 					// cannot be shown in the minibrowser.
 
 					mainBuffer.clearBuffer();
-					mainBuffer.append( "Redirected to unknown page: &lt;" + request.redirectLocation + "&gt;" );
-					lastResponseText = "";
+					mainBuffer.append( "<b>Tried to access</b>: " + currentLocation );
+					mainBuffer.append( "<br><b>Redirected</b>: " + request.redirectLocation );
 					return;
 				}
 			}
@@ -406,46 +398,24 @@ public class RequestFrame extends KoLFrame
 			updateClient();
 		}
 
-		private boolean cloverCheckNeeded()
-		{
-			String adventure = request.getURLString();
-
-			if ( adventure != null && adventure.startsWith( "adventure.php" ) )
-			{
-				Matcher dataMatcher = Pattern.compile( "(snarfblat|adv)=(\\d+)" ).matcher( adventure );
-				return StaticEntity.getClient().isLuckyCharacter() && dataMatcher.find() && AdventureRequest.hasLuckyVersion( dataMatcher.group(2) );
-			}
-
-			return false;
-		}
-
 		private void setupRequest()
 		{
 			if ( request == null )
 				return;
-
-			// Update the title for the RequestFrame to include the
-			// current round of combat (for people who track this
-			// sort of thing).
-
-			if ( getCurrentLocation().startsWith( "fight" ) )
-				setTitle( "Mini-Browser: Combat Round " + combatRound );
-			else
-				setTitle( "Mini-Browser" );
 
 			if ( request.responseText == null || request.responseText.length() == 0 )
 			{
 				// New prevention mechanism: tell the requests that there
 				// will be no synchronization.
 
-				String original = getProperty( "synchronizeFightFrame" );
-				setProperty( "synchronizeFightFrame", "false" );
+				String original = getProperty( "showAllRequests" );
+				setProperty( "showAllRequests", "false" );
 				request.run();
-				setProperty( "synchronizeFightFrame", original );
+				setProperty( "showAllRequests", original );
 			}
 		}
 
-		private void displayRequest()
+		private void displayRequest( String text )
 		{
 			mainBuffer.clearBuffer();
 
@@ -453,78 +423,25 @@ public class RequestFrame extends KoLFrame
 			// if you open a new frame after going back, all the ones
 			// in the future get removed.
 
-			while ( visitedLocations.size() > currentLocation )
-				visitedLocations.remove( currentLocation );
+			String renderText = getDisplayHTML( text );
 
-			visitedLocations.add( request );
-
-			// Only allow 11 locations in the locations buffer.  That
-			// way, memory doesn't get sucked up by synchronization.
-
-			while ( visitedLocations.size() > 11 )
-				visitedLocations.remove( request );
+			history.add( request.getURLString() );
+			shownHTML.add( renderText );
 
 			String location = request.getURLString();
 
 			locationField.setText( location );
-			currentLocation = visitedLocations.size();
+			locationIndex = shownHTML.size();
 
-			mainBuffer.append( getDisplayHTML( lastResponseText ) );
+			mainBuffer.append( renderText );
 			mainDisplay.setCaretPosition( 0 );
 			System.gc();
-
-			// One last thing which needs to be done is if the player
-			// just ascended, you need to refresh everything.
-
-			if ( location.equals( "main.php?refreshtop=true&noobmessage=true" ) )
-			{
-				StaticEntity.getClient().refreshSession();
-				StaticEntity.getClient().enableDisplay();
-			}
 		}
 
 		private void updateClient()
 		{
-			// In the event that something resembling a gain event
-			// is seen in the response text, or in the event that you
-			// switch between compact and full mode, refresh the sidebar.
-
-			String location = request.getURLString();
-
-			// Keep the StaticEntity.getClient() updated of your current equipment and
-			// familiars, if you visit the appropriate pages.
-
-			if ( location.startsWith( "inventory.php?which=2" ) )
-				EquipmentRequest.parseEquipment( request.responseText );
-
-			if ( location.startsWith( "familiar.php" ) )
-				FamiliarData.registerFamiliarData( StaticEntity.getClient(), request.responseText );
-
-			if ( location.startsWith( "charsheet.php" ) )
-				CharsheetRequest.parseStatus( request.responseText );
-
-			// See if the person learned a new skill from using a
-			// mini-browser frame.
-
-			Matcher learnedMatcher = Pattern.compile( "<td>You learn a new skill: <b>(.*?)</b>" ).matcher( request.responseText );
-			if ( learnedMatcher.find() )
-			{
-				KoLCharacter.addAvailableSkill( new UseSkillRequest( StaticEntity.getClient(), learnedMatcher.group(1), "", 1 ) );
-				KoLCharacter.addDerivedSkills();
-			}
-
-			// Unfortunately, if you learn a new skill from Frank
-			// the Regnaissance Gnome at the Gnomish Gnomads
-			// Camp, it doesn't tell you the name of the skill.
-			// It simply says: "You leargn a new skill. Whee!"
-
-			if ( lastResponseText.indexOf( "You leargn a new skill." ) != -1 )
-			     (new CharsheetRequest( StaticEntity.getClient() )).run();
-
-			KoLCharacter.refreshCalculatedLists();
-
-			if ( shouldEnable )
-				StaticEntity.getClient().enableDisplay();
+			if ( request.getClass() == KoLRequest.class )
+				StaticEntity.externalUpdate( request.getURLString(), request.responseText );
 		}
 	}
 
@@ -532,12 +449,12 @@ public class RequestFrame extends KoLFrame
 	{
 		public HomeButton()
 		{
-			super( JComponentUtilities.getSharedImage( "home.gif" ) );
+			super( JComponentUtilities.getImage( "home.gif" ) );
 			addActionListener( this );
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	refresh( new KoLRequest( StaticEntity.getClient(), "main.php" ) );
+		{	refresh( new KoLRequest( StaticEntity.getClient(), "main.php", true ) );
 		}
 	}
 
@@ -545,16 +462,18 @@ public class RequestFrame extends KoLFrame
 	{
 		public BackButton()
 		{
-			super( JComponentUtilities.getSharedImage( "back.gif" ) );
+			super( JComponentUtilities.getImage( "back.gif" ) );
 			addActionListener( this );
 		}
 
 		public void actionPerformed( ActionEvent e )
 		{
-			if ( currentLocation > 1 )
+			if ( locationIndex > 1 )
 			{
-				--currentLocation;
-				refresh( (KoLRequest) visitedLocations.get( currentLocation - 1 ) );
+				--locationIndex;
+				mainBuffer.clearBuffer();
+				mainBuffer.append( (String) shownHTML.get( locationIndex - 1 ) );
+				locationField.setText( (String) history.get( locationIndex - 1 ) );
 			}
 		}
 	}
@@ -563,16 +482,18 @@ public class RequestFrame extends KoLFrame
 	{
 		public ForwardButton()
 		{
-			super( JComponentUtilities.getSharedImage( "forward.gif" ) );
+			super( JComponentUtilities.getImage( "forward.gif" ) );
 			addActionListener( this );
 		}
 
 		public void actionPerformed( ActionEvent e )
 		{
-			if ( currentLocation + 1 < visitedLocations.size() )
+			if ( locationIndex + 1 < shownHTML.size() )
 			{
-				++currentLocation;
-				refresh( (KoLRequest) visitedLocations.get( currentLocation - 1 ) );
+				mainBuffer.clearBuffer();
+				mainBuffer.append( (String) shownHTML.get( locationIndex ) );
+				locationField.setText( (String) history.get( locationIndex ) );
+				++locationIndex;
 			}
 		}
 	}
@@ -581,14 +502,12 @@ public class RequestFrame extends KoLFrame
 	{
 		public ReloadButton()
 		{
-			super( JComponentUtilities.getSharedImage( "reload.gif" ) );
+			super( JComponentUtilities.getImage( "reload.gif" ) );
 			addActionListener( this );
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{
-			visitedLocations.remove( currentRequest );
-			refresh( RequestEditorKit.extractRequest( currentRequest.getURLString() ) );
+		{	refresh( new KoLRequest( StaticEntity.getClient(), currentLocation, true ) );
 		}
 	}
 
@@ -598,6 +517,7 @@ public class RequestFrame extends KoLFrame
 		{
 			super( "Go" );
 			addActionListener( this );
+			locationField.addKeyListener( new GoAdapter() );
 		}
 
 		public void actionPerformed( ActionEvent e )
@@ -607,18 +527,45 @@ public class RequestFrame extends KoLFrame
 			StaticEntity.getClient().getMacroStream().println( request.getURLString() );
 			refresh( request );
 		}
+
+		private class GoAdapter extends KeyAdapter
+		{
+			public void keyReleased( KeyEvent e )
+			{
+				if ( e.getKeyCode() == KeyEvent.VK_ENTER )
+					actionPerformed( null );
+			}
+		}
 	}
 
 	private static class SidePaneRefresher extends ArrayList implements Runnable
 	{
 		public void run()
 		{
+			int adventuresBefore = KoLCharacter.getAdventuresLeft();
+
 			CharpaneRequest instance = CharpaneRequest.getInstance();
 			instance.run();
 
+			if ( adventuresBefore > KoLCharacter.getAdventuresLeft() && runBetweenBattleChecks != null && runBetweenBattleChecks.isSelected() )
+			{
+				refreshStatus( "" );
+
+				functionSelect.setEnabled( false );
+				gotoSelect.setEnabled( false );
+				runBetweenBattleChecks.setEnabled( false );
+
+				StaticEntity.getClient().runBetweenBattleChecks();
+
+				runBetweenBattleChecks.setEnabled( true );
+				gotoSelect.setEnabled( true );
+				functionSelect.setEnabled( true );
+
+				instance.run();
+			}
+
 			refreshStatus( getDisplayHTML( instance.responseText ) );
 		}
-
 
 		public void refreshStatus( String text )
 		{
@@ -639,27 +586,31 @@ public class RequestFrame extends KoLFrame
 
 	public static void refreshStatus()
 	{
-		if ( REFRESHER.isEmpty() || refreshStatusDisabled )
+		if ( REFRESHER.isEmpty() || !refreshStatusEnabled || (runBetweenBattleChecks != null && !runBetweenBattleChecks.isEnabled()) )
 			return;
 
 		(new Thread( REFRESHER )).start();
 	}
 
 	public static boolean willRefreshStatus()
-	{	return !REFRESHER.isEmpty();
+	{	return !REFRESHER.isEmpty() && refreshStatusEnabled && runBetweenBattleChecks != null && runBetweenBattleChecks.isEnabled();
 	}
 
-	public static void disableRefreshStatus( boolean disable )
-	{
-		refreshStatusDisabled = disable;
+	public static boolean isRefreshStatusEnabled()
+	{	return refreshStatusEnabled;
+	}
 
-		if ( disable )
+	public static void setRefreshStatusEnabled( boolean isEnabled )
+	{
+		refreshStatusEnabled = isEnabled;
+		if ( !isEnabled )
 			REFRESHER.refreshStatus( "" );
 	}
 
 	public void dispose()
 	{
-		visitedLocations.clear();
+		history.clear();
+		shownHTML.clear();
 		REFRESHER.remove( this );
 		super.dispose();
 	}

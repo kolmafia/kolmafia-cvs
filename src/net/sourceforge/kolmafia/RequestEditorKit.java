@@ -516,11 +516,9 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		}
 		catch ( Exception e )
 		{
-			// If an IOException occurs at any time during the
-			// attempt to retrieve the image, this means that
-			// it's an HTML parse error because of malformed
-			// HTML -- ignore the error and return null.
-
+			// This can happen whenever there is bad internet
+			// or whenever the familiar is brand-new.
+			
 			return null;
 		}
 	}
@@ -658,11 +656,16 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		// by the default Java browser to an understood form,
 		// and remove all <HR> tags.
 
-		KoLmafia.getLogStream().println( "Rendering hypertext..." );
+		KoLmafia.getDebugStream().println( "Rendering hypertext..." );
 		String displayHTML = responseText.replaceAll( "<[Bb][Rr]( ?/)?>", "<br>" ).replaceAll( "<[Hh][Rr].*?>", "<br>" );
 
 		// The default Java browser doesn't display blank lines correctly
 		displayHTML = displayHTML.replaceAll( "<br><br>", "<br>&nbsp;<br>" );
+
+		// Fix all the tables which decide to put a row end,
+		// but no row beginning.
+		
+		displayHTML = displayHTML.replaceAll( "</tr><td", "</tr><tr><td" );
 
 		// Fix all the super-small font displays used in the
 		// various KoL panes.
@@ -705,6 +708,12 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		// UNICODE characters using the table.
 
 		displayHTML = getUnicode( displayHTML );
+		
+		// Image links are mangled a little bit because they use
+		// Javascript now -- fix them.
+		
+		displayHTML = displayHTML.replaceAll( "<img([^>]*?) onClick=\'descitem\\((\\d+)\\);\'>",
+			"<a href=\"desc_item.php?whichitem=$2\"><img$1 border=0></a>" );
 
 		// The last thing to worry about is the problems in
 		// specific pages.
@@ -775,16 +784,149 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 			displayHTML = sortItemList( "whichitem", displayHTML );
 			displayHTML = sortItemList( "whichitem2", displayHTML );
 		}
-
+		
+		// The clan gym buttons are a little mixed up, but
+		// it's possible to get everything to work by changing
+		// the table cells to line breaks.
+		
+		if ( displayHTML.indexOf( "action=clan_gym.php") != -1 )
+		{
+			displayHTML = displayHTML.replaceAll( "<td width=100 height=100>", "<tr><td width=100 height=100>" );
+			displayHTML = displayHTML.replaceAll( "</td><td valign=center>", "<br>" );
+			displayHTML = displayHTML.replaceAll( "</td></tr></form>", "</form></td></tr>" );
+		}
+		
+		// Doc Galaktik's page is going to get completely
+		// killed, except for the main purchases.
+		
+		if ( displayHTML.indexOf( "action=galaktik.php") != -1 )
+			displayHTML = displayHTML.replaceFirst( "<table><table.*", "" );
+		
 		// All HTML is now properly rendered!  Return the
 		// compiled string.  Print it to the debug log for
 		// reference purposes.
 
 		String pwd = StaticEntity.getClient().getPasswordHash();
 		String text = pwd == null ? displayHTML : displayHTML.replaceAll( pwd, "" );
-		KoLmafia.getLogStream().println( text );
+		KoLmafia.getDebugStream().println( text );
 
+		displayHTML = getFeatureRichHTML( displayHTML );
 		return displayHTML;
+	}
+	
+	public static String getFeatureRichHTML( String text )
+	{
+		// Now, for a little fun HTML manipulation.  See
+		// if there's an item present, and if so, modify
+		// it so that you get a use link.
+		
+		if ( StaticEntity.getProperty( "relayAddsUseLinks" ).equals( "true" ) )
+			text = addUseLinks( text );
+		
+		if ( StaticEntity.getProperty( "relayMovesManeuver" ).equals( "true" ) )
+			text = moveManeuverButton( text );
+			
+		return text;
+	}
+
+	private static String addUseLinks( String text )
+	{
+		StringBuffer linkedResponse = new StringBuffer();
+		Matcher useLinkMatcher = Pattern.compile( "You acquire(.*?)</td>" ).matcher( text );
+
+		while ( useLinkMatcher.find() )
+		{
+			String itemName = useLinkMatcher.group(1);
+			int itemCount = itemName.indexOf( ":" ) != -1 ? 1 : 2;
+
+			if ( itemCount == 1 )
+				itemName = itemName.substring( itemName.indexOf( ":" ) + 1 ).replaceAll( "<.*?>", "" ).trim();
+			else
+			{
+				itemName = itemName.replaceAll( "<.*?>", "" );
+				itemName = itemName.substring( itemName.indexOf( " " ) + 1 ).trim();
+			}
+
+			int itemID = TradeableItemDatabase.getItemID( itemName, itemCount );
+			String useType = null;
+			String useLocation = null;
+
+			switch ( TradeableItemDatabase.getConsumptionType( itemID ) )
+			{
+				case ConsumeItemRequest.CONSUME_EAT:
+					useType = KoLCharacter.canEat() ? "eat" : null;
+					useLocation = "inv_eat.php?pwd=&which=1&whichitem=";
+					break;
+
+				case ConsumeItemRequest.CONSUME_DRINK:
+					useType = KoLCharacter.canDrink() ? "drink" : null;
+					useLocation = "inv_booze.php?pwd=&which=1&whichitem=";
+					break;
+
+				case ConsumeItemRequest.CONSUME_MULTIPLE:
+					useType = "use";
+					useLocation = itemCount != 1 ? "multiuse.php?passitem=" : "inv_use.php?pwd=&which=1&whichitem=";
+					break;
+
+				case ConsumeItemRequest.CONSUME_RESTORE:
+					useType = "skills";
+					useLocation = "skills.php";
+					break;
+
+				case ConsumeItemRequest.CONSUME_USE:
+					
+					if ( itemID == SorceressLair.PUZZLE_PIECE.getItemID() )
+					{
+						useType = "use";
+						useLocation = "hedgepuzzle.php";
+					}
+					else
+					{
+						useType = "use";
+						useLocation = "inv_use.php?pwd=&which=3&whichitem=";
+					}
+
+					break;
+
+				case ConsumeItemRequest.EQUIP_HAT:
+				case ConsumeItemRequest.EQUIP_PANTS:
+				case ConsumeItemRequest.EQUIP_SHIRT:
+					useType = "equip";
+					useLocation = "inv_equip.php?pwd=&which=2&action=equip&whichitem=";
+					break;
+			}
+			
+			if ( useType != null && useLocation != null )
+			{
+				useLinkMatcher.appendReplacement( linkedResponse,
+					"You acquire$1 <font size=1>[<a href=\"" + useLocation.toString() +
+					(useLocation.endsWith( "=" ) ? String.valueOf( itemID ) : "") + 
+					"\">" + useType + "</a>]</font></td>" );
+			}
+			else
+			{
+				useLinkMatcher.appendReplacement( linkedResponse, "$0" );
+			}
+		}
+
+		useLinkMatcher.appendTail( linkedResponse );
+		return linkedResponse.toString();
+	}
+	
+	private static String moveManeuverButton( String text )
+	{
+		int moxmanIndex = text.indexOf( "<form name=moxman" );
+		if ( moxmanIndex == -1 )
+			return text;
+		
+		StringBuffer textBuffer = new StringBuffer( text );
+		int endIndex = text.indexOf( "</form>", moxmanIndex );	
+		textBuffer.delete( moxmanIndex, endIndex );
+	
+		int skillIndex = textBuffer.indexOf( "skill)</option>" );
+		textBuffer.insert( skillIndex + 15, "<option value='moxman'>Moxious Maneuver (" +
+			KoLCharacter.getLevel() + " Muscularity Points)</option>" );
+		return textBuffer.toString();
 	}
 
 	private static String sortItemList( String select, String displayHTML )
@@ -800,9 +942,10 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 			{
 				while ( itemMatcher.find() )
 				{
-					int id = df.parse( itemMatcher.group(1) ).intValue();
+					int id = Integer.parseInt( itemMatcher.group(1) );
 					if ( id == 0 )
 						continue;
+
 					int count = df.parse( itemMatcher.group(2) ).intValue();
 					AdventureResult currentItem = new AdventureResult( id, count );
 					if ( itemMatcher.group().indexOf( "selected" ) != -1 )
@@ -813,8 +956,10 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace();
-				e.printStackTrace( KoLmafia.getLogStream() );
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 
 			Collections.sort( items );
@@ -967,13 +1112,10 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 				}
 				catch ( Exception e )
 				{
-					// This could be dangerous to simply exit out; therefore,
-					// go ahead and change it, but print the error to the
-					// debug streams.
-
-					e.printStackTrace();
-					e.printStackTrace( KoLmafia.getLogStream() );
-
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
+					
+					StaticEntity.printStackTrace( e );
 					request = new KoLRequest( StaticEntity.getClient(), actionString.toString(), true );
 				}
 			}

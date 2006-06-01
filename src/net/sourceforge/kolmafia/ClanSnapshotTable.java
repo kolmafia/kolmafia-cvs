@@ -55,12 +55,11 @@ public class ClanSnapshotTable extends KoLDatabase
 	public static final int LEVEL_FILTER = 1;
 	public static final int PVP_FILTER = 2;
 	public static final int CLASS_FILTER = 3;
-	public static final int RANK_FILTER = 4;
-	public static final int KARMA_FILTER = 5;
-	public static final int LOGIN_FILTER = 6;
+	public static final int KARMA_FILTER = 4;
+	public static final int LOGIN_FILTER = 5;
 
 	public static final String [] FILTER_NAMES =
-	{	"Player name", "Current level", "Antihippy rank", "Character class", "Clan ranking", "Accumulated karma", "Number of days idle"
+	{	"Player name", "Current level", "Antihippy rank", "Character class", "Accumulated karma", "Number of days idle"
 	};
 
 	private static Map levelMap = new TreeMap();
@@ -147,13 +146,10 @@ public class ClanSnapshotTable extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			// An exception shouldn't occur during the parsing
-			// process, unless the user did not enter a valid
-			// numeric string.  In this case, nothing is added,
-			// which is exactly what's wanted.
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 
 		DEFAULT_SHELL.updateDisplay( "Rendering list (KoLmafia may temporary lock)..." );
@@ -192,17 +188,6 @@ public class ClanSnapshotTable extends KoLDatabase
 					compareValue = request.getClassType().compareToIgnoreCase( filter );
 					break;
 
-				case RANK_FILTER:
-
-					// Clan ranks actually work in reverse -- a "higher" rank occurs
-					// higher up in the list than a lower rank.  Therefore, reverse
-					// the order of the operands in the subtraction.
-
-					compareValue = ClanManager.getRankList().indexOf( filter.toLowerCase() ) -
-						ClanManager.getRankList().indexOf( request.getRank().toLowerCase() );
-
-					break;
-
 				case KARMA_FILTER:
 					compareValue = request.getKarma().intValue() - df.parse( filter ).intValue();
 					break;
@@ -219,8 +204,10 @@ public class ClanSnapshotTable extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 
 		return compareValue < 0 ? -1 : compareValue > 0 ? 1 : 0;

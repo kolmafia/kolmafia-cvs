@@ -37,6 +37,7 @@ import java.util.regex.Pattern;
 
 public class UseSkillRequest extends KoLRequest implements Comparable
 {
+	private static final int OTTER_TONGUE = 1007;
 	private static final int WALRUS_TONGUE = 1010;
 	protected static String lastUpdate = "";
 
@@ -44,6 +45,22 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 	private String skillName;
 	private String target;
 	private int buffCount;
+	private String countFieldID;
+
+	private static final AdventureResult ACCORDION = new AdventureResult( 11, 1 );
+	public static final AdventureResult ROCKNROLL_LEGEND = new AdventureResult( 50, 1 );
+	private static final AdventureResult ROLL = new AdventureResult( 47, 1 );
+	private static final AdventureResult BIG_ROCK = new AdventureResult( 30, 1 );
+	private static final AdventureResult HEART = new AdventureResult( 48, 1 );
+
+	// Clover weapons
+	private static final AdventureResult BJORNS_HAMMER = new AdventureResult( 32, 1 );
+	private static final AdventureResult TURTLESLINGER = new AdventureResult( 60, 1 );
+	private static final AdventureResult PASTA_OF_PERIL = new AdventureResult( 68, 1 );
+	private static final AdventureResult FIVE_ALARM_SAUCEPAN = new AdventureResult( 57, 1 );
+	private static final AdventureResult DISCO_BANJO = new AdventureResult( 54, 1 );
+
+	private static final AdventureResult [] CLOVER_WEAPONS = { BJORNS_HAMMER, TURTLESLINGER, FIVE_ALARM_SAUCEPAN, PASTA_OF_PERIL, DISCO_BANJO };
 
 	/**
 	 * Constructs a new <code>UseSkillRequest</code>.
@@ -65,8 +82,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 		if ( ClassSkillsDatabase.isBuff( skillID ) )
 		{
-			this.target = target;
-			addFormField( "bufftimes", "" + buffCount );
+			this.countFieldID = "bufftimes";
 
 			if ( target == null || target.trim().length() == 0 || target.equals( String.valueOf( KoLCharacter.getUserID() ) ) || target.equals( KoLCharacter.getUsername() ) )
 			{
@@ -77,15 +93,27 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 					addFormField( "specificplayer", KoLCharacter.getUsername() );
 			}
 			else
+			{
+				this.target = target;
 				addFormField( "specificplayer", target );
+			}
 		}
 		else
 		{
-			addFormField( "quantity", "" + buffCount );
+			this.countFieldID = "quantity";
 			this.target = null;
 		}
 
-		this.buffCount = buffCount < 1 ? 1 : buffCount;
+		for ( int i = 0; i < KoLmafia.BREAKFAST_SKILLS.length; ++i )
+			if ( this.skillName.equals( KoLmafia.BREAKFAST_SKILLS[i][0] ) )
+				buffCount = Math.min( Integer.parseInt( KoLmafia.BREAKFAST_SKILLS[i][1] ), buffCount );
+
+		if ( buffCount < 1 )
+			buffCount = 1;
+		else if ( buffCount == Integer.MAX_VALUE )
+			buffCount = (int) (KoLCharacter.getMaximumMP() / ClassSkillsDatabase.getMPConsumptionByID( skillID ));
+
+		this.buffCount = buffCount;
 	}
 
 	public int compareTo( Object o )
@@ -99,6 +127,10 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 		return mpDifference != 0 ? mpDifference : skillName.compareToIgnoreCase( ((UseSkillRequest)o).skillName );
 	}
 
+	public int getSkillID()
+	{	return skillID;
+	}
+
 	public String getSkillName()
 	{	return skillName;
 	}
@@ -109,28 +141,223 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 	public void run()
 	{
+		String initialWeapon = KoLCharacter.getEquipment( KoLCharacter.WEAPON );
+		String initialOffhand = KoLCharacter.getEquipment( KoLCharacter.OFFHAND );
+
+		AdventureResult songWeapon = null;
+		if ( skillID > 6000 && skillID < 7000 )
+		{
+			songWeapon = prepareAccordion();
+			if ( songWeapon == null )
+			{
+				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You need an accordion to play Accordion Thief songs." );
+				return;
+			}
+
+			// If there's a stolen accordion equipped, unequip it so the
+			// Rock and Roll Legend in inventory is used to play the song
+
+			if ( songWeapon != ACCORDION && KoLCharacter.hasEquipped( ACCORDION ) )
+				(new EquipmentRequest( client, EquipmentRequest.UNEQUIP, KoLCharacter.WEAPON )).run();
+		}
+
+		// Cast the skill as many times as needed
+
+		useSkillLoop();
+
+		// If we untinkered a Clover Weapon and built a Rock and Roll
+		// Legend, undo it all.
+
+		if ( songWeapon != null && songWeapon != ACCORDION && songWeapon != ROCKNROLL_LEGEND )
+		{
+			// Untinker the Rock and Roll Legend we constructed and,
+			// rebuild the weapon we started with.
+
+			untinkerCloverWeapon( ROCKNROLL_LEGEND );
+			ItemCreationRequest.getInstance( client, songWeapon ).run();
+		}
+
+		// If we unequipped a weapon, equip it again
+		if ( !initialWeapon.equals( KoLCharacter.getEquipment( KoLCharacter.WEAPON ) ) )
+			(new EquipmentRequest( client, initialWeapon, KoLCharacter.WEAPON )).run();
+
+		// If we unequipped an off-hand weapon, equip it again
+		if ( !initialOffhand.equals( KoLCharacter.getEquipment( KoLCharacter.OFFHAND ) ) )
+			(new EquipmentRequest( client, initialOffhand, KoLCharacter.OFFHAND )).run();
+	}
+
+	private void useSkillLoop()
+	{
 		// Before executing the skill, ensure that all necessary mana is
 		// recovered in advance.
 
-		client.recoverMP( ClassSkillsDatabase.getMPConsumptionByID( skillID ) * buffCount );
+		int castsRemaining = buffCount;
+		int mpPerCast = ClassSkillsDatabase.getMPConsumptionByID( skillID );
 
-		// If a continue is not permitted, then return from the attempt;
-		// you don't have enough mana for the cast.
+		int currentMP = KoLCharacter.getCurrentMP();
+		int maximumMP = KoLCharacter.getMaximumMP();
 
-		if ( !client.permitsContinue() )
+		if ( client.refusesContinue() || maximumMP < mpPerCast )
 			return;
 
-		if ( target == null || target.trim().length() == 0 )
-			DEFAULT_SHELL.updateDisplay( "Casting " + skillName + "..." );
-		else
-			DEFAULT_SHELL.updateDisplay( "Casting " + skillName + " on " + target + "..." );
+		int currentCast = 0;
+		int maximumCast = maximumMP / mpPerCast;
 
-		super.run();
+		while ( !client.refusesContinue() && castsRemaining > 0 )
+		{
+			// Find out how many times we can cast with current MP
 
-		// To minimize the amount of confusion, go ahead and restore mana
-		// once the request is complete.
+			currentCast = Math.min( castsRemaining, KoLCharacter.getCurrentMP() / mpPerCast );
 
-		client.recoverMP();
+			// If none, attempt to recover MP in order to cast;
+			// take auto-recovery into account.
+
+			if ( currentCast == 0 )
+			{
+				currentCast = Math.min( castsRemaining, maximumCast );
+
+				currentMP = KoLCharacter.getCurrentMP();
+				client.recoverMP( mpPerCast * currentCast );
+
+				// If no change occurred, that means the person was
+				// unable to recover MP; abort the process.
+
+				if ( currentMP == KoLCharacter.getCurrentMP() )
+					return;
+
+				currentCast = Math.min( castsRemaining, KoLCharacter.getCurrentMP() / mpPerCast );
+			}
+
+			if ( client.refusesContinue() )
+				return;
+
+			if ( currentCast > 0 )
+			{
+				// Attempt to cast the buff.  In the event that it
+				// fails, make sure to report it and return whether
+				// or not at least one cast was completed.
+
+				addFormField( countFieldID, String.valueOf( currentCast ), false );
+
+				if ( target == null || target.trim().length() == 0 )
+					DEFAULT_SHELL.updateDisplay( "Casting " + skillName + " " + currentCast + " times..." );
+				else
+					DEFAULT_SHELL.updateDisplay( "Casting " + skillName + " on " + target + " " + currentCast + " times..." );
+
+				super.run();
+
+				// Otherwise, you have completed the correct number
+				// of casts.  Deduct it from the number of casts
+				// remaining and continue.
+
+				castsRemaining -= currentCast;
+			}
+		}
+	}
+
+	private AdventureResult prepareAccordion()
+	{
+		// Can the rock and roll legend be acquired in some way
+		// right now?  If so, retrieve it.
+
+		if ( KoLCharacter.hasItem( ROCKNROLL_LEGEND, true ) )
+		{
+			if ( !KoLCharacter.hasEquipped( ROCKNROLL_LEGEND ) )
+				AdventureDatabase.retrieveItem( ROCKNROLL_LEGEND );
+
+			return ROCKNROLL_LEGEND;
+		}
+
+		// He must have at least a stolen accordion
+
+		if ( !KoLCharacter.hasItem( ACCORDION, false ) )
+			return null;
+
+		// Does he have a hot buttered roll?  If not,
+		// untinkering weapons won't help.
+
+		if ( !KoLCharacter.hasItem( ROLL, false ) )
+			return ACCORDION;
+
+		// Can we get a big rock from a clover weapon?
+
+		AdventureResult cloverWeapon = null;
+		for ( int i = 0; i < CLOVER_WEAPONS.length; ++i )
+			if ( KoLCharacter.hasItem( CLOVER_WEAPONS[i], false  ) )
+				cloverWeapon = CLOVER_WEAPONS[i];
+
+		// If not, just use existing stolen accordion
+
+		if ( cloverWeapon == null )
+			return ACCORDION;
+
+		// If he's already helped the Untinker, cool - but we don't
+		// want to run adventures to fulfill that quest.
+
+		if ( !canUntinker() )
+			return ACCORDION;
+
+		// Unequip the clover weapon, if necessary, and turn the
+		// clover weapon into a big rock.  Then, build a rock and
+		// roll legend.
+
+		AdventureDatabase.retrieveItem( cloverWeapon );
+		untinkerCloverWeapon( cloverWeapon );
+		AdventureDatabase.retrieveItem( ROCKNROLL_LEGEND );
+		return cloverWeapon;
+	}
+
+	private boolean canUntinker()
+	{
+		// If you're too low level, don't even try
+
+		if ( KoLCharacter.getLevel() < 4 )
+			return false;
+
+		// If you're in a muscle sign, KoLmafia will finish the
+		// quest without problems.
+
+		if ( KoLCharacter.inMuscleSign() )
+			return true;
+
+		// Otherwise, visit the untinker and see what he says.
+		// If he mentions Degrassi Knoll, you haven't given him
+		// his screwdriver yet.
+
+		KoLRequest questCompleter = new UntinkerRequest( client );
+		questCompleter.run();
+		return questCompleter.responseText.indexOf( "Degrassi Knoll" ) == -1;
+	}
+
+	public static void untinkerCloverWeapon( AdventureResult item )
+	{
+		switch ( item.getItemID() )
+		{
+			case 32:	// Bjorn's Hammer
+				( new UntinkerRequest( StaticEntity.getClient(), 32 ) ).run();
+				( new UntinkerRequest( StaticEntity.getClient(), 31 ) ).run();
+				break;
+			case 50:	// Rock and Roll Legend
+				( new UntinkerRequest( StaticEntity.getClient(), 50 ) ).run();
+				( new UntinkerRequest( StaticEntity.getClient(), 48 ) ).run();
+				break;
+			case 54:	// Disco Banjo
+				( new UntinkerRequest( StaticEntity.getClient(), 54 ) ).run();
+				( new UntinkerRequest( StaticEntity.getClient(), 53 ) ).run();
+				break;
+			case 57:	// 5-Alarm Saucepan
+				( new UntinkerRequest( StaticEntity.getClient(), 57 ) ).run();
+				( new UntinkerRequest( StaticEntity.getClient(), 56 ) ).run();
+				break;
+			case 60:	// Turtleslinger
+				( new UntinkerRequest( StaticEntity.getClient(), 60 ) ).run();
+				( new UntinkerRequest( StaticEntity.getClient(), 58 ) ).run();
+				break;
+			case 68:	// Pasta of Peril
+				( new UntinkerRequest( StaticEntity.getClient(), 68 ) ).run();
+				( new UntinkerRequest( StaticEntity.getClient(), 67 ) ).run();
+				break;
+		}
 	}
 
 	protected void processResults()
@@ -159,6 +386,16 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 			  responseText.indexOf( "You can only scrounge up" ) != -1 ||
 			  responseText.indexOf( "You can only summon" ) != -1 )
 		{
+			// If it's a buff count greater than one,
+			// try to scale down the request.
+
+			if ( buffCount > 1 )
+			{
+				--this.buffCount;
+				this.run();
+				return;
+			}
+
 			encounteredError = true;
 			lastUpdate = "Summon limit exceeded.";
 		}
@@ -182,7 +419,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 			encounteredError = true;
 			lastUpdate = target + " is busy fighting.";
 		}
-		else if ( responseText.indexOf( "cannot currently" ) != -1 )
+		else if ( responseText.indexOf( "receive buffs" ) != -1 )
 		{
 			encounteredError = true;
 			lastUpdate = target + " cannot receive buffs.";
@@ -205,14 +442,14 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 		if ( encounteredError )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, lastUpdate );
+			DEFAULT_SHELL.updateDisplay( PENDING_STATE, lastUpdate );
 
 			if ( BuffBotHome.isBuffBotActive() )
 				BuffBotHome.timeStampedLogEntry( BuffBotHome.ERRORCOLOR, lastUpdate );
 		}
 		else
 		{
-			if ( target == null || target.equals( "" ) )
+			if ( target == null )
 				DEFAULT_SHELL.updateDisplay( skillName + " was successfully cast." );
 			else
 				DEFAULT_SHELL.updateDisplay( skillName + " was successfully cast on " + target + "." );
@@ -223,7 +460,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 			client.processResult( new AdventureResult( AdventureResult.MP, 0 - (ClassSkillsDatabase.getMPConsumptionByID( skillID ) * buffCount) ) );
 			client.applyRecentEffects();
 
-			if ( skillID == WALRUS_TONGUE )
+			if ( skillID == OTTER_TONGUE || skillID == WALRUS_TONGUE )
 			{
 				int roundsBeatenUp = KoLAdventure.BEATEN_UP.getCount( KoLCharacter.getEffects() );
 				if ( roundsBeatenUp != 0 )

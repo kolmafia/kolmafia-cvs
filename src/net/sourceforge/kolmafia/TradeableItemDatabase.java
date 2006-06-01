@@ -93,8 +93,10 @@ public class TradeableItemDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 
 		reader = getReader( "itemdescs.dat" );
@@ -120,8 +122,10 @@ public class TradeableItemDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -133,7 +137,7 @@ public class TradeableItemDatabase extends KoLDatabase
 
 	public static void registerItem( int itemID, String itemName )
 	{
-		KoLmafia.getLogStream().println( "New item: \"" + itemName + "\" (" + itemID + ")" );
+		KoLmafia.getDebugStream().println( "New item: <" + itemName + "> (#" + itemID + ")" );
 
 		useTypeByID.set( itemID, 0 );
 		priceByID.set( itemID, 0 );
@@ -242,6 +246,11 @@ public class TradeableItemDatabase extends KoLDatabase
 
 		if ( canonicalName.equals( "little sump'm sump'ms" ) )
 			return 682;
+
+		// gibson pluralizes into carlisles
+
+		if ( canonicalName.equals( "carlisles" ) )
+			return 1570;
 
 		// The word right before the dash may also be pluralized,
 		// so make sure the dashed words are recognized.

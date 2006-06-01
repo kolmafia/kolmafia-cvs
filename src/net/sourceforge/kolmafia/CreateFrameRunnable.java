@@ -34,11 +34,10 @@
 
 package net.sourceforge.kolmafia;
 
-import java.awt.Window;
-import java.awt.Dimension;
 import javax.swing.JFrame;
-import javax.swing.JDialog;
+import java.awt.Dimension;
 import javax.swing.SwingUtilities;
+import java.lang.reflect.Method;
 import java.lang.reflect.Constructor;
 
 /**
@@ -49,40 +48,20 @@ import java.lang.reflect.Constructor;
 
 public class CreateFrameRunnable implements Runnable, KoLConstants
 {
-	private static final Class [] SINGLE_INSTANCE =
+	private static final Class [] MULTI_INSTANCE =
 	{
-		AdventureFrame.class,
-		BuffBotFrame.class,
-		BuffRequestFrame.class,
-		CalendarFrame.class,
-		CakeArenaFrame.class,
-		CharsheetFrame.class,
-		ClanManageFrame.class,
-		CommandDisplayFrame.class,
-		ContactListFrame.class,
-		CouncilFrame.class,
-		ExamineItemsFrame.class,
-		FamiliarTrainingFrame.class,
-		FightFrame.class,
-		GearChangeFrame.class,
-		HagnkStorageFrame.class,
-		ItemManageFrame.class,
-		LoginFrame.class,
-		MailboxFrame.class,
-		MuseumFrame.class,
-		MushroomFrame.class,
-		OptionsFrame.class,
-		PendingTradesFrame.class,
-		SendMessageFrame.class,
-		StoreManageFrame.class,
-		TabbedChatFrame.class
+		ChatFrame.class,
+		RequestFrame.class,
+		ProfileFrame.class,
+		SendMessageFrame.class
 	};
 
 	private Class creationType;
-	private KoLFrame creation;
+	private JFrame creation;
 
 	private Constructor creator;
 	private Object [] parameters;
+	private boolean ranRequests;
 
 	public CreateFrameRunnable( Class creationType )
 	{	this( creationType, new Object[0] );
@@ -92,13 +71,15 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 	{
 		this.creationType = creationType;
 		this.parameters = parameters;
+		this.ranRequests = false;
 
 		Class [] parameterTypes= new Class[ parameters.length ];
 		for ( int i = 0; i < parameters.length; ++i )
 			parameterTypes[i] = parameters[i] == null ? null : parameters[i].getClass();
 
 		this.creator = null;
-		boolean isValidConstructor = true;
+		boolean isValidConstructor;
+
 		Class [] constructorParameterTypes;
 		Constructor [] constructors = creationType.getConstructors();
 
@@ -118,7 +99,7 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 		}
 	}
 
-	public KoLFrame getCreation()
+	public JFrame getCreation()
 	{	return creation;
 	}
 
@@ -133,9 +114,19 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 			return;
 		}
 
-		// If you are not in the Swing thread, then wait
-		// until you are in the Swing thread before making
-		// the object to avoid deadlocks.
+		// Run any needed requests before falling into
+		// the event dispatch thread.
+
+		if ( !ranRequests )
+		{
+			ranRequests = runRequests();
+			if ( !ranRequests )
+				return;
+		}
+
+		// If you are in the Swing thread, then wait
+		// until you are no longer in the Swing thread
+		// so you are able to see debug messages.
 
 		if ( !SwingUtilities.isEventDispatchThread() )
 		{
@@ -146,30 +137,90 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+
+				StaticEntity.printStackTrace( e, "Swing thread interrupted" );
+				return;
+			}
+		}
+
+		// Now that you're guaranteed to be in the event
+		// dispatch thread, run the construction.
+
+		runConstruction();
+	}
+
+	private boolean runRequests()
+	{
+		if ( !StaticEntity.getClient().shouldMakeConflictingRequest() )
+		{
+			try
+			{
+				Method m = creationType.getMethod( "executesConflictingRequest", NOPARAMS );
+				Boolean result = (Boolean) m.invoke( creationType, null );
+
+				if ( result.equals( Boolean.TRUE ) )
+				{
+					DEFAULT_SHELL.updateDisplay( "You can't do that while adventuring." );
+					return false;
+				}
+			}
+			catch ( Exception e )
+			{
+				// In this case, you know for sure that the
+				// method does not exist.  So, do nothing.
 			}
 		}
 
 		// Check to see if this is a frame that should
 		// only be loaded once, based on the static list.
 
-		this.creation = null;
-
 		KoLFrame currentFrame;
 		Class currentType;
+		String currentTypeName;
 
-		for ( int i = 0; i < existingFrames.size(); ++i )
+		String creationTypeName = (creationType == KoLPanelFrame.class ? parameters[1].getClass() : creationType).getName();
+		creationTypeName = creationTypeName.substring( creationTypeName.lastIndexOf( "." ) + 1 );
+
+		for ( int i = 0; i < existingFrames.size() && this.creation == null; ++i )
 		{
 			currentFrame = (KoLFrame) existingFrames.get(i);
-			currentType = currentFrame.getClass();
+			currentTypeName = currentFrame.getFrameName();
 
-			if ( currentType == creationType )
-				for ( int j = 0; j < SINGLE_INSTANCE.length; ++j )
-					if ( currentType == SINGLE_INSTANCE[j] )
-						this.creation = currentFrame;
+			if ( currentTypeName.equals( creationTypeName ) )
+			{
+				currentType = currentFrame.getClass();
+
+				boolean allowMultiple = false;
+				for ( int j = 0; j < MULTI_INSTANCE.length; ++j )
+					if ( currentType == MULTI_INSTANCE[j] )
+						allowMultiple = true;
+
+				if ( !allowMultiple )
+					this.creation = currentFrame;
+			}
 		}
 
+		// Now, test to see if any requests need to be run before
+		// you fall into the event dispatch thread.
+
+		if ( this.creation == null )
+		{
+			if ( creationType == BuffRequestFrame.class )
+				BuffBotDatabase.configureBuffBots();
+			if ( creationType == CakeArenaFrame.class || creationType == FamiliarTrainingFrame.class )
+				CakeArenaManager.getOpponentList();
+		}
+
+		// If it gets this far, then all requests were successfully
+		// run, so return true.
+
+		return true;
+	}
+
+	private void runConstruction()
+	{
 		// Now, if you aren't supposed to create a new instance,
 		// do not do so -- however, if it's okay to do so, then
 		// go ahead and create it.
@@ -177,55 +228,84 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 		try
 		{
 			if ( this.creation == null )
-				this.creation = (KoLFrame) creator.newInstance( parameters );
+				this.creation = (JFrame) creator.newInstance( parameters );
 
-			String frameName = ((KoLFrame)this.creation).getFrameName();
+			String tabSetting = "," + GLOBAL_SETTINGS.getProperty( "initialDesktop" ) + ",";
+			String searchString = this.creation instanceof ChatFrame ? "KoLMessenger" :
+				this.creation instanceof KoLFrame ? ((KoLFrame)this.creation).getFrameName() : "...";
+
+			boolean appearsInTab = this.creation instanceof KoLFrame && tabSetting.indexOf( "," + searchString + "," ) != -1;
+
+			appearsInTab &= !(this.creation instanceof RequestFrame) ||
+				(this.creation.getClass() == RequestFrame.class && ((RequestFrame)this.creation).hasSideBar());
+
+			// If the person is requesting a this.creation that is meant
+			// to appear in the KoLDesktop interface, then make
+			// sure you initialize it.
+
+			if ( appearsInTab && !KoLDesktop.isInitializing() )
+			{
+				KoLDesktop.getInstance().initializeTabs();
+				KoLDesktop.getInstance().pack();
+				KoLDesktop.getInstance().setVisible( true );
+			}
 
 			// Load the KoL frame to the appropriate location
 			// on the screen now that the frame has been packed
 			// to the appropriate size.
 
-			Window window = StaticEntity.usesRelayWindows() ? (Window) this.creation.createRelayWindow() : (Window) this.creation;
-			window.pack();
-
-			int xLocation = 0;
-			int yLocation = 0;
-			Dimension screenSize = TOOLKIT.getScreenSize();
-			if ( StaticEntity.getSettings().containsKey( frameName ) )
+			if ( !appearsInTab && this.creation instanceof KoLFrame )
 			{
-				String [] location = StaticEntity.getSettings().getProperty( frameName ).split( "," );
-				xLocation = Integer.parseInt( location[0] );
-				yLocation = Integer.parseInt( location[1] );
+				KoLFrame frame = (KoLFrame) this.creation;
+				frame.constructToolbar();
+				if ( frame.useSidePane() )
+					frame.addCompactPane();
+
+				this.creation.setJMenuBar( new KoLMenuBar() );
 			}
-			if ( xLocation > 0 && yLocation > 0 && xLocation < screenSize.getWidth() && yLocation < screenSize.getHeight() )
-				window.setLocation( xLocation, yLocation );
-			else
-				window.setLocation( (int)(screenSize.getWidth() - window.getWidth())/2, (int)(screenSize.getHeight() - window.getHeight())/2 );
+
+			this.creation.pack();
+			if ( this.creation instanceof SkillBuffFrame && parameters.length == 1 )
+				((SkillBuffFrame)this.creation).setRecipient( (String) parameters[0] );
+
+			if ( !(this.creation instanceof KoLFrame) )
+				this.creation.setLocationRelativeTo( null );
 
 			// With the location set set on screen, make sure
 			// to disable it (if necessary), ensure the frame's
 			// visibility on screen and request focus.
 
-			window.setEnabled( true );
+			this.creation.setEnabled( true );
 
-			if ( window instanceof JDialog && !System.getProperty( "os.name" ).startsWith( "Mac" ) )
-				((JDialog)window).setJMenuBar( new KoLMenuBar() );
-			else if ( window instanceof JFrame )
-				((JFrame)window).setJMenuBar( new KoLMenuBar() );
+			if ( appearsInTab )
+				KoLDesktop.addTab( (KoLFrame) this.creation );
+			else
+				this.creation.setVisible( true );
 
-			window.setVisible( true );
-			window.requestFocus();
+			this.creation.requestFocus();
+
+			if ( StaticEntity.getProperty( "guiUsesOneWindow" ).equals( "true" ) )
+			{
+				if ( KoLDesktop.instanceExists() && !appearsInTab && tabSetting.indexOf( ",KoLMessenger," ) == -1 )
+					KoLDesktop.getInstance().dispose();
+
+				KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
+				existingFrames.toArray( frames );
+				for ( int i = 0; i < frames.length; ++i )
+				{
+					boolean IsMiniBrowser = frames[i] instanceof RequestFrame && ((RequestFrame) frames[i]).hasSideBar();
+					if ( frames[i] != this.creation && !(frames[i] instanceof ChatFrame) && !IsMiniBrowser &&
+						(tabSetting.indexOf( "," + frames[i].getFrameName() + "," ) == -1) )
+						frames[i].dispose();
+				}
+	    }
 		}
 		catch ( Exception e )
 		{
-			// If this happens, update the display to indicate
-			// that it failed to happen (eventhough technically,
-			// this should never have happened)
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Frame could not be loaded." );
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-
+			StaticEntity.printStackTrace( e, "Frame could not be loaded" );
 			return;
 		}
 	}

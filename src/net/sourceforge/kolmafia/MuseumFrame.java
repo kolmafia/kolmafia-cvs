@@ -37,7 +37,6 @@ package net.sourceforge.kolmafia;
 // layout
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.CardLayout;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
 
@@ -96,23 +95,16 @@ public class MuseumFrame extends KoLFrame
 		ordering = new OrderingPanel();
 
 		JScrollPane shelvesScroller = new JScrollPane( shelves, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
+		JComponentUtilities.setComponentSize( shelvesScroller, 400, 300 );
+
 		JScrollPane orderingScroller = new JScrollPane( ordering, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
 
-		JTabbedPane tabs = new JTabbedPane();
+		tabs = new JTabbedPane();
 		tabs.addTab( "General", general );
 		tabs.addTab( "Shelves", shelvesScroller );
 		tabs.addTab( "Ordering", orderingScroller );
 
 		framePanel.add( tabs, BorderLayout.CENTER );
-	}
-
-	public void dispose()
-	{
-		general = null;
-		shelves = null;
-		ordering = null;
-
-		super.dispose();
 	}
 
 	/**
@@ -148,7 +140,7 @@ public class MuseumFrame extends KoLFrame
 			if ( !moveAll )
 				for ( int i = 0; i < selection.length; ++i )
 					selection[i] = ((AdventureResult)selection[i]).getInstance(
-						getQuantity( "Moving " + ((AdventureResult)selection[i]).getName() + "...", 1 ) );
+						getQuantity( "Moving " + ((AdventureResult)selection[i]).getName() + "...", ((AdventureResult)selection[i]).getCount(), 1 ) );
 
 			return selection;
 		}
@@ -156,7 +148,7 @@ public class MuseumFrame extends KoLFrame
 		private class OutsideDisplayPanel extends ItemManagePanel
 		{
 			public OutsideDisplayPanel()
-			{	super( "Inventory", "add maximum", "add multiple", KoLCharacter.getInventory() );
+			{	super( "Inventory", "add all", "add some", KoLCharacter.getInventory() );
 			}
 
 			private void move( boolean moveAll )
@@ -186,7 +178,7 @@ public class MuseumFrame extends KoLFrame
 		private class InsideDisplayPanel extends ItemManagePanel
 		{
 			public InsideDisplayPanel()
-			{	super( "Display Case", "take maximum", "take multiple", KoLCharacter.getCollection() );
+			{	super( "Display Case", "take all", "take some", KoLCharacter.getCollection() );
 			}
 
 			private void move( boolean moveAll )
@@ -211,13 +203,17 @@ public class MuseumFrame extends KoLFrame
 	public class MuseumShelfList extends PanelList
 	{
 		public MuseumShelfList()
-		{	super( 2, 480, 200, MuseumManager.getShelves(), true );
+		{	super( 1, 480, 200, MuseumManager.getShelves(), true );
 		}
 
 		protected PanelListCell constructPanelListCell( Object value, int index )
 		{
 			MuseumShelfPanel toConstruct = new MuseumShelfPanel( index, (SortedListModel) value );
 			return toConstruct;
+		}
+
+		protected boolean isResizeableList()
+		{	return true;
 		}
 	}
 

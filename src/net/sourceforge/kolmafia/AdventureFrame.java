@@ -42,18 +42,12 @@ import java.awt.Dimension;
 import java.awt.CardLayout;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
-import javax.swing.BorderFactory;
 
 // event listeners
 import javax.swing.SwingUtilities;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
-import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import javax.swing.event.ChangeListener;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 
 // containers
 import javax.swing.JToolBar;
@@ -68,6 +62,10 @@ import javax.swing.ListSelectionModel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JOptionPane;
+import javax.swing.JTextArea;
+import javax.swing.JTree;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.JEditorPane;
 
 // other imports
 import java.util.Date;
@@ -92,16 +90,12 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class AdventureFrame extends KoLFrame
 {
-	private JComboBox locationSelect;
-	private LockableListModel results;
-	private JList resultsList;
+	private JTree displayTree;
+	private DefaultTreeModel displayModel;
 
-	private JTabbedPane tabs;
+	private JComboBox locationSelect;
+	private JComboBox dropdown1, dropdown2;
 	private AdventureSelectPanel adventureSelect;
-	private MallSearchPanel mallSearch;
-	private MeatStoragePanel meatStorage;
-	private SkillBuffPanel skillBuff;
-	private HeroDonationPanel heroDonation;
 
 	/**
 	 * Constructs a new <code>AdventureFrame</code>.  All constructed panels
@@ -111,8 +105,8 @@ public class AdventureFrame extends KoLFrame
 
 	public AdventureFrame()
 	{
-		super( "Main Interface" );
-		this.tabs = new JTabbedPane();
+		super( "Adventure" );
+		tabs = new JTabbedPane();
 
 		// Construct the adventure select container
 		// to hold everything related to adventuring.
@@ -122,97 +116,46 @@ public class AdventureFrame extends KoLFrame
 		this.adventureSelect = new AdventureSelectPanel();
 
 		JPanel southPanel = new JPanel( new GridLayout( 1, 2, 5, 5 ) );
-		southPanel.add( getAdventureSummary(0) );
-		southPanel.add( getAdventureSummary(2) );
+		southPanel.add( getAdventureSummary( Integer.parseInt( getProperty( "defaultDropdown1" ) ) ) );
+		southPanel.add( getAdventureSummary( Integer.parseInt( getProperty( "defaultDropdown2" ) ) ) );
 
 		adventureContainer.add( adventureSelect, BorderLayout.NORTH );
 		adventureContainer.add( southPanel, BorderLayout.CENTER );
+		tabs.add( "Adventure", adventureContainer );
 
-		tabs.addTab( "Adventure", adventureContainer );
+		JScrollPane choiceScroller = new JScrollPane( new ChoiceOptionsPanel(),
+			JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
 
-		// Construct the store purchasing container
-		// to hold everything related to purchases.
+		JComponentUtilities.setComponentSize( choiceScroller, 560, 400 );
+		tabs.add( "Choice Options", choiceScroller );
 
-		this.mallSearch = new MallSearchPanel();
-		tabs.addTab( "Purchases", mallSearch );
+		displayTree = new JTree();
+		displayModel = (DefaultTreeModel) displayTree.getModel();
 
-		// Construct the panel which holds other
-		// commonly-accessed simple features.
+		JScrollPane treeScroller = new JScrollPane( displayTree, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
 
-		this.skillBuff = new SkillBuffPanel();
-		tabs.addTab( "Skillcast", skillBuff );
-
-		this.meatStorage = new MeatStoragePanel();
-		this.heroDonation = new HeroDonationPanel();
-
-		JPanel otherPanel = new JPanel();
-		otherPanel.setLayout( new BoxLayout( otherPanel, BoxLayout.Y_AXIS ) );
-		otherPanel.add( meatStorage );
-		otherPanel.add( heroDonation );
-
-		tabs.addTab( "Manage Meat", otherPanel );
-
-		// Add the automatic restoration and
-		// script customization tab.
-
-		JScrollPane restoreScroller = new JScrollPane( new RestoreOptionsPanel(), JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-		JComponentUtilities.setComponentSize( restoreScroller, 560, 400 );
-		tabs.addTab( "Auto-Restore", restoreScroller );
-
-		framePanel.add( tabs, BorderLayout.CENTER );
+		tabs.add( "View CCS", treeScroller );
+		tabs.add( "Modify CCS", new CustomCombatPanel() );
 
 		try
 		{
 			String holiday = MoonPhaseDatabase.getHoliday( sdf.parse( sdf.format( new Date() ) ) );
 
 			if ( holiday.startsWith( "No" ) )
-				DEFAULT_SHELL.updateDisplay( NULL_STATE, MoonPhaseDatabase.getMoonEffect() );
+				adventureSelect.setStatusMessage( MoonPhaseDatabase.getMoonEffect() );
 			else
-				DEFAULT_SHELL.updateDisplay( NULL_STATE, holiday + ", " + MoonPhaseDatabase.getMoonEffect() );
+				adventureSelect.setStatusMessage( holiday + ", " + MoonPhaseDatabase.getMoonEffect() );
 		}
 		catch ( Exception e )
 		{
-			// Should not happen - you're having the parser
-			// parse something that it formatted.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e );
 		}
 
-		// If the user wishes to add toolbars, go ahead
-		// and add the toolbar.
-
-		if ( GLOBAL_SETTINGS.getProperty( "useToolbars" ).equals( "true" ) )
-		{
-			toolbarPanel.add( new DisplayFrameButton( "Council", "council.gif", CouncilFrame.class ) );
-			toolbarPanel.add( new MiniBrowserButton() );
-			toolbarPanel.add( new DisplayFrameButton( "Graphical CLI", "command.gif", CommandDisplayFrame.class ) );
-
-			toolbarPanel.add( new JToolBar.Separator() );
-
-			toolbarPanel.add( new DisplayFrameButton( "IcePenguin Express", "mail.gif", MailboxFrame.class ) );
-			toolbarPanel.add( new InvocationButton( "KoLmafia Chat", "chat.gif", KoLMessenger.class, "initialize" ) );
-			toolbarPanel.add( new DisplayFrameButton( "Clan Manager", "clan.gif", ClanManageFrame.class ) );
-
-			toolbarPanel.add( new JToolBar.Separator() );
-
-			toolbarPanel.add( new DisplayFrameButton( "Player Status", "hp.gif", CharsheetFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Item Manager", "inventory.gif", ItemManageFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Equipment Manager", "equipment.gif", GearChangeFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Store Manager", "mall.gif", StoreManageFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Hagnk's Storage", "hagnk.gif", HagnkStorageFrame.class ) );
-
-			toolbarPanel.add( new JToolBar.Separator() );
-
-			toolbarPanel.add( new DisplayFrameButton( "Run a Buffbot", "buff.gif", BuffBotFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Familiar Trainer", "arena.gif", FamiliarTrainingFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Player vs. Player", "flower.gif", FlowerHunterFrame.class ) );
-			toolbarPanel.add( new DisplayFrameButton( "Mushroom Plot", "mushroom.gif", MushroomFrame.class ) );
-
-			toolbarPanel.add( new JToolBar.Separator() );
-
-			toolbarPanel.add( new DisplayFrameButton( "Preferences", "preferences.gif", OptionsFrame.class ) );
-		}
+		getContentPane().add( tabs, BorderLayout.CENTER );
 	}
 
 	public boolean useSidePane()
@@ -221,30 +164,38 @@ public class AdventureFrame extends KoLFrame
 
 	private JPanel getAdventureSummary( int selectedIndex )
 	{
-		CardLayout resultCards = new CardLayout( 0, 0 );
+		CardLayout resultCards = new CardLayout();
 		JPanel resultPanel = new JPanel( resultCards );
 		JComboBox resultSelect = new JComboBox();
 
 		resultSelect.addItem( "Session Results" );
 		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getSessionTally() ), "0" );
 
+		resultSelect.addItem( "Location Details" );
+		resultPanel.add( new SafetyField(), "1" );
+
 		resultSelect.addItem( "Conditions Left" );
-		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getConditions() ), "1" );
+		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getConditions() ), "2" );
 
 		resultSelect.addItem( "Active Effects" );
-		resultPanel.add( new AdventureResultsPanel( KoLCharacter.getEffects() ), "2" );
+		resultPanel.add( new AdventureResultsPanel( KoLCharacter.getEffects() ), "3" );
 
 		resultSelect.addItem( "Visited Locations" );
-		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getAdventureList() ), "3" );
+		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getAdventureList() ), "4" );
 
 		resultSelect.addItem( "Encounter Listing" );
-		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getEncounterList() ), "4" );
+		resultPanel.add( new AdventureResultsPanel( StaticEntity.getClient().getEncounterList() ), "5" );
 
 		resultSelect.addActionListener( new ResultSelectListener( resultCards, resultPanel, resultSelect ) );
 
 		JPanel containerPanel = new JPanel( new BorderLayout() );
 		containerPanel.add( resultSelect, BorderLayout.NORTH );
 		containerPanel.add( resultPanel, BorderLayout.CENTER );
+
+		if ( dropdown1 == null )
+			dropdown1 = resultSelect;
+		else
+			dropdown2 = resultSelect;
 
 		resultSelect.setSelectedIndex( selectedIndex );
 		return containerPanel;
@@ -270,7 +221,62 @@ public class AdventureFrame extends KoLFrame
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	resultCards.show( resultPanel, String.valueOf( resultSelect.getSelectedIndex() ) );
+		{
+			String index = String.valueOf( resultSelect.getSelectedIndex() );
+			resultCards.show( resultPanel, index );
+			setProperty( resultSelect == dropdown1 ? "defaultDropdown1" : "defaultDropdown2", index );
+
+		}
+	}
+
+	private class SafetyField extends JPanel implements Runnable, ActionListener
+	{
+		private JLabel safetyText = new JLabel( " " );
+		private String savedText = " ";
+
+		public SafetyField()
+		{
+			super( new BorderLayout() );
+			safetyText.setVerticalAlignment( JLabel.TOP );
+
+			JScrollPane textScroller = new JScrollPane( safetyText, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED );
+
+			JComponentUtilities.setComponentSize( textScroller, 100, 100 );
+			add( textScroller, BorderLayout.CENTER );
+
+			KoLCharacter.addCharacterListener( new KoLCharacterAdapter( this ) );
+			locationSelect.addActionListener( this );
+
+			setSafetyString();
+		}
+
+		public void run()
+		{	setSafetyString();
+		}
+
+		public void actionPerformed( ActionEvent e )
+		{	setSafetyString();
+		}
+
+		private void setSafetyString()
+		{
+			Runnable request = (Runnable) locationSelect.getSelectedItem();
+			if ( request == null )
+				return;
+
+			AreaCombatData combat = AdventureDatabase.getAreaCombatData( request.toString() );
+			String text = ( combat == null ) ? " " : combat.toString();
+
+			// Avoid rendering and screen flicker if no change.
+			// Compare with our own copy of what we set, since
+			// getText() returns a modified version.
+
+			if ( !text.equals( savedText ) )
+			{
+				savedText = text;
+				safetyText.setText( text );
+			}
 		}
 	}
 
@@ -287,23 +293,23 @@ public class AdventureFrame extends KoLFrame
 
 		public AdventureSelectPanel()
 		{
-			super( "begin advs", "win game", "stop all", new Dimension( 100, 20 ), new Dimension( 270, 20 ) );
+			super( "begin advs", "stop all", new Dimension( 130, 20 ), new Dimension( 270, 20 ) );
 
 			actionSelect = new JComboBox( KoLCharacter.getBattleSkillNames() );
 			LockableListModel adventureList = AdventureDatabase.getAsLockableListModel();
 
 			locationSelect = new JComboBox( adventureList );
+
 			countField = new JTextField();
-			conditionField = new JTextField();
+			conditionField = new JTextField( "none" );
 
 			VerifiableElement [] elements = new VerifiableElement[4];
 			elements[0] = new VerifiableElement( "Location: ", locationSelect );
-			elements[1] = new VerifiableElement( "# of turnips: ", countField );
-			elements[2] = new VerifiableElement( "Combat Tactic: ", actionSelect );
-			elements[3] = new VerifiableElement( "Conditions: ", conditionField );
+			elements[1] = new VerifiableElement( "# of Visits: ", countField );
+			elements[2] = new VerifiableElement( "Combat Action: ", actionSelect );
+			elements[3] = new VerifiableElement( "Objective(s): ", conditionField );
 
 			setContent( elements );
-
 			int actionIndex = KoLCharacter.getBattleSkillIDs().indexOf( getProperty( "battleAction" ) );
 
 			if ( actionIndex == -1 )
@@ -334,18 +340,10 @@ public class AdventureFrame extends KoLFrame
 			}
 		}
 
-		protected void setContent( VerifiableElement [] elements )
-		{
-			super.setContent( elements );
-			setDefaultButton( confirmedButton );
-		}
-
 		public void setEnabled( boolean isEnabled )
 		{
 			super.setEnabled( isEnabled );
-			locationSelect.setEnabled( isEnabled );
-			countField.setEnabled( isEnabled );
-			conditionField.setEnabled( isEnabled );
+			actionSelect.setEnabled( true );
 		}
 
 		protected void actionConfirmed()
@@ -356,23 +354,33 @@ public class AdventureFrame extends KoLFrame
 
 			if ( actionSelect.getSelectedItem() == null )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Please select a combat option." );
+				setStatusMessage( ERROR_STATE, "Please select a combat option." );
 				return;
 			}
 
 			Runnable request = (Runnable) locationSelect.getSelectedItem();
+			if ( request == null )
+			{
+				setStatusMessage( ERROR_STATE, "Please select an adventure location." );
+				return;
+			}
+
 			setProperty( "lastAdventure", request.toString() );
 
 			// If there are conditions in the condition field, be
 			// sure to process them.
 
-			if ( conditionField.getText().trim().length() > 0 )
+			String conditionList = conditionField.getText().trim();
+			if ( conditionList.equalsIgnoreCase( "none" ) )
+				conditionList = "";
+
+			if ( conditionList.length() > 0 )
 			{
 				DEFAULT_SHELL.executeLine( "conditions clear" );
 
 				boolean verifyConditions = false;
 				boolean useDisjunction = false;
-				String [] conditions = conditionField.getText().split( "\\s*,\\s*" );
+				String [] conditions = conditionList.split( "\\s*,\\s*" );
 
 				for ( int i = 0; i < conditions.length; ++i )
 				{
@@ -391,9 +399,11 @@ public class AdventureFrame extends KoLFrame
 
 						if ( !(request instanceof KoLAdventure) || !EquipmentDatabase.addOutfitConditions( (KoLAdventure) request ) )
 						{
-							DEFAULT_SHELL.updateDisplay( ERROR_STATE, "No outfit corresponds to this zone." );
+							setStatusMessage( "No outfit corresponds to this zone." );
 							return;
 						}
+
+						verifyConditions = true;
 					}
 					else if ( conditions[i].equals( "or" ) || conditions[i].equals( "and" ) || conditions[i].startsWith( "conjunction" ) || conditions[i].startsWith( "disjunction" ) )
 					{
@@ -402,49 +412,36 @@ public class AdventureFrame extends KoLFrame
 					else
 					{
 						if ( !DEFAULT_SHELL.executeConditionsCommand( "add " + conditions[i] ) )
-						{
-							DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Invalid condition: " + conditions[i] );
 							return;
-						}
 					}
-				}
-
-				if ( StaticEntity.getClient().getConditions().isEmpty() )
-				{
-					DEFAULT_SHELL.updateDisplay( "Conditions already satisfied." );
-					StaticEntity.getClient().enableDisplay();
-					return;
 				}
 
 				if ( verifyConditions )
 				{
 					DEFAULT_SHELL.executeConditionsCommand( "check" );
-					if ( StaticEntity.getClient().getConditions().isEmpty() )
+					if ( StaticEntity.getClient().conditions.isEmpty() )
 					{
-						DEFAULT_SHELL.updateDisplay( "Conditions already satisfied." );
-						StaticEntity.getClient().enableDisplay();
+						StaticEntity.getClient().updateDisplay( "All conditions already satisfied." );
 						return;
 					}
 				}
 
-				DEFAULT_SHELL.executeConditionsCommand( useDisjunction ? "mode disjunction" : "mode conjunction" );
+				if ( StaticEntity.getClient().conditions.size() > 1 )
+					DEFAULT_SHELL.executeConditionsCommand( useDisjunction ? "mode disjunction" : "mode conjunction" );
+
 				conditionField.setText( "" );
+				if ( countField.getText().equals( "" ) )
+					countField.setText( String.valueOf( KoLCharacter.getAdventuresLeft() ) );
 			}
 
 			(new RequestThread( request, getValue( countField ) )).start();
+			countField.setText( "" );
 		}
 
 		protected void actionCancelled()
 		{
-			if ( cancelledButton.getText().equals( "win game" ) )
-			{
-				pushWinGameButton();
-			}
-			else
-			{
-				StaticEntity.getClient().declareWorldPeace();
-				locationSelect.requestFocus();
-			}
+			StaticEntity.getClient().declareWorldPeace();
+			locationSelect.requestFocus();
 		}
 
 		public void requestFocus()
@@ -476,499 +473,361 @@ public class AdventureFrame extends KoLFrame
 	}
 
 	/**
-	 * An internal class which represents the panel used for mall
-	 * searches in the <code>AdventureFrame</code>.
+	 * This panel allows the user to select which item they would like
+	 * to do for each of the different choice adventures.
 	 */
 
-	private class MallSearchPanel extends KoLPanel
+	private class ChoiceOptionsPanel extends KoLPanel
 	{
-		private boolean currentlyBuying;
+		private JComboBox [] optionSelects;
 
-		private JTextField searchField;
-		private JTextField countField;
-
-		private JCheckBox forceSortingCheckBox;
-		private JCheckBox limitPurchasesCheckBox;
-
-		public MallSearchPanel()
-		{
-			super( "search", "purchase", "cancel", new Dimension( 100, 20 ), new Dimension( 250, 20 ) );
-			setDefaultButton( confirmedButton );
-
-			searchField = new JTextField();
-			countField = new JTextField();
-
-			forceSortingCheckBox = new JCheckBox();
-			limitPurchasesCheckBox = new JCheckBox();
-			results = new LockableListModel();
-
-			JPanel checkBoxPanels = new JPanel();
-			checkBoxPanels.add( Box.createHorizontalStrut( 20 ) );
-			checkBoxPanels.add( new JLabel( "Force Sort: " ), "" );
-			checkBoxPanels.add( forceSortingCheckBox );
-			checkBoxPanels.add( Box.createHorizontalStrut( 20 ) );
-			checkBoxPanels.add( new JLabel( "Limit Purchases: " ), "" );
-			checkBoxPanels.add( limitPurchasesCheckBox );
-			checkBoxPanels.add( Box.createHorizontalStrut( 20 ) );
-			limitPurchasesCheckBox.setSelected( true );
-
-			VerifiableElement [] elements = new VerifiableElement[3];
-			elements[0] = new VerifiableElement( "Item to Find: ", searchField );
-			elements[1] = new VerifiableElement( "Search Limit: ", countField );
-			elements[2] = new VerifiableElement( " ", checkBoxPanels, false );
-
-			setContent( elements );
-			add( new SearchResultsPanel(), BorderLayout.CENTER );
-
-			currentlyBuying = false;
-			countField.setText( getProperty( "defaultLimit" ).equals( "" ) ? "5" : getProperty( "defaultLimit" ) );
-			setDefaultButton( confirmedButton );
-		}
-
-		public void setEnabled( boolean isEnabled )
-		{
-			super.setEnabled( isEnabled );
-			searchField.setEnabled( isEnabled );
-			countField.setEnabled( isEnabled );
-			forceSortingCheckBox.setEnabled( isEnabled );
-		}
-
-		protected void actionConfirmed()
-		{
-			int searchCount = getValue( countField, 5 );
-			setProperty( "defaultLimit", countField.getText() );
-			searchMall( new SearchMallRequest( StaticEntity.getClient(), searchField.getText(), searchCount, results ) );
-
-			if ( results.size() > 0 )
-			{
-				resultsList.ensureIndexIsVisible( 0 );
-				if ( forceSortingCheckBox.isSelected() )
-					java.util.Collections.sort( results );
-			}
-		}
-
-		protected void actionCancelled()
-		{
-			if ( currentlyBuying )
-			{
-				DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Purchases stopped." );
-				StaticEntity.getClient().enableDisplay();
-				return;
-			}
-
-			Object [] purchases = resultsList.getSelectedValues();
-			if ( purchases == null || purchases.length == 0 )
-			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Please select a store from which to purchase." );
-				return;
-			}
-
-			int defaultPurchases = 0;
-			for ( int i = 0; i < purchases.length; ++i )
-				defaultPurchases += ((MallPurchaseRequest) purchases[i]).getQuantity() == MallPurchaseRequest.MAX_QUANTITY ?
-					MallPurchaseRequest.MAX_QUANTITY : ((MallPurchaseRequest) purchases[i]).getLimit();
-
-			int count = limitPurchasesCheckBox.isSelected() || defaultPurchases >= 1000 ?
-				getQuantity( "Maximum number of items to purchase?", defaultPurchases, 1 ) : defaultPurchases;
-
-			if ( count == 0 )
-				return;
-
-			currentlyBuying = true;
-			StaticEntity.getClient().makePurchases( results, purchases, count );
-			currentlyBuying = false;
-
-			StaticEntity.getClient().enableDisplay();
-			resultsList.updateUI();
-		}
-
-		public void requestFocus()
-		{	searchField.requestFocus();
-		}
-	}
-
-	public void searchMall( SearchMallRequest request )
-	{
-		request.run();
-		if ( results != request.getResults() )
-			results.addAll( request.getResults() );
-
-		DEFAULT_SHELL.updateDisplay( results.size() == 0 ? "No results found." : "Search complete." );
-		tabs.setSelectedIndex(1);
-		StaticEntity.getClient().enableDisplay();
-
-		// Now, do some garbage collection to avoid the
-		// potential for resource overusage.
-
-		System.gc();
-	}
-
-	private String getPurchaseSummary( Object [] purchases )
-	{
-		if ( purchases == null || purchases.length == 0 )
-			return "";
-
-		long totalPrice = 0;
-		int totalPurchases = 0;
-		MallPurchaseRequest currentPurchase = null;
-
-		for ( int i = 0; i < purchases.length; ++i )
-		{
-			currentPurchase = (MallPurchaseRequest) purchases[i];
-			totalPurchases += currentPurchase.getLimit();
-			totalPrice += ((long)currentPurchase.getLimit()) * ((long)currentPurchase.getPrice());
-		}
-
-		return df.format( totalPurchases ) + " " + currentPurchase.getItemName() + " for " + df.format( totalPrice ) + " meat";
-	}
-
-	/**
-	 * An internal class which represents the panel used for tallying the
-	 * results of the mall search request.  Note that all of the tallying
-	 * functionality is handled by the <code>LockableListModel</code>
-	 * provided, so this functions as a container for that list model.
-	 */
-
-	private class SearchResultsPanel extends JPanel
-	{
-		public SearchResultsPanel()
-		{
-			setLayout( new BorderLayout() );
-			setBorder( BorderFactory.createLineBorder( Color.black, 1 ) );
-			add( JComponentUtilities.createLabel( "Search Results", JLabel.CENTER,
-				Color.black, Color.white ), BorderLayout.NORTH );
-
-			resultsList = new JList( results );
-			resultsList.setSelectionMode( ListSelectionModel.MULTIPLE_INTERVAL_SELECTION );
-			resultsList.setPrototypeCellValue( "ABCDEFGHIJKLMNOPQRSTUVWXYZ" );
-			resultsList.setVisibleRowCount( 11 );
-
-			resultsList.addListSelectionListener( new PurchaseSelectListener() );
-
-			add( new JScrollPane( resultsList, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER ), BorderLayout.CENTER );
-		}
-
-		/**
-		 * An internal listener class which detects which values are selected
-		 * in the search results panel.
-		 */
-
-		private class PurchaseSelectListener implements ListSelectionListener
-		{
-			public void valueChanged( ListSelectionEvent e )
-			{
-				if ( e.getValueIsAdjusting() )
-					return;
-
-				// Reset the status message on this panel to
-				// show what the current state of the selections
-				// is at this time.
-
-				mallSearch.setStatusMessage( NULL_STATE, getPurchaseSummary( resultsList.getSelectedValues() ) );
-			}
-		}
-	}
-
-	/**
-	 * This panel allows the user to select how they would like to fight
-	 * their battles.  Everything from attacks, attack items, recovery items,
-	 * retreat, and battle skill usage will be supported when this panel is
-	 * finalized.  For now, however, it only customizes attacks.
-	 */
-
-	private class RestoreOptionsPanel extends KoLPanel
-	{
 		private JComboBox battleStopSelect;
-		private JComboBox hpAutoRecoverSelect;
-		private JComboBox mpAutoRecoverSelect;
-		private JTextField hpRecoveryScriptField;
-		private JTextField mpRecoveryScriptField;
-		private JTextField betweenBattleScriptField;
+		private JComboBox cloverProtectSelect;
+
+		private JComboBox castleWheelSelect;
+		private JComboBox spookyForestSelect;
 
 		/**
-		 * Constructs a new <code>RestoreOptionsPanel</code> containing a
-		 * way for the users to choose the way they want to recover their
-		 * health and mana inbetween battles encountered during adventuring.
+		 * Constructs a new <code>ChoiceOptionsPanel</code>.
 		 */
 
-		public RestoreOptionsPanel()
+		public ChoiceOptionsPanel()
 		{
-			super( "save", "reload", new Dimension( 130, 20 ), new Dimension( 260, 20 ) );
+			super( new Dimension( 130, 20 ), new Dimension( 260, 20 ) );
+
+			optionSelects = new JComboBox[ AdventureDatabase.CHOICE_ADVS.length ];
+			for ( int i = 0; i < AdventureDatabase.CHOICE_ADVS.length; ++i )
+			{
+				optionSelects[i] = new JComboBox();
+
+				boolean ignorable = AdventureDatabase.ignoreChoiceOption( AdventureDatabase.CHOICE_ADVS[i][0][0] ) != null;
+				optionSelects[i].addItem( ignorable ?
+										  "Ignore this adventure" :
+										  "Can't ignore this adventure" );
+
+				for ( int j = 0; j < AdventureDatabase.CHOICE_ADVS[i][2].length; ++j )
+					optionSelects[i].addItem( AdventureDatabase.CHOICE_ADVS[i][2][j] );
+			}
 
 			battleStopSelect = new JComboBox();
 			battleStopSelect.addItem( "Never stop combat" );
 			for ( int i = 0; i <= 9; ++i )
 				battleStopSelect.addItem( "Autostop at " + (i*10) + "% HP" );
 
-			// Add in the bewteen-adventures field
+			cloverProtectSelect = new JComboBox();
+			cloverProtectSelect.addItem( "Disassemble ten-leaf clovers" );
+			cloverProtectSelect.addItem( "Leave ten-leaf clovers alone" );
 
-			betweenBattleScriptField = new JTextField();
+			castleWheelSelect = new JComboBox();
+			castleWheelSelect.addItem( "Turn to map quest position" );
+			castleWheelSelect.addItem( "Turn to muscle position" );
+			castleWheelSelect.addItem( "Turn to mysticality position" );
+			castleWheelSelect.addItem( "Turn to moxie position" );
+			castleWheelSelect.addItem( "Turn clockwise" );
+			castleWheelSelect.addItem( "Turn counterclockwise" );
+			castleWheelSelect.addItem( "Ignore this adventure" );
 
-			// All the components of autorecovery
+			spookyForestSelect = new JComboBox();
+			spookyForestSelect.addItem( "Loot Seal Clubber corpse" );
+			spookyForestSelect.addItem( "Loot Turtle Tamer corpse" );
+			spookyForestSelect.addItem( "Loot Pastamancer corpse" );
+			spookyForestSelect.addItem( "Loot Sauceror corpse" );
+			spookyForestSelect.addItem( "Loot Disco Bandit corpse" );
+			spookyForestSelect.addItem( "Loot Accordion Thief corpse" );
 
-			hpAutoRecoverSelect = new JComboBox();
-			hpAutoRecoverSelect.addItem( "Do not autorecover HP" );
-			for ( int i = 0; i <= 9; ++i )
-				hpAutoRecoverSelect.addItem( "Autorecover HP at " + (i * 10) + "%" );
-
-			mpAutoRecoverSelect = new JComboBox();
-			mpAutoRecoverSelect.addItem( "Do not autorecover MP" );
-			for ( int i = 0; i <= 9; ++i )
-				mpAutoRecoverSelect.addItem( "Autorecover MP at " + (i * 10) + "%" );
-
-			hpRecoveryScriptField = new JTextField();
-			mpRecoveryScriptField = new JTextField();
-
-			// Add the elements to the panel
-
-			VerifiableElement [] elements = new VerifiableElement[10];
-			elements[0] = new VerifiableElement( "Stop Combat: ", battleStopSelect );
-			elements[1] = new VerifiableElement( "Between Battles: ", new ScriptSelectPanel( betweenBattleScriptField ) );
+			VerifiableElement [] elements = new VerifiableElement[ optionSelects.length + 6 ];
+			elements[0] = new VerifiableElement( "Combat Abort", battleStopSelect );
+			elements[1] = new VerifiableElement( "Clover Protect", cloverProtectSelect );
 
 			elements[2] = new VerifiableElement( "", new JLabel() );
-
-			elements[3] = new VerifiableElement( "HP Auto-Recovery: ", hpAutoRecoverSelect );
-			elements[4] = new VerifiableElement( "HP Recovery Script: ", new ScriptSelectPanel( hpRecoveryScriptField ) );
-			elements[5] = new VerifiableElement( "Use these restores: ", HPRestoreItemList.getDisplay() );
+			elements[3] = new VerifiableElement( "Castle Wheel", castleWheelSelect );
+			elements[4] = new VerifiableElement( "Forest Corpses", spookyForestSelect );
+			elements[5] = new VerifiableElement( "Lucky Sewer", optionSelects[0] );
 
 			elements[6] = new VerifiableElement( "", new JLabel() );
-
-			elements[7] = new VerifiableElement( "MP Auto-Recovery: ", mpAutoRecoverSelect );
-			elements[8] = new VerifiableElement( "MP Recovery Script: ", new ScriptSelectPanel( mpRecoveryScriptField ) );
-			elements[9] = new VerifiableElement( "Use these restores: ", MPRestoreItemList.getDisplay() );
+			for ( int i = 1; i < optionSelects.length; ++i )
+				elements[i+6] = new VerifiableElement( AdventureDatabase.CHOICE_ADVS[i][1][0], optionSelects[i] );
 
 			setContent( elements );
 			actionCancelled();
 		}
 
-		public void setEnabled( boolean isEnabled )
-		{
-		}
-
 		protected void actionConfirmed()
 		{
 			setProperty( "battleStop", String.valueOf( ((double)(battleStopSelect.getSelectedIndex() - 1) / 10.0) ) );
-			setProperty( "betweenBattleScript", betweenBattleScriptField.getText() );
+			setProperty( "cloverProtectActive", String.valueOf( cloverProtectSelect.getSelectedIndex() == 0 ) );
+			setProperty( "luckySewerAdventure", (String) optionSelects[0].getSelectedItem() );
 
-			setProperty( "hpAutoRecover", String.valueOf( ((double)(hpAutoRecoverSelect.getSelectedIndex() - 1) / 10.0) ) );
-			setProperty( "hpRecoveryScript", hpRecoveryScriptField.getText() );
-			HPRestoreItemList.setProperty();
+			for ( int i = 1; i < optionSelects.length; ++i )
+			{
+				int index = optionSelects[i].getSelectedIndex();
+				String choice = AdventureDatabase.CHOICE_ADVS[i][0][0];
+				boolean ignorable = AdventureDatabase.ignoreChoiceOption( choice ) != null;
 
-			setProperty( "mpAutoRecover", String.valueOf( ((double)(mpAutoRecoverSelect.getSelectedIndex() - 1) / 10.0) ) );
-			setProperty( "mpRecoveryScript", mpRecoveryScriptField.getText() );
-			MPRestoreItemList.setProperty();
+				if ( ignorable || index != 0 )
+					setProperty( choice, String.valueOf( index ) );
+				else
+					optionSelects[i].setSelectedIndex( Integer.parseInt( getProperty( choice ) ) );
+			}
 
-			JOptionPane.showMessageDialog( null, "Settings have been saved." );
+			//              The Wheel:
+
+			//              Muscle
+			// Moxie          +         Mysticality
+			//            Map Quest
+
+			// Option 1: Turn the wheel clockwise
+			// Option 2: Turn the wheel counterclockwise
+			// Option 3: Leave the wheel alone
+
+			switch ( castleWheelSelect.getSelectedIndex() )
+			{
+				case 0: // Map quest position (choice adventure 11)
+					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
+					setProperty( "choiceAdventure10", "1" );  // Turn the mysticality position clockwise
+					setProperty( "choiceAdventure11", "3" );  // Leave the map quest position alone
+					setProperty( "choiceAdventure12", "2" );  // Turn the moxie position counterclockwise
+					break;
+
+				case 1: // Muscle position (choice adventure 9)
+					setProperty( "choiceAdventure9", "3" );	  // Leave the muscle position alone
+					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
+					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
+					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
+					break;
+
+				case 2: // Mysticality position (choice adventure 10)
+					setProperty( "choiceAdventure9", "1" );	  // Turn the muscle position clockwise
+					setProperty( "choiceAdventure10", "3" );  // Leave the mysticality position alone
+					setProperty( "choiceAdventure11", "2" );  // Turn the map quest position counterclockwise
+					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
+					break;
+
+				case 3: // Moxie position (choice adventure 12)
+					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
+					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
+					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
+					setProperty( "choiceAdventure12", "3" );  // Leave the moxie position alone
+					break;
+
+				case 4: // Turn the wheel clockwise
+					setProperty( "choiceAdventure9", "1" );	  // Turn the muscle position clockwise
+					setProperty( "choiceAdventure10", "1" );  // Turn the mysticality position clockwise
+					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
+					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
+					break;
+
+				case 5: // Turn the wheel counterclockwise
+					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
+					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
+					setProperty( "choiceAdventure11", "2" );  // Turn the map quest position counterclockwise
+					setProperty( "choiceAdventure12", "2" );  // Turn the moxie position counterclockwise
+					break;
+
+				case 6: // Ignore this adventure
+					setProperty( "choiceAdventure9", "3" );	  // Leave the muscle position alone
+					setProperty( "choiceAdventure10", "3" );  // Leave the mysticality position alone
+					setProperty( "choiceAdventure11", "3" );  // Leave the map quest position alone
+					setProperty( "choiceAdventure12", "3" );  // Leave the moxie position alone
+					break;
+			}
+
+			switch ( spookyForestSelect.getSelectedIndex() )
+			{
+				case 0: // Seal clubber corpse
+					setProperty( "choiceAdventure26", "1" );
+					setProperty( "choiceAdventure27", "1" );
+					break;
+
+				case 1: // Turtle tamer corpse
+					setProperty( "choiceAdventure26", "1" );
+					setProperty( "choiceAdventure27", "2" );
+					break;
+
+				case 2: // Pastamancer corpse
+					setProperty( "choiceAdventure26", "2" );
+					setProperty( "choiceAdventure28", "1" );
+					break;
+
+				case 3: // Sauceror corpse
+					setProperty( "choiceAdventure26", "2" );
+					setProperty( "choiceAdventure28", "2" );
+					break;
+
+				case 4: // Disco bandit corpse
+					setProperty( "choiceAdventure26", "3" );
+					setProperty( "choiceAdventure29", "1" );
+					break;
+
+				case 5: // Accordion thief corpse
+					setProperty( "choiceAdventure26", "3" );
+					setProperty( "choiceAdventure29", "2" );
+					break;
+			}
 		}
 
 		protected void actionCancelled()
 		{
 			battleStopSelect.setSelectedIndex( (int)(Double.parseDouble( getProperty( "battleStop" ) ) * 10) + 1 );
-			betweenBattleScriptField.setText( getProperty( "betweenBattleScript" ) );
+			cloverProtectSelect.setSelectedIndex( getProperty( "cloverProtectActive" ).equals( "true" ) ? 0 : 1 );
 
-			hpAutoRecoverSelect.setSelectedIndex( (int)(Double.parseDouble( getProperty( "hpAutoRecover" ) ) * 10) + 1 );
-			hpRecoveryScriptField.setText( getProperty( "hpRecoveryScript" ) );
+			optionSelects[0].setSelectedItem( getProperty( "luckySewerAdventure" ) );
+			for ( int i = 1; i < optionSelects.length; ++i )
+				optionSelects[i].setSelectedIndex( Integer.parseInt( getProperty( AdventureDatabase.CHOICE_ADVS[i][0][0] ) ) );
 
-			mpAutoRecoverSelect.setSelectedIndex( (int)(Double.parseDouble( getProperty( "mpAutoRecover" ) ) * 10) + 1 );
-			mpRecoveryScriptField.setText( getProperty( "mpRecoveryScript" ) );
+			// Determine the desired wheel position by examining
+			// which choice adventure has the "3" value.
+			// If none are "3", may be clockwise or counterclockwise
+			// If they are all "3", leave wheel alone
+
+			int [] counts = { 0, 0, 0, 0 };
+			int option3 = 11;
+			for ( int i = 9; i < 13; ++i )
+			{
+				int choice = Integer.parseInt( getProperty( "choiceAdventure" + i ) );
+				counts[choice]++;
+				if ( choice == 3 )
+					option3 = i;
+			}
+
+			int index = 0;
+
+			if ( counts[1] == 4 )
+			{
+				// All choices say turn clockwise
+				index = 4;
+			}
+			else if ( counts[2] == 4 )
+			{
+				// All choices say turn counterclockwise
+				index = 5;
+			}
+			else if ( counts[3] == 4 )
+			{
+				// All choices say leave alone
+				index = 6;
+			}
+			else if ( counts[3] != 1 )
+			{
+				// Bogus. Assume map quest
+				index = 0;
+			}
+			else if ( option3 == 9)
+			{
+				// Muscle says leave alone
+				index = 1;
+			}
+			else if ( option3 == 10)
+			{
+				// Mysticality says leave alone
+				index = 2;
+			}
+			else if ( option3 == 11)
+			{
+				// Map Quest says leave alone
+				index = 0;
+			}
+			else if ( option3 == 12)
+			{
+				// Moxie says leave alone
+				index = 3;
+			}
+
+			castleWheelSelect.setSelectedIndex( index );
+
+			// Now, determine what is located in choice adventure #26,
+			// which shows you which slot (in general) to use.
+
+			index = Integer.parseInt( getProperty( "choiceAdventure26" ) );
+			index = index * 2 + Integer.parseInt( getProperty( "choiceAdventure" + (26 + index) ) ) - 3;
+
+			spookyForestSelect.setSelectedIndex( index );
+		}
+
+		protected boolean shouldAddStatusLabel( VerifiableElement [] elements )
+		{	return false;
 		}
 	}
 
-	/**
-	 * An internal class which represents the panel used for donations to
-	 * the statues in the shrine.
-	 */
-
-	private class HeroDonationPanel extends LabeledKoLPanel
+	private class CustomCombatPanel extends LabeledScrollPanel
 	{
-		private JComboBox heroField;
-		private JTextField amountField;
-
-		public HeroDonationPanel()
+		public CustomCombatPanel()
 		{
-			super( "Donations to the Greater Good", "lump sum", "increments", new Dimension( 80, 20 ), new Dimension( 240, 20 ) );
+			super( "Custom Combat", "save", "help", new JTextArea( 12, 40 ) );
 
-			LockableListModel heroes = new LockableListModel();
-			heroes.add( "Statue of Boris" );
-			heroes.add( "Statue of Jarlsberg" );
-			heroes.add( "Statue of Sneaky Pete" );
-
-			heroField = new JComboBox( heroes );
-			amountField = new JTextField();
-
-			VerifiableElement [] elements = new VerifiableElement[2];
-			elements[0] = new VerifiableElement( "Donate To: ", heroField );
-			elements[1] = new VerifiableElement( "Amount: ", amountField );
-
-			setContent( elements, true, true );
-		}
-
-		public void setEnabled( boolean isEnabled )
-		{
-			super.setEnabled( isEnabled );
-			heroField.setEnabled( isEnabled );
-			amountField.setEnabled( isEnabled );
-		}
-
-		protected void actionConfirmed()
-		{
-			if ( heroField.getSelectedIndex() != -1 )
-				(new RequestThread( new HeroDonationRequest( StaticEntity.getClient(), heroField.getSelectedIndex() + 1, getValue( amountField ) ) )).start();
-
-		}
-
-		protected void actionCancelled()
-		{
 			try
 			{
-				int increments = df.parse( JOptionPane.showInputDialog( "How many increments?" ) ).intValue();
+				CombatSettings.reset();
+				BufferedReader reader = KoLDatabase.getReader( CombatSettings.settingsFileName() );
 
-				if ( increments == 0 )
+				StringBuffer buffer = new StringBuffer();
+
+				String line;
+
+				while ( (line = reader.readLine()) != null )
 				{
-					DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Donation cancelled." );
-					return;
+					buffer.append( line );
+					buffer.append( System.getProperty( "line.separator" ) );
 				}
 
-				if ( heroField.getSelectedIndex() != -1 )
-				{
-					int eachAmount = getValue( amountField ) / increments;
-					(new RequestThread( new HeroDonationRequest( StaticEntity.getClient(), heroField.getSelectedIndex() + 1, eachAmount ), increments )).start();
-				}
+				reader.close();
+				reader = null;
+				((JTextArea)scrollComponent).setText( buffer.toString() );
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+
+				StaticEntity.printStackTrace( e );
 			}
-		}
-	}
 
-	/**
-	 * An internal class which represents the panel used for storing and
-	 * removing meat from the closet.
-	 */
-
-	private class MeatStoragePanel extends LabeledKoLPanel
-	{
-		private JComboBox fundSource;
-		private JTextField amountField, closetField;
-
-		public MeatStoragePanel()
-		{
-			super( "Meat Management", "transfer", "bedidall", new Dimension( 80, 20 ), new Dimension( 240, 20 ) );
-
- 			fundSource = new JComboBox();
-			fundSource.addItem( "From Inventory to Closet" );
-			fundSource.addItem( "From Closet to Inventory" );
-			fundSource.addItem( "From Hagnk's to Inventory" );
-			fundSource.addItem( "From Hagnk's to Closet" );
-
-			amountField = new JTextField();
-			closetField = new JTextField( df.format( KoLCharacter.getClosetMeat() ) );
-			closetField.setEnabled( false );
-
-			VerifiableElement [] elements = new VerifiableElement[3];
-			elements[0] = new VerifiableElement( "Transfer: ", fundSource );
-			elements[1] = new VerifiableElement( "Amount: ", amountField );
-			elements[2] = new VerifiableElement( "In Closet: ", closetField );
-			setContent( elements, true, true );
-
-			KoLCharacter.addCharacterListener( new KoLCharacterAdapter( new ClosetUpdater() ) );
-		}
-
-		public void setEnabled( boolean isEnabled )
-		{
-			super.setEnabled( isEnabled );
-			fundSource.setEnabled( isEnabled );
-			amountField.setEnabled( isEnabled );
+			refreshCombatTree();
 		}
 
 		protected void actionConfirmed()
 		{
-			int transferType = -1;
-			int fundTransferType = fundSource.getSelectedIndex();
-			int amountToTransfer = getValue( amountField );
-
-			if ( fundTransferType > 1 && KoLCharacter.isHardcore() )
+			try
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You cannot pull meat from Hagnk's while in Hardcore." );
-				StaticEntity.getClient().enableDisplay();
-				return;
+				PrintStream writer = new PrintStream( new FileOutputStream( DATA_DIRECTORY + CombatSettings.settingsFileName() ) );
+				writer.println( ((JTextArea)scrollComponent).getText() );
+				writer.close();
+				writer = null;
+
+				int customIndex = KoLCharacter.getBattleSkillIDs().indexOf( "custom" );
+				KoLCharacter.getBattleSkillIDs().setSelectedIndex( customIndex );
+				KoLCharacter.getBattleSkillNames().setSelectedIndex( customIndex );
+				setProperty( "battleAction", "custom" );
 			}
-			
-			ItemStorageRequest [] requests = new ItemStorageRequest[ fundTransferType == 3 ? 2 : 1 ];
-	
-			switch ( fundTransferType )
+			catch ( Exception e )
 			{
-				case 0:
-					transferType = ItemStorageRequest.MEAT_TO_CLOSET;
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
 
-					if ( amountToTransfer <= 0 )
-						amountToTransfer = KoLCharacter.getAvailableMeat();
-
-					break;
-
-				case 1:
-					transferType = ItemStorageRequest.MEAT_TO_INVENTORY;
-
-					if ( amountToTransfer <= 0 )
-						amountToTransfer = KoLCharacter.getClosetMeat();
-
-					break;
-
-				case 2:
-				case 3:
-
-					transferType = ItemStorageRequest.PULL_MEAT_FROM_STORAGE;
-
-					if ( amountToTransfer <= 0 )
-					{
-						DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You must specify an amount to pull from Hagnk's." );
-						StaticEntity.getClient().enableDisplay();
-						return;
-					}
-
-					break;
+				StaticEntity.printStackTrace( e );
 			}
-			
-			requests[0] = new ItemStorageRequest( StaticEntity.getClient(), amountToTransfer, transferType );
-			if ( fundTransferType == 3 )
-				requests[1] = new ItemStorageRequest( StaticEntity.getClient(), amountToTransfer, ItemStorageRequest.MEAT_TO_CLOSET );
 
-			(new RequestThread( requests )).start();
+			// After storing all the data on disk, go ahead
+			// and reload the data inside of the tree.
+
+			refreshCombatTree();
+			tabs.setSelectedIndex(3);
 		}
 
 		protected void actionCancelled()
-		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "<html><font color=green>You <font color=red>lost</font>. Better luck next time.</font></html>" );
-			StaticEntity.getClient().enableDisplay();
-		}
-
-		private class ClosetUpdater implements Runnable
-		{
-			public void run()
-			{	closetField.setText( df.format( KoLCharacter.getClosetMeat() ) );
-			}
+		{	StaticEntity.openSystemBrowser( "http://kolmafia.sourceforge.net/combat.html" );
 		}
 	}
-	
-	public static final void pushWinGameButton()
-	{	displayMessages( WIN_GAME_TEXT[ RNG.nextInt( WIN_GAME_TEXT.length ) ] );
-	}
 
-	public static void displayMessages( String [] messages )
+	/**
+	 * Internal class used to handle everything related to
+	 * displaying custom combat.
+	 */
+
+	private void refreshCombatTree()
 	{
-		for ( int i = 0; i < messages.length - 1 && StaticEntity.getClient().permitsContinue(); ++i )
-		{
-			DEFAULT_SHELL.updateDisplay( messages[i] );
-			KoLRequest.delay( 3000 );
-		}
-
-		if ( StaticEntity.getClient().permitsContinue() )
-		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, messages[ messages.length - 1 ] );
-			StaticEntity.getClient().enableDisplay();
-		}
+		CombatSettings.reset();
+		displayModel.setRoot( CombatSettings.getRoot() );
+		displayTree.setRootVisible( false );
 	}
 }

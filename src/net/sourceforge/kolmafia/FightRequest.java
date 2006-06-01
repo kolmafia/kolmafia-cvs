@@ -73,16 +73,6 @@ public class FightRequest extends KoLRequest
 		"stuffing golem"
 	};
 
-	private static final String [] CONTINUE_TEXT =
-	{
-		"againform.submit",  // If there is an again form, then continue
-		"rats.php",          // Allows continuation during tavern quest
-		"lair3.php",         // Allows continuation during hedge maze
-		"lair4.php",         // Allows continuation during tower guardians
-		"lair5.php",         // Allows continuation during tower guardians
-		"lair6.php"          // Allows continuation during shadow and sorceress fight
-	};
-
 	/**
 	 * Constructs a new <code>FightRequest</code>.  The client provided will
 	 * be used to determine whether or not the fight should be started and/or
@@ -234,11 +224,7 @@ public class FightRequest extends KoLRequest
 		if ( action1.equals( "..." ) || !client.permitsContinue() )
 		{
 			DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Battle stopped.  Please finish in-browser." );
-
-			// Finish in browser if requested
-			if ( getProperty( "synchronizeFightFrame" ).equals( "false" ) )
-				showInBrowser( true );
-
+			showInBrowser( true );
 			return;
 		}
 
@@ -255,15 +241,7 @@ public class FightRequest extends KoLRequest
 		// you are fighting against.
 
 		if ( roundCount == 1 )
-		{
-			Matcher encounterMatcher = Pattern.compile( "<span id='monname'>(.*?)</span>" ).matcher( responseText );
-
-			if ( encounterMatcher.find() )
-			{
-				FightRequest.encounter = encounterMatcher.group(1).toLowerCase();
-				client.registerEncounter( encounter );
-			}
-		}
+			FightRequest.encounter = AdventureRequest.registerEncounter( this );
 
 		if ( responseText.indexOf( "fight.php" ) != -1 )
 		{
@@ -278,20 +256,14 @@ public class FightRequest extends KoLRequest
 			if ( !client.permitsContinue() )
 				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Battle completed, adventures aborted." );
 
-			// If you can't battle again in this location,
-			// cancel future iterations.
-
-			else
-			{
-				boolean shouldContinue = false;
-				for ( int i = 0; i < CONTINUE_TEXT.length; ++i )
-					shouldContinue |= responseText.indexOf( CONTINUE_TEXT[i] ) != -1;
-
-				if ( !shouldContinue )
-					DEFAULT_SHELL.updateDisplay( PENDING_STATE, "Nothing left to do here." );
-			}
-
 			this.turnsUsed = 1;
+		}
+		else if ( responseText.indexOf( "You run away" ) != -1 )
+		{
+			if ( !client.permitsContinue() )
+				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Battle completed, adventures aborted." );
+
+			this.turnsUsed = 1;			
 		}
 		else if ( responseText.indexOf( "You lose." ) != -1 )
 		{
@@ -300,20 +272,12 @@ public class FightRequest extends KoLRequest
 			// also notify the client that an adventure was completed,
 			// but that the loop should be halted.
 
-			if ( KoLCharacter.getCurrentHP() == 0 )
-			{
+			if ( !client.permitsContinue() )
+				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Battle completed, adventures aborted." );
+			else if ( KoLCharacter.getCurrentHP() == 0 )
 				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You were defeated!" );
-				this.turnsUsed = 1;
-			}
-			else
-			{
-				// Sometimes you hit the thirty round limit.  Here, print
-				// the error to the debug log and continue adventuring
-				// as normal.
 
-				DEFAULT_SHELL.updateDisplay( "Thirty combat round limit exceeded." );
-				this.turnsUsed = 1;
-			}
+			this.turnsUsed = 1;
 		}
 
 		// Otherwise, you still have more rounds to fight.

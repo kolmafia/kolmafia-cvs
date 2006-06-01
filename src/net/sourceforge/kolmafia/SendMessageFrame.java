@@ -90,7 +90,7 @@ public abstract class SendMessageFrame extends KoLFrame
 	{
 		super( title );
 
-		inventory = KoLCharacter.getInventory();
+		inventory = KoLCharacter.getSellables();
 		usingStorage = false;
 
 		JPanel mainPanel = new JPanel();
@@ -154,9 +154,8 @@ public abstract class SendMessageFrame extends KoLFrame
 		messagePanel = new JPanel( new BorderLayout() );
 		messagePanel.add( mainPanel, BorderLayout.CENTER );
 
-		this.framePanel.setLayout( new CardLayout( 20, 20 ) );
-		this.framePanel.add( messagePanel, "" );
-		this.getRootPane().setDefaultButton( sendMessageButton );
+		framePanel.setLayout( new CardLayout( 20, 20 ) );
+		framePanel.add( messagePanel, "" );
 	}
 
 	protected JPanel constructWestPanel()
@@ -399,12 +398,12 @@ public abstract class SendMessageFrame extends KoLFrame
 					sourceSelect.addItem( "Inside Inventory" );
 					sourceSelect.addItem( "Inside Hagnk's Storage" );
 					sourceSelect.addActionListener( new SourceChangeListener() );
-					if ( usingStorage)
+
+					if ( usingStorage )
 						sourceSelect.setSelectedIndex( 1 );
 					actualPanel.add( sourceSelect, BorderLayout.NORTH );
-
 				}
-				elementList.setCellRenderer( AdventureResult.getAutoSellCellRenderer() );
+
 				source = usingStorage ? storage : inventory;
 
 				// Remove items from our cloned list that are

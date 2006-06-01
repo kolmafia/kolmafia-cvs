@@ -42,8 +42,7 @@ import javax.swing.JLabel;
 import javax.swing.JCheckBox;
 import javax.swing.JScrollPane;
 
-import net.java.dev.spellcast.utilities.SortedListModel;
-import net.java.dev.spellcast.utilities.JComponentUtilities;
+import java.util.ArrayList;
 
 /**
  * A special class used as a holder class to hold all of the
@@ -52,118 +51,50 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public abstract class MPRestoreItemList extends StaticEntity
 {
-	public static final MPRestoreItem BEANBAG = new MPRestoreItem( "relax in beanbag", 1, -3 );
-	public static final MPRestoreItem HOUSE = new MPRestoreItem( "rest at campsite", 1, -2 );
-	public static final MPRestoreItem MYSTERY = new MPRestoreItem( "magical mystery juice", 1, -1 );
+	private static final MPRestoreItem SODA_WATER = new MPRestoreItem( "soda water", 4 );
+	private static final MPRestoreItem MYSTERY = new MPRestoreItem( "magical mystery juice", Integer.MAX_VALUE );
 
-	public static final MPRestoreItem GALAKTIK = new MPRestoreItem( "doc galaktik", 1, 20 );
-
-	private static Object [] restoreName = new Object[0];
-	private static JCheckBox [] restoreCheckbox = new JCheckBox[0];
-	private static SortedListModel list = new SortedListModel();
-
-	public static void reset()
+	public static final MPRestoreItem [] CONFIGURES = new MPRestoreItem []
 	{
-		list.clear();
-		list.add( GALAKTIK );
-		list.add( BEANBAG );
-		list.add( HOUSE );
-		list.add( MYSTERY );
+		new MPRestoreItem( "Dyspepsi-Cola", 12 ), new MPRestoreItem( "Cloaca-Cola", 12 ),
+		new MPRestoreItem( "phonics down", 48 ), new MPRestoreItem( "tiny house", 22 ),
+		new MPRestoreItem( "Knob Goblin superseltzer", 27 ), new MPRestoreItem( "Knob Goblin seltzer", 10 ),
+		new MPRestoreItem( "blatantly Canadian", 22 ), new MPRestoreItem( "tonic water", 40 )
+	};
 
-		// These MP restores come from NPCs, so they have a
-		// constant market value
+	public static final MPRestoreItem [] FALLBACKS = new MPRestoreItem [] { MYSTERY, SODA_WATER };
 
-		list.add( new MPRestoreItem( "soda water", 4, 70 ) );
-
-		// On the other hand, these MP restores have a fairly
-		// arbitrary value and may be subject to arbitrary
-		// inflation, based on player spending habits.
-
-		list.add( new MPRestoreItem( "tiny house", 22, 400 ) );
-		list.add( new MPRestoreItem( "phonics down", 48, 900 ) );
-		list.add( new MPRestoreItem( "Knob Goblin superseltzer", 27, 1000 ) );
-		list.add( new MPRestoreItem( "Mountain Stream soda", 8, 120 ) );
-		list.add( new MPRestoreItem( "Dyspepsi-Cola", 12, 250 ) );
-		list.add( new MPRestoreItem( "Knob Goblin seltzer", 10, 100 ) );
-		list.add( new MPRestoreItem( "blatantly Canadian", 22, 800 ) );
-	}
-
-	public static MPRestoreItem get( int index )
-	{	return (MPRestoreItem) list.get( index );
-	}
-
-	public static int size()
-	{	return list.size();
-	}
-
-	public static JScrollPane getDisplay()
+	public static JCheckBox [] getCheckboxes()
 	{
-		restoreName = list.toArray();
-		restoreCheckbox = new JCheckBox[ restoreName.length ];
+		String mpRestoreSetting = getProperty( "mpRestores" );
+		JCheckBox [] restoreCheckbox = new JCheckBox[ CONFIGURES.length + FALLBACKS.length ];
 
-		JPanel checkboxPanel = new JPanel();
-		checkboxPanel.setLayout( new GridLayout( restoreCheckbox.length, 1 ) );
-
-		for ( int i = 0; i < restoreCheckbox.length; ++i )
+		for ( int i = 0; i < CONFIGURES.length; ++i )
 		{
-			restoreCheckbox[i] = new JCheckBox();
-			checkboxPanel.add( restoreCheckbox[i] );
+			restoreCheckbox[i] = new JCheckBox( CONFIGURES[i].toString() );
+			restoreCheckbox[i].setSelected( mpRestoreSetting.indexOf( CONFIGURES[i].toString() ) != -1 );
 		}
 
-		JPanel labelPanel = new JPanel();
-		labelPanel.setLayout( new GridLayout( restoreName.length, 1 ) );
-		for ( int i = 0; i < restoreName.length; ++i )
-			labelPanel.add( new JLabel( restoreName[i].toString(), JLabel.LEFT ) );
-
-		JPanel restorePanel = new JPanel();
-		restorePanel.setLayout( new BorderLayout( 0, 0 ) );
-		restorePanel.add( checkboxPanel, BorderLayout.WEST );
-		restorePanel.add( labelPanel, BorderLayout.CENTER );
-
-		String mpRestoreSetting = getProperty( "buffBotMPRestore" );
-
-		for ( int i = 0; i < restoreName.length; ++i )
-			if ( mpRestoreSetting.indexOf( restoreName[i].toString() ) != -1 )
-				restoreCheckbox[i].setSelected( true );
-
-		JScrollPane scrollArea = new JScrollPane( restorePanel, JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-		return scrollArea;
-	}
-
-	public static void setProperty()
-	{
-		StringBuffer mpRestoreSetting = new StringBuffer();
-
-		if ( restoreCheckbox != null )
+		for ( int i = 0; i < FALLBACKS.length; ++i )
 		{
-			for ( int i = 0; i < restoreCheckbox.length; ++i )
-			{
-				if ( restoreCheckbox[i].isSelected() )
-				{
-					mpRestoreSetting.append( restoreName[i].toString() );
-					mpRestoreSetting.append( ';' );
-				}
-			}
+			restoreCheckbox[CONFIGURES.length + i] = new JCheckBox( FALLBACKS[i].toString() );
+			restoreCheckbox[CONFIGURES.length + i].setSelected( true );
+			restoreCheckbox[CONFIGURES.length + i].setEnabled( false );
 		}
 
-		setProperty( "buffBotMPRestore", mpRestoreSetting.toString() );
+		return restoreCheckbox;
 	}
 
-	public static class MPRestoreItem implements Comparable
+	public static class MPRestoreItem
 	{
 		private String itemName;
 		private int mpPerUse;
-		private int estimatedPrice;
-		private double priceToMPRatio;
 		private AdventureResult itemUsed;
 
-		public MPRestoreItem( String itemName, int mpPerUse, int estimatedPrice )
+		public MPRestoreItem( String itemName, int mpPerUse )
 		{
 			this.itemName = itemName;
 			this.mpPerUse = mpPerUse;
-			this.estimatedPrice = estimatedPrice;
-
-			this.priceToMPRatio = (double)estimatedPrice / (double)mpPerUse;
 			this.itemUsed = new AdventureResult( itemName, 0 );
 		}
 
@@ -171,28 +102,8 @@ public abstract class MPRestoreItemList extends StaticEntity
 		{	return itemUsed;
 		}
 
-		public void recoverMP()
+		public void recoverMP( int needed, boolean isFallback )
 		{
-			if ( this == GALAKTIK )
-			{
-				(new GalaktikRequest( client, GalaktikRequest.MP )).run();
-				return;
-			}
-
-			if ( this == BEANBAG )
-			{
-				DEFAULT_SHELL.updateDisplay( "Relaxing in beanbag chair..." );
-				(new CampgroundRequest( client, "relax" )).run();
-				return;
-			}
-
-			if ( this == HOUSE )
-			{
-				DEFAULT_SHELL.updateDisplay( "Resting at campground..." );
-				(new CampgroundRequest( client, "rest" )).run();
-				return;
-			}
-
 			if ( this == MYSTERY )
 			{
 				// The restore rate on magical mystery juice changes
@@ -201,35 +112,20 @@ public abstract class MPRestoreItemList extends StaticEntity
 				this.mpPerUse = (int) (KoLCharacter.getLevel() * 1.5 + 4.0);
 			}
 
-			int currentMP = KoLCharacter.getCurrentMP();
-			int maximumMP = KoLCharacter.getMaximumMP();
+			int mpShort = needed - KoLCharacter.getCurrentMP();
+			int numberToUse = (int) Math.ceil( (double) mpShort / (double) mpPerUse );
+			int numberAvailable = itemUsed.getCount( KoLCharacter.getInventory() );
 
-			// Always buff as close to max MP as possible, in order to
-			// go as easy on the server as possible.
+			if ( !isFallback )
+				numberToUse = Math.min( numberToUse, numberAvailable );
+			else if ( this == MYSTERY )
+				numberToUse = NPCStoreDatabase.contains( MYSTERY.toString() ) ? numberToUse :
+					Math.min( numberAvailable, numberToUse );
 
-			int mpShort = maximumMP - currentMP;
-			int numberToUse = (int) Math.ceil( mpShort / mpPerUse );
-			
-			if ( StaticEntity.getProperty( "autoSatisfyChecks" ).equals( "false" ) )
-				numberToUse = Math.min( numberToUse, itemUsed.getCount( KoLCharacter.getInventory() ) );
+			if ( numberToUse == 0 )
+				return;
 
-			// Because there aren't many buffbots running anymore, it's
-			// okay to use one less than is actually necessary.
-
-			if ( numberToUse < 1 )
-				numberToUse = 1;
-
-			DEFAULT_SHELL.updateDisplay( "Consuming " + numberToUse + " " + itemName + "..." );
 			(new ConsumeItemRequest( client, itemUsed.getInstance( numberToUse ) )).run();
-		}
-
-		public int compareTo( Object o )
-		{
-			if ( !(o instanceof MPRestoreItem) || o == null )
-				return -1;
-
-			double ratioDifference = this.priceToMPRatio - ((MPRestoreItem)o).priceToMPRatio;
-			return ratioDifference < 0.0 ? -1 : ratioDifference > 0.0 ? 1 : 0;
 		}
 
 		public String toString()

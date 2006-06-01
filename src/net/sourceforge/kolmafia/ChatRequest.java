@@ -118,7 +118,7 @@ public class ChatRequest extends KoLRequest
 
 	protected void processResults()
 	{
-		if ( thread == null )
+		if ( KoLMessenger.isRunning() && thread == null )
 		{
 			thread = new ChatContinuationThread();
 			thread.start();
@@ -126,22 +126,17 @@ public class ChatRequest extends KoLRequest
 
 		int index = responseText.indexOf( "<!--lastseen:" );
 
+		if ( index != -1 )
+			lastSeen = Integer.parseInt( responseText.substring( index + 13, index + 23 ) );
+
 		try
 		{
-			if ( index != -1 )
-				lastSeen = df.parse( responseText.substring( index + 13, index + 23 ) ).intValue();
-
-			if ( !(client instanceof KoLmafiaCLI) )
+			if ( KoLMessenger.isRunning() )
 				KoLMessenger.updateChat( responseText );
 		}
 		catch ( Exception e )
 		{
-			// If any exception is thrown, it's possible that there is no
-			// value for the last seen - in this case, just leave the old
-			// last seen value.
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e, "Chat error" );
 		}
 	}
 

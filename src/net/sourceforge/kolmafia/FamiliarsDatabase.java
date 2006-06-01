@@ -55,6 +55,7 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class FamiliarsDatabase extends KoLDatabase
 {
+	private static final int KNOWN_FAMILIARS = 51;
 	private static final String DEFAULT_ITEM = "steaming evil";
 	private static final Integer DEFAULT_LARVA = new Integer( 666 );
 
@@ -108,8 +109,10 @@ public class FamiliarsDatabase extends KoLDatabase
 				}
 				catch ( Exception e )
 				{
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
+					// This should not happen.  Therefore, print
+					// a stack trace for debug purposes.
+					
+					StaticEntity.printStackTrace( e );
 				}
 			}
 		}
@@ -120,8 +123,10 @@ public class FamiliarsDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -133,7 +138,7 @@ public class FamiliarsDatabase extends KoLDatabase
 
 	public static void registerFamiliar( int familiarID, String familiarName )
 	{
-		KoLmafia.getLogStream().println( "New familiar: \"" + familiarID + "\" (" + familiarName + ")" );
+		KoLmafia.getDebugStream().println( "New familiar: \"" + familiarID + "\" (" + familiarName + ")" );
 
 		// Because I'm intelligent, assume that both the familiar item
 		// and the familiar larva are the steaming evil (for now).
@@ -219,8 +224,12 @@ public class FamiliarsDatabase extends KoLDatabase
 				return "itemimages/slgfairy.gif";
 			case 50:
 				return "itemimages/hare.gif";
+			case 51:
+				return "itemimages/chatteeth.gif";
+			case 52:
+				return "itemimages/ghobo.gif";
 			default:
-				return "itemimages/familiar" + familiarID + ".gif";
+				return familiarID <= KNOWN_FAMILIARS ? "itemimages/familiar" + familiarID + ".gif" : "0star.gif";
 		}
 	}
 
@@ -231,7 +240,7 @@ public class FamiliarsDatabase extends KoLDatabase
 	public static ImageIcon getFamiliarImage( int familiarID )
 	{
 		downloadFamiliarImage( familiarID );
-		return JComponentUtilities.getSharedImage( getFamiliarImageLocation( familiarID ) );
+		return JComponentUtilities.getImage( getFamiliarImageLocation( familiarID ) );
 	}
 
 	public static ImageIcon getFamiliarImage( String name )
@@ -326,8 +335,10 @@ public class FamiliarsDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e, "Error in recording familiar data" );
 		}
 	}
 }

@@ -52,7 +52,7 @@ import net.java.dev.spellcast.utilities.UtilityConstants;
  * user settings of <code>KoLmafia</code>.  In order to maintain issues
  * involving compatibility (J2SE 1.4 does not support XML output directly),
  * all data is written using {@link java.util.Properties#store(OutputStream,String)}.
- * Files are named according to the following convention: a tilde (<code>~</code>)
+ * Files are named according  to the following convention: a tilde (<code>~</code>)
  * preceeds the name of the character whose settings this object represents,
  * with the 'kcs' extension (KoLmafia Character Settings).  All global settings
  * are stored in <code>~.kcs</code>.
@@ -93,12 +93,23 @@ public class KoLSettings extends Properties implements UtilityConstants
 			loadSettings( new File( DATA_DIRECTORY + "~.kcs" ) );
 
 		loadSettings( this.settingsFile );
-		ensureDefaults();
-		storeSettings( settingsFile );
+		if ( ensureDefaults() )
+			storeSettings( settingsFile );
 	}
 
-	public Object setProperty( String name, String value )
+	public synchronized String getProperty( String name )
+	{	return super.getProperty( name );
+	}
+
+	public synchronized Object setProperty( String name, String value )
 	{
+		if ( value == null )
+			return value;
+
+		String oldValue = super.getProperty( name );
+		if ( oldValue != null && oldValue.equals( value ) )
+			return value;
+
 		Object returnValue = super.setProperty( name, value );
 		storeSettings( settingsFile );
 		return returnValue;
@@ -113,7 +124,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 	 * @param	source	The file that contains (or will contain) the character data
 	 */
 
-	private void loadSettings( File source )
+	private synchronized void loadSettings( File source )
 	{
 		try
 		{
@@ -142,13 +153,10 @@ public class KoLSettings extends Properties implements UtilityConstants
 		}
 		catch ( IOException e1 )
 		{
-			// This should not happen, because it should
-			// always be possible.  Therefore, no handling
-			// will take place at the current time unless a
-			// pressing need arises for it.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e1.printStackTrace( KoLmafia.getLogStream() );
-			e1.printStackTrace();
+			StaticEntity.printStackTrace( e1 );
 		}
 		catch ( Exception e2 )
 		{
@@ -156,9 +164,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 			// means that they will have to be created after
 			// the current file is deleted.
 
-			e2.printStackTrace( KoLmafia.getLogStream() );
-			e2.printStackTrace();
-
+			StaticEntity.printStackTrace( e2 );
 			source.delete();
 			loadSettings( source );
 		}
@@ -170,65 +176,82 @@ public class KoLSettings extends Properties implements UtilityConstants
 	 * key is loaded.
 	 */
 
-	private void ensureDefaults()
+	private synchronized boolean ensureDefaults()
 	{
+		boolean hadChanges = false;
+
 		// The remaining settings are not related to choice
 		// adventures and require no special handling.
 
-		ensureProperty( "alwaysGetBreakfast", "true" );
-		ensureProperty( "autoRepairBoxes", "false" );
-		ensureProperty( "autoSatisfyChecks", "false" );
-		ensureProperty( "autoLogChat", "false" );
-		ensureProperty( "autoLogin", "" );
-		ensureProperty( "battleAction", "attack" );
-		ensureProperty( "battleStop", "0.0" );
-		ensureProperty( "betweenBattleScript", "" );
-		ensureProperty( "browserBookmarks", "" );
-		ensureProperty( "buffBotCasting", "" );
-		ensureProperty( "buffBotMessageDisposal", "0" );
-		ensureProperty( "buffBotMPRestore", "" );
-		ensureProperty( "chatStyle", "0" );
-		ensureProperty( "clanRosterHeader", ClanSnapshotTable.getDefaultHeader() );
-		ensureProperty( "cloverProtectActive", "false" );
-		ensureProperty( "createWithoutBoxServants", "false" );
-		ensureProperty( "defaultLimit", "13" );
-		ensureProperty( "eSoluScriptType", "0" );
-		ensureProperty( "fontSize", "3" );
-		ensureProperty( "forceReconnect", "false" );
-		ensureProperty( "hpAutoRecover", "-0.1" );
-		ensureProperty( "hpRecoveryScript", "" );
-		ensureProperty( "hpRestoreItems", "" );
-		ensureProperty( "highlightList", "" );
-		ensureProperty( "http.proxyHost", "" );
-		ensureProperty( "http.proxyPort", "" );
-		ensureProperty( "http.proxyUser", "" );
-		ensureProperty( "http.proxyPassword", "" );
-		ensureProperty( "initialFrameLoading", "AdventureFrame,MailboxFrame" );
-		ensureProperty( "invalidBuffMessage", "You sent an amount which was not a valid buff amount." );
-		ensureProperty( "lastAdventure", "" );
-		ensureProperty( "lastMessageID", "" );
-		ensureProperty( "lastUsername", "" );
-		ensureProperty( "loginServer", "0" );
-		ensureProperty( "luckySewerAdventure", "stolen accordion" );
-		ensureProperty( "mpAutoRecover", "-0.1" );
-		ensureProperty( "mpRecoveryScript", "" );
-		ensureProperty( "proxySet", "false" );
-		ensureProperty( "saveState", "" );
-		ensureProperty( "serverFriendly", "false" );
-		ensureProperty( "synchronizeFightFrame", "false" );
-		ensureProperty( "showAdventureZone", "true" );
-		ensureProperty( "showClosetDrivenCreations", "true" );
-		ensureProperty( "sortAdventures", "false" );
-		ensureProperty( "thanksMessage", "Thank you for the donation.  It is greatly appreciated." );
-		ensureProperty( "toolbarPosition", "1" );
-		ensureProperty( "useRelayWindows", "false" );
-		ensureProperty( "useSystemTrayIcon", "false" );
-		ensureProperty( "usePopupContacts", "1" );
-		ensureProperty( "useTabbedChat", "1" );
-		ensureProperty( "useTextHeavySidepane", "true" );
-		ensureProperty( "useToolbars", "true" );
-		ensureProperty( "whiteList", "" );
-		ensureProperty( "zoneExcludeList", "20" );
+		hadChanges |= ensureProperty( "alwaysGetBreakfast", "true" );
+		hadChanges |= ensureProperty( "autoLogin", "" );
+		hadChanges |= ensureProperty( "autoRepairBoxes", "false" );
+		hadChanges |= ensureProperty( "autoSatisfyChecks", "false" );
+		hadChanges |= ensureProperty( "autoLogChat", "false" );
+		hadChanges |= ensureProperty( "battleAction", "attack" );
+		hadChanges |= ensureProperty( "battleStop", "0.0" );
+		hadChanges |= ensureProperty( "betweenBattleScript", "" );
+		hadChanges |= ensureProperty( "breakfast.softcore", "Summon Snowcone,Summon Hilarious Objects,Advanced Saucecrafting,Pastamastery,Advanced Cocktailcrafting" );
+		hadChanges |= ensureProperty( "breakfast.hardcore", "Summon Snowcone,Advanced Saucecrafting,Pastamastery,Advanced Cocktailcrafting" );
+		hadChanges |= ensureProperty( "browserBookmarks", "" );
+		hadChanges |= ensureProperty( "buffBotCasting", "" );
+		hadChanges |= ensureProperty( "buffBotMessageDisposal", "0" );
+		hadChanges |= ensureProperty( "chatStyle", "0" );
+		hadChanges |= ensureProperty( "clanRosterHeader", ClanSnapshotTable.getDefaultHeader() );
+		hadChanges |= ensureProperty( "cloverProtectActive", "false" );
+		hadChanges |= ensureProperty( "createWithoutBoxServants", "false" );
+		hadChanges |= ensureProperty( "defaultDropdown1", "0" );
+		hadChanges |= ensureProperty( "defaultDropdown2", "1" );
+		hadChanges |= ensureProperty( "defaultLimit", "13" );
+		hadChanges |= ensureProperty( "defaultToRelayBrowser", "true" );
+		hadChanges |= ensureProperty( "eSoluScriptType", "0" );
+		hadChanges |= ensureProperty( "fontSize", "3" );
+		hadChanges |= ensureProperty( "forceReconnect", "false" );
+		hadChanges |= ensureProperty( "hpAutoRecover", "-0.1" );
+		hadChanges |= ensureProperty( "hpAutoRecoverTarget", "1.0" );
+		hadChanges |= ensureProperty( "hpRecoveryScript", "" );
+		hadChanges |= ensureProperty( "hpRestores", "" );
+		hadChanges |= ensureProperty( "highlightList", "" );
+		hadChanges |= ensureProperty( "http.proxyHost", "" );
+		hadChanges |= ensureProperty( "http.proxyPort", "" );
+		hadChanges |= ensureProperty( "http.proxyUser", "" );
+		hadChanges |= ensureProperty( "http.proxyPassword", "" );
+		hadChanges |= ensureProperty( "initialDesktop", "AdventureFrame,MallSearchFrame,SkillBuffFrame,RestoreOptionsFrame" );
+		hadChanges |= ensureProperty( "initialFrames", "EventsFrame,MailboxFrame" );
+		hadChanges |= ensureProperty( "invalidBuffMessage", "You sent an amount which was not a valid buff amount." );
+		hadChanges |= ensureProperty( "keepSessionLogs", "false" );
+		hadChanges |= ensureProperty( "lastFaucetLocation", "-1" );
+		hadChanges |= ensureProperty( "lastFaucetUse", "0: " );
+		hadChanges |= ensureProperty( "lastAdventure", "" );
+		hadChanges |= ensureProperty( "lastMessageID", "" );
+		hadChanges |= ensureProperty( "lastUsername", "" );
+		hadChanges |= ensureProperty( "loginServer", "0" );
+		hadChanges |= ensureProperty( "luckySewerAdventure", "stolen accordion" );
+		hadChanges |= ensureProperty( "mpAutoRecover", "-0.1" );
+		hadChanges |= ensureProperty( "mpAutoRecoverTarget", "1.0" );
+		hadChanges |= ensureProperty( "mpRecoveryScript", "" );
+		hadChanges |= ensureProperty( "mpRestores", "" );
+		hadChanges |= ensureProperty( "proxySet", "false" );
+		hadChanges |= ensureProperty( "relayAddsCommandLineLinks", "true" );
+		hadChanges |= ensureProperty( "relayAddsSimulatorLinks", "true" );
+		hadChanges |= ensureProperty( "relayAddsUseLinks", "true" );
+		hadChanges |= ensureProperty( "relayMovesManeuver", "true" );
+		hadChanges |= ensureProperty( "saveState", "" );
+		hadChanges |= ensureProperty( "serverFriendly", "false" );
+		hadChanges |= ensureProperty( "showAdventureZone", "true" );
+		hadChanges |= ensureProperty( "showAllRequests", "false" );
+		hadChanges |= ensureProperty( "showClosetDrivenCreations", "true" );
+		hadChanges |= ensureProperty( "sortAdventures", "false" );
+		hadChanges |= ensureProperty( "thanksMessage", "Thank you for the donation.  It is greatly appreciated." );
+		hadChanges |= ensureProperty( "toolbarPosition", "1" );
+		hadChanges |= ensureProperty( "useSystemTrayIcon", "false" );
+		hadChanges |= ensureProperty( "usePopupContacts", "1" );
+		hadChanges |= ensureProperty( "useTabbedChat", "1" );
+		hadChanges |= ensureProperty( "useTextHeavySidepane", "true" );
+		hadChanges |= ensureProperty( "useToolbars", "true" );
+		hadChanges |= ensureProperty( "whiteList", "" );
+		hadChanges |= ensureProperty( "zoneExcludeList", "Removed" );
+		hadChanges |= ensureProperty( "guiUsesOneWindow", "false" );
 
 		// These are settings related to choice adventures.
 		// Ensure that they exist, and if they do not, load
@@ -241,31 +264,38 @@ public class KoLSettings extends Properties implements UtilityConstants
 		// Choices that have an "ignore" setting: use ensureProperty
 		// Choices that have no "ignore" setting: use ensureNonZeroProperty
 
-		ensureProperty( "choiceAdventure2", "2" );
-		ensureNonZeroProperty( "choiceAdventure3", "1" );
-		ensureProperty( "choiceAdventure4", "3" );
-		ensureProperty( "choiceAdventure5", "2" );
-		ensureProperty( "choiceAdventure7", "2" );
-		ensureNonZeroProperty( "choiceAdventure8", "3" );
-		ensureProperty( "choiceAdventure9", "1" );
-		ensureProperty( "choiceAdventure10", "1" );
-		ensureProperty( "choiceAdventure11", "3" );
-		ensureProperty( "choiceAdventure12", "2" );
-		ensureNonZeroProperty( "choiceAdventure14", "4" );
-		ensureNonZeroProperty( "choiceAdventure15", "4" );
-		ensureNonZeroProperty( "choiceAdventure16", "4" );
-		ensureNonZeroProperty( "choiceAdventure17", "4" );
-		ensureNonZeroProperty( "choiceAdventure18", "4" );
-		ensureNonZeroProperty( "choiceAdventure19", "4" );
-		ensureNonZeroProperty( "choiceAdventure20", "4" );
-		ensureProperty( "choiceAdventure21", "2" );
-		ensureNonZeroProperty( "choiceAdventure22", "4" );
-		ensureNonZeroProperty( "choiceAdventure23", "4" );
-		ensureNonZeroProperty( "choiceAdventure24", "4" );
-		ensureNonZeroProperty( "choiceAdventure25", "2" );
-		ensureNonZeroProperty( "choiceAdventure40", "3" );
-		ensureNonZeroProperty( "choiceAdventure41", "3" );
-		ensureNonZeroProperty( "choiceAdventure42", "3" );
+		hadChanges |= ensureProperty( "choiceAdventure2", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure3", "1" );
+		hadChanges |= ensureProperty( "choiceAdventure4", "3" );
+		hadChanges |= ensureProperty( "choiceAdventure5", "2" );
+		hadChanges |= ensureProperty( "choiceAdventure7", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure8", "3" );
+		hadChanges |= ensureProperty( "choiceAdventure9", "1" );
+		hadChanges |= ensureProperty( "choiceAdventure10", "1" );
+		hadChanges |= ensureProperty( "choiceAdventure11", "3" );
+		hadChanges |= ensureProperty( "choiceAdventure12", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure14", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure15", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure16", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure17", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure18", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure19", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure20", "4" );
+		hadChanges |= ensureProperty( "choiceAdventure21", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure22", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure23", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure24", "4" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure25", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure26", "3" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure27", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure28", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure29", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure40", "3" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure41", "3" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure42", "3" );
+		hadChanges |= ensureProperty( "choiceAdventure45", "0" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure46", "3" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure47", "2" );
 
 		// Wheel choice adventures need special handling.
 		// This is where everything is validated for that.
@@ -297,11 +327,19 @@ public class KoLSettings extends Properties implements UtilityConstants
 			}
 		}
 
-		// Check for valid settings.  Valid settings are
-		// ones where there are exactly two of one setting
-		// and one of the other, and one leave alone.
+		// Check for valid settings:
 
-		if ( !( (clockwiseCount == 1 && counterClockwiseCount == 2) || (clockwiseCount == 2 && counterClockwiseCount == 1) || (clockwiseCount == 0 && counterClockwiseCount == 0) ) )
+		// 1) Two clockwise, one counterclockwise, one leave alone
+		// 2) Two counterclockwise, one clockwise, one leave alone
+		// 3) Four clockwise
+		// 4) Four counterclockwise
+		// 5) All leave alone
+
+		if ( !( (clockwiseCount == 1 && counterClockwiseCount == 2) ||
+			(clockwiseCount == 2 && counterClockwiseCount == 1) ||
+			(clockwiseCount == 4) ||
+			(counterClockwiseCount == 4) ||
+			(clockwiseCount == 0 && counterClockwiseCount == 0) ) )
 		{
 			wheelChoices[0] = 1;
 			wheelChoices[1] = 1;
@@ -309,8 +347,24 @@ public class KoLSettings extends Properties implements UtilityConstants
 			wheelChoices[3] = 2;
 		}
 
+		String wheelChoice = null;
+		String wheelDecision = null;
+
 		for ( int i = 0; i < 4; ++i )
-			setProperty( "choiceAdventure" + (9+i), String.valueOf( wheelChoices[i] ) );
+		{
+			wheelChoice = "choiceAdventure" + (9+i);
+			wheelDecision = String.valueOf( wheelChoices[i] );
+			if ( !getProperty( wheelChoice ).equals( wheelDecision ) )
+			{
+				super.setProperty( wheelChoice, wheelDecision );
+				hadChanges = true;
+			}
+		}
+
+		// Return whether or not any changes were detected
+		// in the settings files.
+
+		return hadChanges;
 	}
 
 	/**
@@ -318,10 +372,13 @@ public class KoLSettings extends Properties implements UtilityConstants
 	 * initializes it to the given value.
 	 */
 
-	private void ensureProperty( String key, String defaultValue )
+	private synchronized boolean ensureProperty( String key, String defaultValue )
 	{
-		if ( !containsKey( key ) )
-			super.setProperty( key, defaultValue );
+		if ( containsKey( key ) )
+			return false;
+
+		super.setProperty( key, defaultValue );
+		return true;
 	}
 
 	/**
@@ -330,10 +387,13 @@ public class KoLSettings extends Properties implements UtilityConstants
 	 * and is 0, force it to the default value. This is for choice adventures.
 	 */
 
-	private void ensureNonZeroProperty( String key, String defaultValue )
+	private synchronized boolean ensureNonZeroProperty( String key, String defaultValue )
 	{
-		if ( !containsKey( key ) || ( get( key).equals( "0" ) ) )
-			super.setProperty( key, defaultValue );
+		if ( containsKey( key ) && !get( key ).equals( "0" ) )
+			return false;
+
+		super.setProperty( key, defaultValue );
+		return true;
 	}
 
 	/**
@@ -344,7 +404,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 	 * @param	destination	The file to which the settings will be stored.
 	 */
 
-	private void storeSettings( File destination )
+	private synchronized void storeSettings( File destination )
 	{
 		try
 		{
@@ -386,14 +446,10 @@ public class KoLSettings extends Properties implements UtilityConstants
 		}
 		catch ( IOException e )
 		{
-			// This should not happen, because it should
-			// always be possible.  Therefore, no handling
-			// will take place at the current time unless a
-			// pressing need arises for it.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e );
 		}
 	}
-
 }

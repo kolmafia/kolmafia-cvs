@@ -84,20 +84,9 @@ public class ItemStorageRequest extends SendMessageRequest
 		}
 	}
 
-	/**
-	 * Should only be used to closet clovers.  A tribute to the "Closet Your Clovers" speech:
-	 * http://forums.kingdomofloathing.com/viewtopic.php?t=33250
-	 *
-	 * @param	client	The client to be notified of the results
-	 * @param	moveType	Whether or not clovers are being closeted
-	 */
-
 	public ItemStorageRequest( KoLmafia client, int moveType )
 	{
-		this( client, moveType == EMPTY_STORAGE ? EMPTY_STORAGE : INVENTORY_TO_CLOSET,
-			moveType == EMPTY_STORAGE ? new Object[0] : new Object [] {
-			SewerRequest.CLOVER.getInstance( SewerRequest.CLOVER.getCount( KoLCharacter.getInventory() ) ) } );
-
+		this( client, moveType, new Object[0] );
 		this.moveType = moveType;
 	}
 
@@ -262,12 +251,10 @@ public class ItemStorageRequest extends SendMessageRequest
 			}
 			catch ( Exception e )
 			{
-				// This really should not happen, since the numbers
-				// are getting grouped properly.  But, just in case,
-				// the exception is caught and nothing changes.
-
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 		}
 
@@ -312,7 +299,7 @@ public class ItemStorageRequest extends SendMessageRequest
 			return;
 
 		int lastFindIndex = 0;
-		Matcher optionMatcher = Pattern.compile( "<option value='([\\d]+)'>(.*?)\\(([\\d,]+)\\)" ).matcher( storageMatcher.group() );
+		Matcher optionMatcher = Pattern.compile( "<option[^>]* value='([\\d]+)'>(.*?)\\(([\\d,]+)\\)" ).matcher( storageMatcher.group() );
 		while ( optionMatcher.find( lastFindIndex ) )
 		{
 			try
@@ -328,12 +315,10 @@ public class ItemStorageRequest extends SendMessageRequest
 			}
 			catch ( Exception e )
 			{
-				// If an exception occurs during the parsing, just
-				// continue after notifying the KoLmafia.getLogStream() of the
-				// error.  This could be handled better, but not now.
-
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+				
+				StaticEntity.printStackTrace( e );
 			}
 		}
 	}

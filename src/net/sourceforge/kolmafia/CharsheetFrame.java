@@ -91,9 +91,7 @@ public class CharsheetFrame extends KoLFrame
 	{
 		super( "Player Status" );
 
-		CardLayout cards = new CardLayout( 10, 10 );
-		framePanel.setLayout( cards );
-
+		framePanel.setLayout( new CardLayout( 10, 10 ) );
 		JPanel northPanel = new JPanel( new BorderLayout( 20, 20 ) );
 
 		northPanel.add( createStatusPanel(), BorderLayout.CENTER );
@@ -106,28 +104,16 @@ public class CharsheetFrame extends KoLFrame
 		entirePanel.add( northPanel, BorderLayout.NORTH );
 		entirePanel.add( scroller, BorderLayout.CENTER );
 
-		refreshStatus();
-
 		framePanel.add( entirePanel, "" );
 		statusRefresher = new KoLCharacterAdapter( new StatusRefreshRunnable() );
 		KoLCharacter.addCharacterListener( statusRefresher );
+
+		statusRefresher.updateStatus();
 	}
 
 	public void dispose()
 	{
 		KoLCharacter.removeCharacterListener( statusRefresher );
-
-		levelPanel = null;
-		levelLabel = null;
-
-		levelMeter = null;
-		hpMeter = null;
-		mpMeter = null;
-		avatar = null;
-		statusLabel = null;
-		tnpDisplay = null;
-
-		statusRefresher = null;
 		super.dispose();
 	}
 
@@ -158,7 +144,7 @@ public class CharsheetFrame extends KoLFrame
 		levelPanel.add( levelMeter, BorderLayout.SOUTH );
 		imagePanel.add( levelPanel, BorderLayout.NORTH );
 
-		this.avatar = new JLabel( JComponentUtilities.getSharedImage( KoLCharacter.getAvatar() ) );
+		this.avatar = new JLabel( JComponentUtilities.getImage( KoLCharacter.getAvatar() ) );
 		imagePanel.add( avatar, BorderLayout.CENTER );
 		imagePanel.add( new RequestButton( "Refresh Status", new CharsheetRequest( StaticEntity.getClient() ) ), BorderLayout.SOUTH );
 
@@ -241,11 +227,11 @@ public class CharsheetFrame extends KoLFrame
 		JComponentUtilities.setComponentSize( mpMeter, 60, 20 );
 
 		JPanel hpPanel = new JPanel( new BorderLayout( 5, 5 ) );
-		hpPanel.add( new JLabel( JComponentUtilities.getSharedImage( "hp.gif" ), JLabel.CENTER ), BorderLayout.CENTER );
+		hpPanel.add( new JLabel( JComponentUtilities.getImage( "hp.gif" ), JLabel.CENTER ), BorderLayout.CENTER );
 		hpPanel.add( hpMeter, BorderLayout.SOUTH );
 
 		JPanel mpPanel = new JPanel( new BorderLayout( 5, 5 ) );
-		mpPanel.add( new JLabel( JComponentUtilities.getSharedImage( "mp.gif" ), JLabel.CENTER ), BorderLayout.CENTER );
+		mpPanel.add( new JLabel( JComponentUtilities.getImage( "mp.gif" ), JLabel.CENTER ), BorderLayout.CENTER );
 		mpPanel.add( mpMeter, BorderLayout.SOUTH );
 
 		JPanel basicPanel = new JPanel();
@@ -277,48 +263,38 @@ public class CharsheetFrame extends KoLFrame
 		return statusLabelPanel;
 	}
 
-	/**
-	 * Utility method used to refresh the status of the pane.  This
-	 * method is made public so that the same frame can be hidden and
-	 * reused at a later time.
-	 */
-
-	public void refreshStatus()
-	{
-		StaticEntity.getClient().applyRecentEffects();
-		levelLabel.setText( "Level " + KoLCharacter.getLevel() + " " + KoLCharacter.getClassName() );
-
-		hpMeter.setMaximum( KoLCharacter.getMaximumHP() );
-		hpMeter.setValue( KoLCharacter.getCurrentHP() );
-		hpMeter.setString( df.format( KoLCharacter.getCurrentHP() ) + " / " + df.format( KoLCharacter.getMaximumHP() ) );
-
-		mpMeter.setMaximum( KoLCharacter.getMaximumMP() );
-		mpMeter.setValue( KoLCharacter.getCurrentMP() );
-		mpMeter.setString( df.format( KoLCharacter.getCurrentMP() ) + " / " + df.format( KoLCharacter.getMaximumMP() ) );
-
-		refreshValuePanel( 0, KoLCharacter.getBaseMuscle(), KoLCharacter.getAdjustedMuscle(), KoLCharacter.getMuscleTNP() );
-		refreshValuePanel( 1, KoLCharacter.getBaseMysticality(), KoLCharacter.getAdjustedMysticality(), KoLCharacter.getMysticalityTNP() );
-		refreshValuePanel( 2, KoLCharacter.getBaseMoxie(), KoLCharacter.getAdjustedMoxie(), KoLCharacter.getMoxieTNP() );
-
-		int currentLevel = KoLCharacter.calculateLastLevel();
-		int nextLevel = KoLCharacter.calculateNextLevel();
-		int totalPrime = KoLCharacter.getTotalPrime();
-
-		levelMeter.setMaximum( nextLevel - currentLevel );
-		levelMeter.setValue( totalPrime - currentLevel );
-		levelMeter.setString( "" );
-
-		levelPanel.setToolTipText( "<html>&nbsp;&nbsp;" + KoLCharacter.getAdvancement() + "&nbsp;&nbsp;<br>&nbsp;&nbsp;(" +
-					   df.format( nextLevel - totalPrime ) + " subpoints needed)&nbsp;&nbsp;</html>" );
-
-		// Set the current avatar
-		avatar.setIcon( JComponentUtilities.getSharedImage( KoLCharacter.getAvatar() ) );
-	}
-
 	private class StatusRefreshRunnable implements Runnable
 	{
 		public void run()
-		{	refreshStatus();
+		{
+			StaticEntity.getClient().applyRecentEffects();
+			levelLabel.setText( "Level " + KoLCharacter.getLevel() + " " + KoLCharacter.getClassName() );
+
+			hpMeter.setMaximum( KoLCharacter.getMaximumHP() );
+			hpMeter.setValue( KoLCharacter.getCurrentHP() );
+			hpMeter.setString( df.format( KoLCharacter.getCurrentHP() ) + " / " + df.format( KoLCharacter.getMaximumHP() ) );
+
+			mpMeter.setMaximum( KoLCharacter.getMaximumMP() );
+			mpMeter.setValue( KoLCharacter.getCurrentMP() );
+			mpMeter.setString( df.format( KoLCharacter.getCurrentMP() ) + " / " + df.format( KoLCharacter.getMaximumMP() ) );
+
+			refreshValuePanel( 0, KoLCharacter.getBaseMuscle(), KoLCharacter.getAdjustedMuscle(), KoLCharacter.getMuscleTNP() );
+			refreshValuePanel( 1, KoLCharacter.getBaseMysticality(), KoLCharacter.getAdjustedMysticality(), KoLCharacter.getMysticalityTNP() );
+			refreshValuePanel( 2, KoLCharacter.getBaseMoxie(), KoLCharacter.getAdjustedMoxie(), KoLCharacter.getMoxieTNP() );
+
+			int currentLevel = KoLCharacter.calculateLastLevel();
+			int nextLevel = KoLCharacter.calculateNextLevel();
+			int totalPrime = KoLCharacter.getTotalPrime();
+
+			levelMeter.setMaximum( nextLevel - currentLevel );
+			levelMeter.setValue( totalPrime - currentLevel );
+			levelMeter.setString( "" );
+
+			levelPanel.setToolTipText( "<html>&nbsp;&nbsp;" + KoLCharacter.getAdvancement() + "&nbsp;&nbsp;<br>&nbsp;&nbsp;(" +
+				df.format( nextLevel - totalPrime ) + " subpoints needed)&nbsp;&nbsp;</html>" );
+
+			// Set the current avatar
+			avatar.setIcon( JComponentUtilities.getImage( KoLCharacter.getAvatar() ) );
 		}
 	}
 }

@@ -59,9 +59,24 @@ public class AdventureDatabase extends KoLDatabase
 
 	public static final Map ZONE_NAMES = new TreeMap();
 	public static final Map ZONE_DESCRIPTIONS = new TreeMap();
+	private static StringArray [] adventureTable = new StringArray[4];
+	private static final Map areaCombatData = new TreeMap();
 
 	static
 	{
+		for ( int i = 0; i < 4; ++i )
+			adventureTable[i] = new StringArray();
+
+		AdventureDatabase.refreshZoneTable();
+		AdventureDatabase.refreshAdventureTable();
+		AdventureDatabase.refreshCombatsTable();
+	}
+
+	public static final void refreshZoneTable()
+	{
+		if ( !ZONE_NAMES.isEmpty() )
+			return;
+
 		BufferedReader reader = getReader( "zonelist.dat" );
 		String [] data;
 
@@ -80,31 +95,12 @@ public class AdventureDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
-
-		AdventureDatabase.refreshTable();
 	}
-
-	public static final String [] CLOVER_ADVS =
-	{
-		"11",  // Cobb's Knob Outskirts
-		"40",  // Cobb's Knob Kitchens
-		"41",  // Cobb's Knob Treasury
-		"42",  // Cobb's Knob Harem
-		"16",  // The Haiku Dungeon
-		"10",  // The Haunted Pantry
-		"19",  // The Limerick Dungeon
-		"70",  // The Casino Roulette Wheel
-		"9",   // The Sleazy Back Alley
-		"15",  // The Spooky Forest
-		"17",  // The Hidden Temple
-		"27",  // The Orcish Frat House (no disguise)
-		"29",  // The Orcish Frat House (in disguise)
-		"26",  // Hippy Camp (no disguise)
-		"65",  // Hippy Camp (in disguise)
-	};
 
 	public static final String [][][] CHOICE_ADVS =
 	{
@@ -140,37 +136,37 @@ public class AdventureDatabase extends KoLDatabase
 		// A Bard Day's Night
 		{ { "choiceAdventure14" }, { "Knob Goblin Harem" },
 		  { "Knob goblin harem veil", "Knob goblin harem pants", "100 meat", "Complete the outfit" },
-		  { "306", "305", null, null } },
+		  { "306", "305", null } },
 
 		// Yeti Nother Hippy
 		{ { "choiceAdventure15" }, { "eXtreme Slope 1" },
 		  { "eXtreme mittens", "eXtreme scarf", "75 meat", "Complete the outfit" },
-		  { "399", "355", null, null } },
+		  { "399", "355", null } },
 
 		// Saint Beernard
 		{ { "choiceAdventure16" }, { "eXtreme Slope 2" },
 		  { "snowboarder pants", "eXtreme scarf", "75 meat", "Complete the outfit" },
-		  { "356", "355", null, null } },
+		  { "356", "355", null } },
 
 		// Generic Teen Comedy
 		{ { "choiceAdventure17" }, { "eXtreme Slope 3" },
 		  { "eXtreme mittens", "snowboarder pants", "75 meat", "Complete the outfit" },
-		  { "399", "356", null, null } },
+		  { "399", "356", null } },
 
 		// A Flat Miner
 		{ { "choiceAdventure18" }, { "Itznotyerzitz Mine 1" },
 		  { "miner's pants", "7-Foot Dwarven mattock", "100 meat", "Complete the outfit" },
-		  { "361", "362", null, null } },
+		  { "361", "362", null } },
 
 		// 100% Legal
 		{ { "choiceAdventure19" }, { "Itznotyerzitz Mine 2" },
 		  { "miner's helmet", "miner's pants", "100 meat", "Complete the outfit" },
-		  { "360", "361", null, null } },
+		  { "360", "361", null } },
 
 		// See You Next Fall
 		{ { "choiceAdventure20" }, { "Itznotyerzitz Mine 3" },
 		  { "miner's helmet", "7-Foot Dwarven mattock", "100 meat", "Complete the outfit" },
-		  { "360", "362", null, null } },
+		  { "360", "362", null } },
 
 		// Under the Knife
 		{ { "choiceAdventure21" }, { "Sleazy Back Alley" },
@@ -179,17 +175,17 @@ public class AdventureDatabase extends KoLDatabase
 		// The Arrrbitrator
 		{ { "choiceAdventure22" }, { "Pirate's Cove 1" },
 		  { "eyepatch", "swashbuckling pants", "100 meat", "Complete the outfit" },
-		  { "224", "402", null, null } },
+		  { "224", "402", null } },
 
 		// Barrie Me at Sea
 		{ { "choiceAdventure23" }, { "Pirate's Cove 2" },
 		  { "stuffed shoulder parrot", "swashbuckling pants", "100 meat", "Complete the outfit" },
-		  { "403", "402", null, null } },
+		  { "403", "402", null } },
 
 		// Amatearrr Night
 		{ { "choiceAdventure24" }, { "Pirate's Cove 3" },
 		  { "stuffed shoulder parrot", "100 meat", "eyepatch", "Complete the outfit" },
-		  { "403", null, "224", null } },
+		  { "403", null, "224" } },
 
 		// Ouch! You bump into a door!
 		{ { "choiceAdventure25" }, { "Dungeon of Doom" },
@@ -208,7 +204,19 @@ public class AdventureDatabase extends KoLDatabase
 		// What is it Good For?
 		{ { "choiceAdventure42" }, { "Cola Wars 3" },
 		  { "Dyspepsi-Cola helmet", "Cloaca-Cola shield", "15 Moxie" },
-		  { "1326", "1327", null } }
+		  { "1326", "1327", null } },
+
+		// Maps and Legends
+		{ { "choiceAdventure45" }, { "Spooky Forest 3" },
+		  { "Spooky Temple Map", "Ignore the monolith", "Nothing" } },
+
+		// An Interesting Choice
+		{ { "choiceAdventure46" }, { "Spooky Forest 4" },
+		  { "Moxie", "Muscle", "Fight" } },
+
+		// Have a Heart
+		{ { "choiceAdventure47" }, { "Spooky Forest 5" },
+		  { "Trade for used blood", "Keep your hearts" } },
 	};
 
 	// Some choice adventures have a choice that behaves as an "ignore"
@@ -241,7 +249,13 @@ public class AdventureDatabase extends KoLDatabase
 		{ "choiceAdventure21", "2" },
 
 		// Ouch! You bump into a door!
-		{ "choiceAdventure25", "3" }
+		{ "choiceAdventure25", "3" },
+
+		// Maps and Legends
+		{ "choiceAdventure45", "2" },
+
+		// Have a Heart
+		{ "choiceAdventure47", "2" },
 	};
 
 	// Some choice adventures have options that cost meat
@@ -267,15 +281,12 @@ public class AdventureDatabase extends KoLDatabase
 		"Cobb's Knob lab key"
 	};
 
-	private static List [] adventureTable;
-
-	public static final void refreshTable()
+	public static final void refreshAdventureTable()
 	{
 		BufferedReader reader = getReader( "adventures.dat" );
 
-		adventureTable = new ArrayList[4];
 		for ( int i = 0; i < 4; ++i )
-			adventureTable[i] = new ArrayList();
+			adventureTable[i].clear();
 
 		String [] data;
 
@@ -283,10 +294,10 @@ public class AdventureDatabase extends KoLDatabase
 		{
 			if ( data.length == 4 )
 			{
-				Object zone = ZONE_NAMES.get( data[0] );
+				String zone = (String) ZONE_NAMES.get( data[0] );
 
 				// Be defensive: user can supply a broken data file
-				if ( zone == null)
+				if ( zone == null )
 				{
 					System.out.println( "Bad adventure zone: " + data[0] );
 					continue;
@@ -304,8 +315,10 @@ public class AdventureDatabase extends KoLDatabase
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -316,6 +329,12 @@ public class AdventureDatabase extends KoLDatabase
 	 */
 
 	public static final LockableListModel getAsLockableListModel()
+	{
+		refreshAdventureList();
+		return adventures;
+	}
+	
+	public static void refreshAdventureList()
 	{
 		String [] zones = getProperty( "zoneExcludeList" ).split( "," );
 		if ( zones.length == 1 && zones[0].length() == 0 )
@@ -336,14 +355,11 @@ public class AdventureDatabase extends KoLDatabase
 					shouldAdd = false;
 
 			if ( shouldAdd )
-				adventures.add( new KoLAdventure( client, zoneName,
-					(String) adventureTable[1].get(i), (String) adventureTable[2].get(i), (String) adventureTable[3].get(i) ) );
+				adventures.add( getAdventure(i) );
 		}
 
 		if ( getProperty( "sortAdventures" ).equals( "true" ) )
-			java.util.Collections.sort( adventures );
-
-		return adventures;
+			adventures.sort();		
 	}
 
 	/**
@@ -353,14 +369,43 @@ public class AdventureDatabase extends KoLDatabase
 
 	public static KoLAdventure getAdventure( String adventureName )
 	{
-		List adventureNames = adventureTable[3];
+		String lowerCaseName = adventureName.toLowerCase();
+		while ( lowerCaseName.indexOf( ":" ) != -1 )
+			lowerCaseName = lowerCaseName.substring( lowerCaseName.indexOf( ":" ) + 1 );
+		lowerCaseName = lowerCaseName.trim();
 
-		for ( int i = 0; i < adventureNames.size(); ++i )
-			if ( ((String) adventureNames.get(i)).toLowerCase().indexOf( adventureName.toLowerCase() ) != -1 )
-				return new KoLAdventure( client, (String) adventureTable[0].get(i), (String) adventureTable[1].get(i),
-					(String) adventureTable[2].get(i), (String) adventureTable[3].get(i) );
+		int matchStartIndex;
+		String currentTest;
 
-		return null;
+		int bestMatchIndex = -1;
+		int bestMatchLength = Integer.MAX_VALUE;
+		int bestMatchStartIndex = Integer.MAX_VALUE;
+		
+		for ( int i = 0; i < adventureTable[3].size(); ++i )
+		{
+			currentTest = adventureTable[3].get(i).toLowerCase();
+			matchStartIndex = currentTest.indexOf( lowerCaseName );
+
+			if ( matchStartIndex != -1 )
+			{
+				if ( bestMatchIndex == -1 || matchStartIndex < bestMatchStartIndex ||
+					(matchStartIndex == bestMatchStartIndex && currentTest.length() < bestMatchLength) )
+				{
+					bestMatchIndex = i;
+					bestMatchStartIndex = matchStartIndex;
+					bestMatchLength = currentTest.length();
+				}
+			}
+		}
+
+		return bestMatchIndex == -1 ? null : getAdventure( bestMatchIndex );
+	}
+	
+	private static KoLAdventure getAdventure( int tableIndex )
+	{
+		return new KoLAdventure( client,
+			adventureTable[0].get( tableIndex ), adventureTable[1].get( tableIndex ),
+			adventureTable[2].get( tableIndex ), adventureTable[3].get( tableIndex ) );
 	}
 
 	/**
@@ -373,12 +418,12 @@ public class AdventureDatabase extends KoLDatabase
 		KoLRequest request = null;
 
 		String adventureID = adventure.getAdventureID();
-		String zone = adventure.getZone();
+		String formSource = adventure.getFormSource();
 
 		// The beach is unlocked provided the player has the meat car
 		// accomplishment and a meatcar in inventory.
 
-		if ( zone.equals( "Beach" ) )
+		if ( formSource.equals( "shore.php" ) || adventureID.equals( "45" ) )
 		{
 			// Make sure the car is in the inventory
 			retrieveItem( ConcoctionsDatabase.CAR );
@@ -406,7 +451,7 @@ public class AdventureDatabase extends KoLDatabase
 			return;
 		}
 
-		else if ( zone.equals( "McLarge" ) )
+		else if ( adventureID.equals( "60" ) || adventureID.equals( "61" ) || adventureID.equals( "62" ) || adventureID.equals( "63" ) || adventureID.equals( "64" ) )
 		{
 			// Obviate following request by checking accomplishment:
 			// questlog.php?which=2
@@ -431,7 +476,7 @@ public class AdventureDatabase extends KoLDatabase
 		// The casino is unlocked provided the player
 		// has a casino pass in their inventory.
 
-		else if ( zone.equals( "Casino" ) )
+		else if ( formSource.equals( "casino.php" ) || adventureID.equals( "70" ) || adventureID.equals( "71" ) )
 		{
 			retrieveItem( CASINO );
 			return;
@@ -440,7 +485,7 @@ public class AdventureDatabase extends KoLDatabase
 		// The island is unlocked provided the player
 		// has a dingy dinghy in their inventory.
 
-		else if ( zone.equals( "Island" ) )
+		else if ( adventureID.equals( "26" ) || adventureID.equals( "65" ) || adventureID.equals( "27" ) || adventureID.equals( "29" ) || adventureID.equals( "66" ) || adventureID.equals( "67") )
 		{
 			retrieveItem( DINGHY );
 			return;
@@ -475,6 +520,7 @@ public class AdventureDatabase extends KoLDatabase
 		{
 			// If the character has a S.O.C.K. or an intragalactic
 			// rowboat, they can get to the airship
+
 			if ( KoLCharacter.hasItem( SOCK, false ) || KoLCharacter.hasItem( ROWBOAT, false ) )
 				return;
 
@@ -536,7 +582,7 @@ public class AdventureDatabase extends KoLDatabase
 		request.run();
 
 		// Now that the zone is armed, check to see
-		// if the adventure is even available.  If
+		// if the adventure is even available.	If
 		// it's not, cancel the request before it's
 		// even made to minimize server hits.
 
@@ -570,9 +616,9 @@ public class AdventureDatabase extends KoLDatabase
 	 * appropriate CLI command.
 	 */
 
-	private static final void retrieveItem( ItemCreationRequest item, boolean validate, int missingCount )
+	private static final void retrieveItem( ItemCreationRequest item, int missingCount )
 	{
-		int createCount = Math.min( missingCount, validate ? item.getCount( ConcoctionsDatabase.getConcoctions() ) : Integer.MAX_VALUE );
+		int createCount = Math.min( missingCount, item.getCount( ConcoctionsDatabase.getConcoctions() ) );
 
 		if ( createCount > 0 )
 		{
@@ -599,9 +645,6 @@ public class AdventureDatabase extends KoLDatabase
 
 			if ( KoLCharacter.hasEquipped( item ) )
 			{
-				if ( missingCount == 1 )
-					return;
-
 				while ( KoLCharacter.hasEquipped( item ) )
 					DEFAULT_SHELL.executeLine( "unequip " + item.getName() );
 
@@ -625,7 +668,7 @@ public class AdventureDatabase extends KoLDatabase
 			ItemCreationRequest creator = ItemCreationRequest.getInstance( client, item.getItemID(), item.getCount() );
 			if ( creator != null )
 			{
-				retrieveItem( creator, true, missingCount );
+				retrieveItem( creator, missingCount );
 				missingCount = item.getCount() - item.getCount( KoLCharacter.getInventory() );
 
 				if ( missingCount <= 0 )
@@ -640,7 +683,7 @@ public class AdventureDatabase extends KoLDatabase
 				int worthlessItemCount = HermitRequest.getWorthlessItemCount();
 				if ( worthlessItemCount > 0 )
 					(new HermitRequest( client, item.getItemID(), Math.min( worthlessItemCount, missingCount ) )).run();
-				
+
 				missingCount = item.getCount() - item.getCount( KoLCharacter.getInventory() );
 
 				if ( missingCount <= 0 )
@@ -660,7 +703,12 @@ public class AdventureDatabase extends KoLDatabase
 			// user wishes to autosatisfy through purchases,
 			// and the item is not creatable through combines.
 
-			boolean shouldAutoSatisfyEarly = false;
+			int price = TradeableItemDatabase.getPriceByID( item.getItemID() );
+
+			boolean shouldPurchase = price != 0 && price != -1;
+			boolean canUseNPCStore = NPCStoreDatabase.contains( item.getName() );
+			boolean shouldAutoSatisfyEarly = canUseNPCStore;
+			boolean shouldUseMall = getProperty( "autoSatisfyChecks" ).equals( "true" );
 
 			switch ( ConcoctionsDatabase.getMixingMethod( item.getItemID() ) )
 			{
@@ -669,41 +717,20 @@ public class AdventureDatabase extends KoLDatabase
 				case ItemCreationRequest.COOK_PASTA:
 				case ItemCreationRequest.MIX:
 				case ItemCreationRequest.MIX_SPECIAL:
+				case ItemCreationRequest.PIXEL:
 
 					shouldAutoSatisfyEarly = true;
 			}
 
-			if ( getProperty( "autoSatisfyChecks" ).equals( "true" ) && shouldAutoSatisfyEarly )
+			if ( shouldPurchase && shouldAutoSatisfyEarly && (canUseNPCStore || shouldUseMall) )
 			{
-				// People, in general, don't want to buy the
-				// expensive stages of a TPS drink.  Therefore,
-				// avoid the expensive stages in purchases.
+				// Ignore all items which have no autosell value,
+				// because these tend to get really ugly in the mall.
 
-				switch ( item.getItemID() )
+				if ( creator == null )
 				{
-					case 938:  // tiny plastic sword
-
-					case 945:  // skewered jumbo-olive
-					case 946:  // skewered lime
-					case 947:  // skewered cherry
-
-					case 948:  // dirty martini
-					case 949:  // grogtini
-					case 950:  // cherry bomb
-
-					case 1023: // vesper
-					case 1024: // bodyslam
-					case 1025: // sangria del diablo
-
-						break;
-
-					default:
-
-						if ( creator == null )
-						{
-							if ( NPCStoreDatabase.contains( item.getName() ) || KoLCharacter.canInteract() )
-								missingCount = retrieveItem( "buy", null, item, missingCount );
-						}
+					if ( canUseNPCStore || KoLCharacter.canInteract() )
+						missingCount = retrieveItem( "buy", null, item, missingCount );
 				}
 			}
 
@@ -712,12 +739,27 @@ public class AdventureDatabase extends KoLDatabase
 
 			// Finally, if it's creatable, rather than seeing
 			// what main ingredient is missing, show what
-			// sub-ingredients are missing.
+			// sub-ingredients are missing; but only do this
+			// if it's not a clover or a wad of dough, which
+			// causes infinite recursion.
 
 			if ( creator != null )
 			{
-				retrieveItem( creator, false, missingCount );
-				return;
+				switch ( item.getItemID() )
+				{
+					case 24:
+					case 196:
+					case 159:
+					case 301:
+
+						break;
+
+					default:
+
+						creator.setQuantityNeeded( missingCount );
+						creator.run();
+						return;
+				}
 			}
 
 			// Try to purchase the item from the mall, if the
@@ -725,9 +767,9 @@ public class AdventureDatabase extends KoLDatabase
 			// but only for combinable items (non-combinables
 			// would have been handled earlier).
 
-			if ( getProperty( "autoSatisfyChecks" ).equals( "true" ) && !shouldAutoSatisfyEarly )
+			if ( shouldPurchase && !shouldAutoSatisfyEarly )
 			{
-				if ( NPCStoreDatabase.contains( item.getName() ) || KoLCharacter.canInteract() )
+				if ( KoLCharacter.canInteract() && shouldUseMall )
 					missingCount = retrieveItem( "buy", null, item, missingCount );
 			}
 
@@ -738,12 +780,14 @@ public class AdventureDatabase extends KoLDatabase
 			// then notify the client that there aren't enough items
 			// available to continue and cancel the request.
 
-			DEFAULT_SHELL.updateDisplay( ABORT_STATE, "You need " + missingCount + " more " + item.getName() + " to continue." );
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You need " + missingCount + " more " + item.getName() + " to continue." );
 		}
 		catch ( Exception e )
 		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
 		}
 	}
 
@@ -778,5 +822,66 @@ public class AdventureDatabase extends KoLDatabase
 			if ( text.indexOf( FREE_ADVENTURES[i] ) != -1 )
 				return true;
 		return false;
+	}
+
+	public static final void refreshCombatsTable()
+	{
+		areaCombatData.clear();
+
+		BufferedReader reader = getReader( "combats.dat" );
+		String [] data;
+
+		String [] adventures = adventureTable[3].toArray();
+
+		while ( (data = readData( reader )) != null )
+		{
+			if ( data.length > 2 )
+			{
+				if ( !validateAdventureArea( data[0], adventures ) )
+				{
+					System.out.println( "Invalid adventure area: \"" + data[0] + "\"" );
+					continue;
+				}
+
+				int combats = Integer.parseInt( data[1] );
+				AreaCombatData combat = new AreaCombatData( combats );
+
+				for ( int i = 2; i < data.length; ++i )
+					combat.addMonster( data[i] );
+
+				areaCombatData.put( data[0], combat );
+			}
+		}
+
+		try
+		{
+			reader.close();
+		}
+		catch ( Exception e )
+		{
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e );
+		}
+	}
+
+	private static boolean validateAdventureArea( String area, String [] areas )
+	{
+		for ( int i = 0; i < areas.length; ++i )
+			if ( area.equals( areas[i] ) )
+			     return true;
+		return false;
+	}
+
+	public static AreaCombatData getAreaCombatData( String area )
+	{
+		// Strip out zone name if present
+		int index = area.indexOf( ":" );
+		if ( index != -1 )
+			area = area.substring( index + 2 );
+
+		// Get the combat data
+		return (AreaCombatData) areaCombatData.get( area );
 	}
 }

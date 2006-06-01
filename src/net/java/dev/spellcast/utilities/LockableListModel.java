@@ -40,6 +40,8 @@ import java.util.Vector;
 import java.util.ListIterator;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Comparator;
+import java.util.Collections;
 
 // update components
 import javax.swing.SwingUtilities;
@@ -146,6 +148,18 @@ public class LockableListModel extends javax.swing.AbstractListModel
 
 	protected void fireIntervalRemoved( Object source, int index0, int index1 )
 	{	(new FireListEventRunnable( ListDataEvent.INTERVAL_REMOVED, source, index0, index1 )).run();
+	}
+	
+	public void sort()
+	{
+		Collections.sort( elements );
+		fireContentsChanged( this, 0, size() - 1 );
+	}
+	
+	public void sort( Comparator c )
+	{
+		Collections.sort( elements, c );
+		fireContentsChanged( this, 0, size() - 1 );
 	}
 
 	/**
@@ -309,6 +323,87 @@ public class LockableListModel extends javax.swing.AbstractListModel
 	public boolean isEmpty()
 	{	return elements.isEmpty();
 	}
+	
+	/**
+	 * Internal class used to handle iterators.  This is done to
+	 * ensure that all applicable interface structures are notified
+	 * whenever changes are made to the list elements.
+	 */
+
+	private class ListModelIterator implements ListIterator
+	{
+		private int nextIndex, previousIndex;
+		private boolean isIncrementing;
+		
+		public ListModelIterator()
+		{	this( 0 );
+		}
+		
+		public ListModelIterator( int initialIndex )
+		{
+			nextIndex = 0;
+			previousIndex = -1;
+			isIncrementing = true;
+		}
+
+		public boolean hasPrevious()
+		{	return previousIndex > 0;
+		}
+		
+		public boolean hasNext()
+		{	return nextIndex < LockableListModel.this.size();
+		}
+
+		public Object next()
+		{
+			isIncrementing = true;
+			Object nextObject = LockableListModel.this.get( nextIndex );
+			++nextIndex;  ++previousIndex;			
+			return nextObject;
+		}
+		
+		public Object previous()
+		{
+			isIncrementing = false;
+			Object previousObject = LockableListModel.this.get( previousIndex );
+			--nextIndex;  --previousIndex;			
+			return previousObject;
+		}
+		
+		public int nextIndex()
+		{	return nextIndex;
+		}
+		
+		public int previousIndex()
+		{	return previousIndex;
+		}
+		
+		public void add( Object o )
+		{
+			LockableListModel.this.add( nextIndex, o );
+			++nextIndex;  ++previousIndex;
+		}
+		
+		public void remove()
+		{
+			if ( isIncrementing )
+			{
+				--nextIndex;  --previousIndex;
+				LockableListModel.this.remove( nextIndex );
+			}
+			else
+			{
+				++nextIndex;  ++previousIndex;
+				LockableListModel.this.remove( previousIndex );
+			}
+		}
+		
+		public void set( Object o )
+		{
+			LockableListModel.this.set( isIncrementing ?
+				nextIndex - 1 : previousIndex + 1, o );
+		}
+	}
 
 	/**
 	 * Please refer to {@link java.util.List#iterator()} for more
@@ -316,7 +411,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
 	 */
 
 	public Iterator iterator()
-	{	return elements.iterator();
+	{	return new ListModelIterator();
 	}
 
 	/**
@@ -343,7 +438,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
 	 */
 
 	public ListIterator listIterator()
-	{	return elements.listIterator();
+	{	return new ListModelIterator();
 	}
 
 	/**
@@ -352,7 +447,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
 	 */
 
 	public ListIterator listIterator( int index )
-	{	return elements.listIterator( index );
+	{	return new ListModelIterator( index );
 	}
 
 
@@ -515,7 +610,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
      */
 
 	public void setSelectedItem( Object o )
-	{	setSelectedIndex( indexOf( o ) );
+	{	setSelectedIndex( o == null ? -1 : indexOf( o ) );
 	}
 
 	/**
@@ -778,7 +873,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
 				return;
 
 			for ( int i = index0; i <= index1; ++i )
-				mirrorImage.add( i, source.get(i) );
+				mirrorImage.add( source.get(i) );
 		}
 
 		/**
@@ -809,8 +904,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
 			if ( mirrorImage == null || source == null || index0 < 0 || index1 < 0 || index1 >= mirrorImage.size() )
 				return;
 
-			for ( int i = index1; i >= index0; --i )
-				mirrorImage.remove( i );
+			mirrorImage.retainAll( source );
 		}
 
 		/**
@@ -842,7 +936,7 @@ public class LockableListModel extends javax.swing.AbstractListModel
 				return;
 
 			for ( int i = index1; i >= index0; --i )
-				mirrorImage.set( i, source.get(i) );
+				mirrorImage.set( mirrorImage.indexOf( source.get(i) ), source.get(i) );
 		}
 	}
 }

@@ -59,6 +59,7 @@ import javax.swing.JTabbedPane;
 
 // utilities
 import java.util.Map;
+import java.util.Collections;
 import java.util.Comparator;
 import net.java.dev.spellcast.utilities.LockableListModel;
 import net.java.dev.spellcast.utilities.JComponentUtilities;
@@ -69,7 +70,6 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class ExamineItemsFrame extends KoLFrame
 {
-	private JTabbedPane tabs;
 	private ExamineItemsPanel items;
 	private ItemLookupPanel familiars, skills, effects;
 
@@ -80,8 +80,7 @@ public class ExamineItemsFrame extends KoLFrame
 
 	public ExamineItemsFrame()
 	{
-		super( "Kingdom of Loathing Encyclopedia" );
-
+		super( "Encyclopedia" );
 		tabs = new JTabbedPane();
 
 		items = new ExamineItemsPanel( allItems );
@@ -100,18 +99,6 @@ public class ExamineItemsFrame extends KoLFrame
 		framePanel.add( tabs, "" );
 	}
 
-	public void dispose()
-	{
-		tabs = null;
-		items = null;
-
-		familiars = null;
-		skills = null;
-		effects = null;
-
-		super.dispose();
-	}
-
 	private class ItemLookupPanel extends ItemManagePanel
 	{
 		private LockableListModel list;
@@ -128,27 +115,21 @@ public class ExamineItemsFrame extends KoLFrame
 
 			elementList.setSelectionMode( ListSelectionModel.SINGLE_SELECTION );
 			elementList.addMouseListener( new ShowEntryAdapter() );
+			elementList.setCellRenderer( new EntryCellRenderer() );
+
 			actionConfirmed();
 		}
 
 		protected void actionConfirmed()
 		{
 			// Sort elements by name
-			elementList.clearSelection();
-			java.util.Collections.sort( list, new EntryNameComparator() );
-			elementList.setCellRenderer( new EntryCellRenderer() );
+			list.sort( new EntryNameComparator() );
 		}
 
 		public void actionCancelled()
 		{
 			// Sort elements by ID number
-			elementList.clearSelection();
-			java.util.Collections.sort( list, new EntryIDComparator() );
-			elementList.setCellRenderer( new EntryCellRenderer() );
-		}
-
-		public String IDNumberMapper( int id )
-		{	return String.valueOf( id );
+			list.sort( new EntryIDComparator() );
 		}
 
 		private class ShowEntryAdapter extends MouseAdapter
@@ -163,11 +144,15 @@ public class ExamineItemsFrame extends KoLFrame
 					if ( !(entry instanceof Map.Entry ) )
 						return;
 
-					String id = IDNumberMapper( ((Integer)((Map.Entry)entry).getKey()).intValue() );
 					elementList.ensureIndexIsVisible( index );
+					String id = IDNumberMapper( ((Integer)((Map.Entry)entry).getKey()).intValue() );
 					StaticEntity.openRequestFrame( "desc_" + type + ".php?" + which + "=" + id );
 				}
 			}
+		}
+
+		public String IDNumberMapper( int id )
+		{	return String.valueOf( id );
 		}
 	}
 

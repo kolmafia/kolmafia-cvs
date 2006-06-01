@@ -95,6 +95,18 @@ public class UntinkerRequest extends KoLRequest
 		KoLRequest questCompleter = new UntinkerRequest( client );
 		questCompleter.run();
 
+		// "I can take apart anything that's put together with meat
+		// paste, but you don't have anything like that..."
+
+		if ( questCompleter.responseText.indexOf( "you don't have anything like that" ) != -1 )
+		{
+			// They've completed the quest but have nothing the
+			// Untinker is willing to work on.
+
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have that item in your inventory." );
+			return;
+		}
+
 		// If they do not have a screwdriver, tell them they
 		// need to complete the untinker quest.
 
@@ -122,9 +134,13 @@ public class UntinkerRequest extends KoLRequest
 				client.getConditions().clear();
 				client.getConditions().add( SCREWDRIVER.getNegation() );
 
-				KoLAdventure adventure = AdventureDatabase.getAdventure( "degrassi" );
-				client.makeRequest( adventure, KoLCharacter.getAdventuresLeft() );
+				// Make sure that paco has been visited, or else
+				// the knoll won't be available.
 
+				KoLRequest request = new KoLRequest( client, "guild.php?place=paco", true );
+				request.run();
+
+				DEFAULT_SHELL.executeLine( "adventure * degrassi" );
 				if ( !client.getConditions().isEmpty() )
 				{
 					DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unable to complete untinkerer's quest." );
@@ -153,7 +169,7 @@ public class UntinkerRequest extends KoLRequest
 		DEFAULT_SHELL.updateDisplay( "Untinkering " + TradeableItemDatabase.getItemName( itemID ) + "..." );
 
 		super.run();
-		DEFAULT_SHELL.updateDisplay( "Successfully untinkered " + TradeableItemDatabase.getItemName( itemID ) );
+		DEFAULT_SHELL.updateDisplay( "Successfully untinkered " + TradeableItemDatabase.getItemName( itemID ) + "." );
 	}
 
 	protected void processResults()

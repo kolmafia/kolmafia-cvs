@@ -41,6 +41,7 @@ import java.awt.Dimension;
 // file-related I/O
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.net.URL;
 
 // components
 import javax.swing.JLabel;
@@ -129,20 +130,8 @@ public class JComponentUtilities implements UtilityConstants
 	 * @param	filename	the filename of the image
 	 */
 
-	public static ImageIcon getSharedImage( String filename )
-	{
-		String shareDirectory = System.getProperty( "SHARED_MODULE_DIRECTORY" );
-
-		try
-		{	return getImage( shareDirectory == null ? "" : shareDirectory, IMAGE_DIRECTORY, filename );
-		}
-		catch ( FileNotFoundException e )
-		{
-System.out.println( e );
-e.printStackTrace();
-			System.err.println( "Shared image <" + filename + "> could not be found" );
-			return null;
-		}
+	public static ImageIcon getImage( String filename )
+	{	return getImage( IMAGE_DIRECTORY, filename );
 	}
 
 	/**
@@ -151,50 +140,45 @@ e.printStackTrace();
 	 * which the Java command line is called.  The priority is as listed, in
 	 * reverse order.
 	 *
-	 * @param	directory	the main subtree in which the image can be found, relative to the
-	 *						system class loader
-	 * @param	subdirectory	the subtree in which the image can be found
+	 * @param	directory	the subtree in which the image can be found
 	 * @param	filename	the filename of the image
 	 */
 
-	public static ImageIcon getImage( String directory, String subdirectory, String filename )
-		throws FileNotFoundException
+	public static ImageIcon getImage( String directory, String filename )
 	{
-		if ( directory.length() > 0 && (!directory.endsWith( File.separator ) && !directory.endsWith( "/" )) )
+		if ( directory.length() > 0 && !directory.endsWith( File.separator ) && !directory.endsWith( "/" ) )
 			directory += File.separator;
 
-		if ( subdirectory.length() > 0 && (!subdirectory.endsWith( File.separator ) && !subdirectory.endsWith( "/" )) )
-			subdirectory += File.separator;
-
-		File override = new File( subdirectory + filename );
-		if ( override.exists() )
-			return new ImageIcon( subdirectory + filename );
-
-		java.net.URL filenameAsURL;
-		String fullname = directory + subdirectory + filename;
+		ImageIcon result =  null;
+		String fullname = directory + filename;
 		String jarname = fullname.replaceAll( File.separator.replaceAll( "\\\\", "\\\\\\\\" ), "/" );
 
-		// attempt to retrieve the file from the system class tree (non-JAR)
-		filenameAsURL = SYSTEM_CLASSLOADER.getResource( fullname );
-		if ( filenameAsURL != null )
-			return new ImageIcon( filenameAsURL );
+		File override = new File( fullname );
+		if ( override.exists() )
+			return new ImageIcon( fullname );
 
-		// attempt to retrieve the file from the system class tree (JAR)
-		filenameAsURL = SYSTEM_CLASSLOADER.getResource( jarname );
-		if ( filenameAsURL != null )
-			return new ImageIcon( filenameAsURL );
+		result = getImage( SYSTEM_CLASSLOADER, fullname, jarname );
+		if ( result != null )
+			return result;
 
-		// attempt to retrieve the file from the Spellcast class tree (non-JAR)
-		filenameAsURL = MAINCLASS_CLASSLOADER.getResource( fullname );
-		if ( filenameAsURL != null )
-			return new ImageIcon( filenameAsURL );
-
-		// attempt to retrieve the file from the Spellcast class tree (JAR)
-		filenameAsURL = MAINCLASS_CLASSLOADER.getResource( jarname );
-		if ( filenameAsURL != null )
-			return new ImageIcon( filenameAsURL );
+		result = getImage( MAINCLASS_CLASSLOADER, fullname, jarname );
+		if ( result != null )
+			return result;
 
 		// if it's gotten this far, the image icon does not exist
-		throw new FileNotFoundException( fullname );
+		return null;
+	}
+	
+	private static ImageIcon getImage( ClassLoader loader, String filename, String jarname )
+	{
+		URL filenameAsURL = loader.getResource( filename );
+		if ( filenameAsURL != null )
+			return new ImageIcon( filenameAsURL );
+		
+		filenameAsURL = loader.getResource( jarname );
+		if ( filenameAsURL != null )
+			return new ImageIcon( filenameAsURL );
+	
+		return null;
 	}
 }

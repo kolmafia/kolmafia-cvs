@@ -41,7 +41,7 @@ import java.text.SimpleDateFormat;
 
 public class KoLMailMessage implements Comparable
 {
-	private static SimpleDateFormat sdf = new SimpleDateFormat( "EEEE, MMMM d, hh:mmaa", Locale.US );
+	private static SimpleDateFormat sdf = new SimpleDateFormat( "EEEE, MMMM dd, yyyy, hh:mmaa", Locale.US );
 
 	private String messageHTML;
 	private String messageID;
@@ -78,11 +78,13 @@ public class KoLMailMessage implements Comparable
 		}
 		catch ( Exception e )
 		{
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+			
+			StaticEntity.printStackTrace( e, "Could not parse date \"" + messageDate + "\"" );
+
 			// Initialize the date to the current time,
 			// since that's about as close as it gets
-
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
 
 			this.timestamp = new Date();
 			this.messageDate = sdf.format( timestamp );

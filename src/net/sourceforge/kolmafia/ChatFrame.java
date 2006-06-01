@@ -36,7 +36,6 @@ package net.sourceforge.kolmafia;
 
 // layout
 import java.awt.Dimension;
-import java.awt.CardLayout;
 import java.awt.BorderLayout;
 import javax.swing.BoxLayout;
 
@@ -85,7 +84,6 @@ public class ChatFrame extends KoLFrame
 
 	/**
 	 * Constructs a new <code>ChatFrame</code>.
-	 * @param	StaticEntity.getClient()	The StaticEntity.getClient() associated with the chat session
 	 */
 
 	public ChatFrame()
@@ -105,23 +103,19 @@ public class ChatFrame extends KoLFrame
 		// Add the standard chat options which the user
 		// simply clicks on for functionality.
 
-		toolbarPanel.add( new MessengerButton( "Clear All", "clear.gif", "clearChatBuffers" ) );
-
-		toolbarPanel.add( new JToolBar.Separator() );
-
-		toolbarPanel.add( new MessengerButton( "Add Highlighting", "highlight1.gif", "addHighlighting" ) );
-		toolbarPanel.add( new MessengerButton( "Remove Highlighting", "highlight2.gif", "removeHighlighting" ) );
-
-		toolbarPanel.add( new JToolBar.Separator() );
-
-		toolbarPanel.add( new MessengerButton( "/friends", "who1.gif", "checkFriends" ) );
-		toolbarPanel.add( new MessengerButton( "/who", "who2.gif", "checkChannel" ) );
-
-		toolbarPanel.add( new JToolBar.Separator() );
-
-		toolbarPanel.add( new DisplayFrameButton( "Preferences", "preferences.gif", OptionsFrame.class ) );
-
-		toolbarPanel.add( new JToolBar.Separator() );
+		JToolBar toolbarPanel = getToolbar();
+		if ( toolbarPanel != null )
+		{
+			toolbarPanel.add( new MessengerButton( "Clear All", "clear.gif", "clearChatBuffers" ) );
+			toolbarPanel.add( new JToolBar.Separator() );
+			toolbarPanel.add( new MessengerButton( "Add Highlighting", "highlight1.gif", "addHighlighting" ) );
+			toolbarPanel.add( new MessengerButton( "Remove Highlighting", "highlight2.gif", "removeHighlighting" ) );
+			toolbarPanel.add( new JToolBar.Separator() );
+			toolbarPanel.add( new MessengerButton( "/who", "who2.gif", "checkChannel" ) );
+			toolbarPanel.add( new JToolBar.Separator() );
+			toolbarPanel.add( new DisplayFrameButton( "Preferences", "preferences.gif", OptionsFrame.class ) );
+			toolbarPanel.add( new JToolBar.Separator() );
+		}
 
 		// Add the name click options as a giant combo
 		// box, rather than a hidden menu.
@@ -138,7 +132,9 @@ public class ChatFrame extends KoLFrame
 		nameClickSelect.addItem( "Name click performs /whois" );
 		nameClickSelect.addItem( "Name click baleets the player" );
 
-		toolbarPanel.add( nameClickSelect );
+		if ( toolbarPanel != null )
+			toolbarPanel.add( nameClickSelect );
+
 		nameClickSelect.setSelectedIndex(0);
 
 		// Set the default size so that it doesn't appear super-small
@@ -157,15 +153,19 @@ public class ChatFrame extends KoLFrame
 
 	public void dispose()
 	{
-		if ( getAssociatedContact() == null )
-			KoLMessenger.dispose();
-		else
-			KoLMessenger.removeChat( getAssociatedContact() );
-
-		mainPanel = null;
-		nameClickSelect = null;
-
 		super.dispose();
+		(new ChatRemoverThread()).start();
+	}
+
+	private class ChatRemoverThread extends Thread
+	{
+		public void run()
+		{
+			if ( getAssociatedContact() == null )
+				KoLMessenger.dispose();
+			else
+				KoLMessenger.removeChat( getAssociatedContact() );
+		}
 	}
 
 	/**
@@ -201,12 +201,14 @@ public class ChatFrame extends KoLFrame
 			chatDisplay.addHyperlinkListener( new ChatLinkClickedListener() );
 			this.associatedContact = associatedContact;
 
+			ChatEntryListener listener = new ChatEntryListener();
+
 			JPanel entryPanel = new JPanel( new BorderLayout() );
 			entryField = new JTextField();
-			entryField.addKeyListener( new ChatEntryListener() );
+			entryField.addKeyListener( listener );
 
 			JButton entryButton = new JButton( "chat" );
-			entryButton.addActionListener( new ChatEntryListener() );
+			entryButton.addActionListener( listener );
 			entryPanel.add( entryField, BorderLayout.CENTER );
 			entryPanel.add( entryButton, BorderLayout.EAST );
 
@@ -257,6 +259,12 @@ public class ChatFrame extends KoLFrame
 			private void submitChat()
 			{
 				String currentMessage = entryField.getText();
+				if ( currentMessage.startsWith( "/clear" ) || currentMessage.startsWith( "/cls" ) || currentMessage.equals( "clear" ) || currentMessage.equals( "cls" ) )
+				{
+					KoLMessenger.clearChatBuffers();
+					return;
+				}
+
 				KoLMessenger.setUpdateChannel( associatedContact );
 				ChatRequest [] requests;
 
@@ -360,16 +368,20 @@ public class ChatFrame extends KoLFrame
 		{
 			if ( location.startsWith( "makeoffer.php" ) )
 			{
-				SwingUtilities.invokeLater( new CreateFrameRunnable( PendingTradesFrame.class ) );
+				(new RequestThread( new CreateFrameRunnable( PendingTradesFrame.class ) )).start();
 				return;
 			}
+
+			// <name> took your bet
+			if ( location.startsWith( "bet.php" ) )
+				return;
 
 			String [] locationSplit = location.split( "[=_]" );
 
 			// First, determine the parameters inside of the
 			// location which will be passed to frame classes.
 
-			Object [] parameters = new Object[] { StaticEntity.getClient(), StaticEntity.getClient().getPlayerName( locationSplit[1] ) };
+			Object [] parameters = new Object[] { StaticEntity.getClient().getPlayerName( locationSplit[1] ) };
 
 			// Next, determine the option which had been
 			// selected in the link-click.
@@ -384,7 +396,7 @@ public class ChatFrame extends KoLFrame
 			switch ( linkOption )
 			{
 				case 1:
-					KoLMessenger.openInstantMessage( (String) parameters[1] );
+					KoLMessenger.openInstantMessage( (String) parameters[0] );
 					return;
 
 				case 2:
@@ -401,38 +413,38 @@ public class ChatFrame extends KoLFrame
 
 				case 5:
 
-					AdventureFrame mall = null;
+					MallSearchFrame mall = null;
 					KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
 					existingFrames.toArray( frames );
 
 					for ( int i = 0; i < frames.length; ++i )
-						if ( frames[i] instanceof AdventureFrame )
-							mall = (AdventureFrame) frames[i];
+						if ( frames[i] instanceof MallSearchFrame )
+							mall = (MallSearchFrame) frames[i];
 
 					if ( mall == null )
 					{
-						CreateFrameRunnable creator = new CreateFrameRunnable( AdventureFrame.class );
+						CreateFrameRunnable creator = new CreateFrameRunnable( MallSearchFrame.class );
 						creator.run();
-						mall = (AdventureFrame) creator.getCreation();
+						mall = (MallSearchFrame) creator.getCreation();
 					}
 
-					mall.searchMall( new SearchMallRequest( StaticEntity.getClient(), Integer.parseInt( KoLmafia.getPlayerID( (String) parameters[1] ) ) ) );
+					mall.searchMall( new SearchMallRequest( StaticEntity.getClient(), Integer.parseInt( KoLmafia.getPlayerID( (String) parameters[0] ) ) ) );
 					return;
 
 				case 6:
-					StaticEntity.openRequestFrame( "displaycollection.php?who=" + KoLmafia.getPlayerID( (String) parameters[1] ) );
+					StaticEntity.openRequestFrame( "displaycollection.php?who=" + KoLmafia.getPlayerID( (String) parameters[0] ) );
 					return;
 
 				case 7:
-					StaticEntity.openRequestFrame( "ascensionhistory.php?who=" + KoLmafia.getPlayerID( (String) parameters[1] ) );
+					StaticEntity.openRequestFrame( "ascensionhistory.php?who=" + KoLmafia.getPlayerID( (String) parameters[0] ) );
 					return;
 
 				case 8:
-					(new RequestThread( new ChatRequest( StaticEntity.getClient(), "/whois", (String) parameters[1] ) )).start();
+					(new RequestThread( new ChatRequest( StaticEntity.getClient(), "/whois", (String) parameters[0] ) )).start();
 					return;
 
 				case 9:
-					(new RequestThread( new ChatRequest( StaticEntity.getClient(), "/baleet", (String) parameters[1] ) )).start();
+					(new RequestThread( new ChatRequest( StaticEntity.getClient(), "/baleet", (String) parameters[0] ) )).start();
 					return;
 
 				default:
@@ -443,7 +455,7 @@ public class ChatFrame extends KoLFrame
 			// Now, determine what needs to be done based
 			// on the link option.
 
-			SwingUtilities.invokeLater( new CreateFrameRunnable( frameClass, parameters ) );
+			(new RequestThread( new CreateFrameRunnable( frameClass, parameters ) )).start();
 		}
 	}
 

@@ -45,12 +45,16 @@ import net.java.dev.spellcast.utilities.ChatBuffer;
 
 public class LimitedSizeChatBuffer extends ChatBuffer implements KoLConstants
 {
+	private static final int RESIZE_SIZE = 36000;
+	private static final int MAXIMUM_SIZE = 40000;
+
 	protected static List colors;
 	protected static List highlights;
 	protected static List dehighlights;
 	protected static LimitedSizeChatBuffer highlightBuffer;
 
 	private int previousFontSize;
+	private boolean ignoresBufferLimit;
 	private boolean affectsHighlightBuffer;
 
 	private static int fontSize = 3;
@@ -62,10 +66,18 @@ public class LimitedSizeChatBuffer extends ChatBuffer implements KoLConstants
 		setFontSize( fontSize );
 	}
 
+	public LimitedSizeChatBuffer( String title )
+	{
+		this( title, false );
+		this.ignoresBufferLimit = true;
+	}
+
 	public LimitedSizeChatBuffer( String title, boolean affectsHighlightBuffer )
 	{
 		super( title );
 		previousFontSize = fontSize;
+
+		this.ignoresBufferLimit = false;
 		this.affectsHighlightBuffer = affectsHighlightBuffer;
 	}
 
@@ -140,6 +152,13 @@ public class LimitedSizeChatBuffer extends ChatBuffer implements KoLConstants
 
 	public void append( String message )
 	{
+		if ( !ignoresBufferLimit && displayBuffer.length() > MAXIMUM_SIZE )
+		{
+			int lineIndex = displayBuffer.indexOf( "<br>", displayBuffer.length() - RESIZE_SIZE );
+			displayBuffer.delete( 0, lineIndex == -1 ? displayBuffer.length() : lineIndex );
+			fireBufferChanged( DISPLAY_CHANGE, null );
+		}
+
 		// Download all the images outside of the Swing thread
 		// by downloading them here.
 
@@ -148,15 +167,8 @@ public class LimitedSizeChatBuffer extends ChatBuffer implements KoLConstants
 		while ( imageMatcher.find() )
 			RequestEditorKit.downloadImage( imageMatcher.group() );
 
-		boolean requiresUpdate = false;
-
-		if ( previousFontSize != fontSize )
-		{
-			if ( fontSize < 0 )
-				fontSize = 0 - fontSize;
-
-			requiresUpdate = true;
-		}
+		if ( previousFontSize != fontSize && fontSize < 0 )
+			fontSize = 0 - fontSize;
 
 		String highlightMessage = message;
 
@@ -179,7 +191,6 @@ public class LimitedSizeChatBuffer extends ChatBuffer implements KoLConstants
 		}
 
 		super.append( highlightMessage.replaceAll( "(<br>)+", "<br>" + LINE_BREAK ) );
-
 		if ( affectsHighlightBuffer && message.compareToIgnoreCase( highlightMessage ) != 0 )
 			highlightBuffer.append( highlightMessage.replaceAll( "(<br>)+", "<br>" + LINE_BREAK ) );
 

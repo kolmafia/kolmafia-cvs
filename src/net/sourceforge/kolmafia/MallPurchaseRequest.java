@@ -63,6 +63,8 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 
 	private boolean canPurchase;
 	public static final int MAX_QUANTITY = 10000000;
+	
+	private boolean attireChanged = false;
 
 	/**
 	 * Constructs a new <code>MallPurchaseRequest</code> which retrieves
@@ -231,7 +233,7 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 	{
 		StringBuffer buffer = new StringBuffer();
 
-		if ( client instanceof KoLmafiaGUI )
+		if ( !existingFrames.isEmpty() )
 		{
 			buffer.append( "<html><nobr>" );
 			if ( !canPurchase )
@@ -259,7 +261,7 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		buffer.append( "): " );
 		buffer.append( shopName );
 
-		if ( client instanceof KoLmafiaGUI )
+		if ( !existingFrames.isEmpty() )
 		{
 			if ( !canPurchase )
 				buffer.append( "</font>" );
@@ -305,8 +307,11 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		// Now that everything's ensured, go ahead and execute the
 		// actual purchase request.
 
-		DEFAULT_SHELL.updateDisplay( "Purchasing " + TradeableItemDatabase.getItemName( itemID ) + " (" + df.format( limit ) + " @ " + df.format( price ) + ")" );
+		DEFAULT_SHELL.updateDisplay( "Purchasing " + TradeableItemDatabase.getItemName( itemID ) + " (" + df.format( limit ) + " @ " + df.format( price ) + ")..." );
 		super.run();
+		
+		if ( attireChanged )
+			SpecialOutfit.restoreCheckpoint();
 	}
 
 	public int compareTo( Object o )
@@ -342,12 +347,25 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		// currently wearing the outfit.
 
 		if ( !EquipmentDatabase.isWearingOutfit( neededOutfit ) )
+		{
+			SpecialOutfit.createCheckpoint();
 			(new EquipmentRequest( client, EquipmentDatabase.getOutfit( neededOutfit ) )).run();
+			attireChanged = true;
+		}
 	}
 
 	protected void processResults()
 	{
-		String result = responseText.substring( responseText.indexOf( "<center>" ), responseText.indexOf( "</table>" ) );
+		int startIndex = responseText.indexOf( "<center>" );
+		int stopIndex = responseText.indexOf( "</table>" );
+
+		if ( startIndex == -1 || stopIndex == -1 )
+		{
+			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unexpected result.  Are you sure this store is available?" );
+			return;
+		}
+
+		String result = responseText.substring( startIndex, stopIndex );
 
 		// One error is that the item price changed, or the item
 		// is no longer available because someone was faster at
@@ -405,8 +423,10 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 			}
 			catch ( Exception e )
 			{
-				e.printStackTrace( KoLmafia.getLogStream() );
-				e.printStackTrace();
+				// This should not happen.  Therefore, print
+				// a stack trace for debug purposes.
+
+				StaticEntity.printStackTrace( e );
 			}
 
 			return;
@@ -437,12 +457,10 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		}
 		catch ( Exception e )
 		{
-			// If an exception occurs, you may wish to report
-			// it to the log stream and then return from the
-			// run call, for future reference.
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
 
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
+			StaticEntity.printStackTrace( e );
 			return;
 		}
 

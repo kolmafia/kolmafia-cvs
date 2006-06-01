@@ -55,7 +55,6 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class HagnkStorageFrame extends KoLFrame
 {
-	private JTabbedPane tabs;
 	private HagnkStoragePanel all, equip;
 	private static String pullsRemaining = "";
 
@@ -98,6 +97,7 @@ public class HagnkStorageFrame extends KoLFrame
 		public HagnkStoragePanel( boolean isEquipment )
 		{
 			super( "Inside Storage", KoLCharacter.getStorage(), !isEquipment );
+
 			setButtons( new String [] { "put in bag", "put in closet", "take it all" },
 				new ActionListener [] { new PullFromStorageListener( false ), new PullFromStorageListener( true ), new EmptyStorageListener() } );
 
@@ -129,15 +129,15 @@ public class HagnkStorageFrame extends KoLFrame
 			else
 			{
 				consumeFilters = new FilterCheckBox[3];
-				consumeFilters[0] = new FilterCheckBox( consumeFilters, elementList, "Show food", KoLCharacter.canEat() );
-				consumeFilters[1] = new FilterCheckBox( consumeFilters, elementList, "Show drink", KoLCharacter.canDrink() );
+				consumeFilters[0] = new FilterCheckBox( consumeFilters, elementList, "Show food", true );
+				consumeFilters[1] = new FilterCheckBox( consumeFilters, elementList, "Show drink", true );
 				consumeFilters[2] = new FilterCheckBox( consumeFilters, elementList, "Show others", true );
 
 				for ( int i = 0; i < consumeFilters.length; ++i )
 					optionPanel.add( consumeFilters[i] );
 
 				elementList.setCellRenderer(
-					AdventureResult.getConsumableCellRenderer( KoLCharacter.canEat(), KoLCharacter.canDrink(), true ) );
+					AdventureResult.getConsumableCellRenderer( true, true, true ) );
 			}
 		}
 
@@ -146,36 +146,10 @@ public class HagnkStorageFrame extends KoLFrame
 			// Ensure that the selection interval does not include
 			// anything that was filtered out by the checkboxes.
 
-			if ( isEquipment )
+			if ( !isEquipment )
 			{
-				Object [] elements = elementList.getSelectedValues();
-				for ( int i = 0; i < elements.length; ++i )
-				{
-					int actualIndex = ((LockableListModel)elementList.getModel()).indexOf( elements[i] );
-					switch ( TradeableItemDatabase.getConsumptionType( ((AdventureResult)elements[i]).getName() ) )
-					{
-						case ConsumeItemRequest.CONSUME_EAT:
-
-							if ( !consumeFilters[0].isSelected() )
-								elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-							break;
-
-						case ConsumeItemRequest.CONSUME_DRINK:
-
-							if ( !consumeFilters[1].isSelected() )
-								elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-							break;
-
-						default:
-
-							if ( !consumeFilters[2].isSelected() )
-								elementList.removeSelectionInterval( actualIndex, actualIndex );
-
-							break;
-					}
-				}
+				filterSelection( consumeFilters[0].isSelected(), consumeFilters[1].isSelected(),
+					consumeFilters[2].isSelected(), true, true );
 			}
 
 			return super.getDesiredItems( message );
@@ -213,6 +187,8 @@ public class HagnkStorageFrame extends KoLFrame
 			public void actionPerformed( ActionEvent e )
 			{
 				Object [] items = getDesiredItems( "Pulling" );
+				if ( items == null )
+					return;
 
 				Runnable [] requests = isCloset ? new Runnable[2] : new Runnable[1];
 				requests[0] = new ItemStorageRequest( StaticEntity.getClient(), ItemStorageRequest.STORAGE_TO_INVENTORY, items );

@@ -36,6 +36,10 @@ package net.sourceforge.kolmafia;
 
 import java.util.List;
 import java.util.ArrayList;
+
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+
 import net.java.dev.spellcast.utilities.SortedListModel;
 import net.java.dev.spellcast.utilities.LockableListModel;
 
@@ -182,6 +186,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static final int ACCESSORY2 = 6;
 	public static final int ACCESSORY3 = 7;
 	public static final int FAMILIAR = 8;
+	public static final int FAKEHAND = 9;
 
 	// Ascension sign constants
 
@@ -205,6 +210,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static int [] totalSubpoints = new int[3];
 
 	private static LockableListModel equipment = new LockableListModel();
+	private static int fakeHands = 0;
 	private static LockableListModel customOutfits = new LockableListModel();
 	private static LockableListModel outfits = new LockableListModel();
 
@@ -213,6 +219,8 @@ public abstract class KoLCharacter extends StaticEntity
 		for ( int i = 0; i < 8; ++i )
 			equipment.add( EquipmentRequest.UNEQUIP );
 	}
+
+	private static LockableListModel events = new LockableListModel();
 
 	private static SortedListModel inventory = new SortedListModel( AdventureResult.class );
 	private static SortedListModel closet = new SortedListModel( AdventureResult.class );
@@ -229,7 +237,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static LockableListModel battleSkillIDs = new LockableListModel();
 	private static LockableListModel battleSkillNames = new LockableListModel();
 
-	private static LockableListModel [] equipmentLists = new LockableListModel[9];
+	private static SortedListModel [] equipmentLists = new SortedListModel[9];
 	static
 	{
 		for ( int i = 0; i < 9; ++i )
@@ -245,6 +253,19 @@ public abstract class KoLCharacter extends StaticEntity
 	private static int inebriety = 0;
 	private static int adventuresLeft = 0;
 	private static int totalTurnsUsed = 0;
+
+	// Status pane data which is rendered whenever
+	// the user changes equipment, effects, and familiar
+
+	private static int monsterLevelAdjustment = 0;
+	private static int familiarWeightAdjustment = 0;
+	private static int dodecapedeWeightAdjustment = 0;
+	private static int familiarItemWeightAdjustment = 0;
+	private static double combatPercentAdjustment = 0.0;
+	private static double initiativeAdjustment = 0.0;
+	private static double fixedXPAdjustment = 0.0;
+	private static double meatDropPercentAdjustment = 0.0;
+	private static double itemDropPercentAdjustment = 0.0;
 
 	// Travel information
 
@@ -263,6 +284,9 @@ public abstract class KoLCharacter extends StaticEntity
 
 	private static SortedListModel familiars = new SortedListModel( FamiliarData.class );
 	private static FamiliarData currentFamiliar = FamiliarData.NO_FAMILIAR;
+
+	private static int arenaWins = 0;
+	private static int stillsAvailable = 0;
 
 	// Listener-driven container items
 
@@ -292,9 +316,6 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static final void reset( String username )
 	{
-		if ( client == null )
-			return;
-
 		KoLCharacter.username = username;
 
 		classname = "";
@@ -304,12 +325,25 @@ public abstract class KoLCharacter extends StaticEntity
 		adjustedStats = new int[3];
 		totalSubpoints = new int[3];
 
+		monsterLevelAdjustment = 0;
+		familiarWeightAdjustment = 0;
+		dodecapedeWeightAdjustment = 0;
+		familiarItemWeightAdjustment = 0;
+		combatPercentAdjustment = 0.0;
+		initiativeAdjustment = 0.0;
+		fixedXPAdjustment = 0.0;
+		meatDropPercentAdjustment = 0.0;
+		itemDropPercentAdjustment = 0.0;
+
 		equipment.clear();
 		for ( int i = 0; i < 8; ++i )
 			equipment.add( EquipmentRequest.UNEQUIP );
+		fakeHands = 0;
 
 		customOutfits.clear();
 		outfits.clear();
+
+		events.clear();
 
 		inventory.clear();
 		closet.clear();
@@ -333,6 +367,9 @@ public abstract class KoLCharacter extends StaticEntity
 
 		familiars.clear();
 		familiars.add( FamiliarData.NO_FAMILIAR );
+		arenaWins = 0;
+		stillsAvailable = -1;
+
 		beanstalkArmed = false;
 
 		ascensions = 0;
@@ -849,7 +886,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static void setAdventuresLeft( int adventuresLeft )
 	{
 		KoLCharacter.adventuresLeft = adventuresLeft;
-		KoLCharacter.updateStatus();
+		updateStatus();
 	}
 
 	/**
@@ -888,6 +925,91 @@ public abstract class KoLCharacter extends StaticEntity
 	}
 
 	/**
+	 * Accessor method to retrieve the total current monster level
+	 * adjustment
+	 *
+	 * @return	Total Current Monster Level Adjustment
+	 */
+
+	public static int getMonsterLevelAdjustment()
+	{	return monsterLevelAdjustment;
+	}
+
+	/**
+	 * Accessor method to retrieve the total current familiar weight
+	 * adjustment
+	 *
+	 * @return	Total Current Familiar Weight Adjustment
+	 */
+
+	public static int getFamiliarWeightAdjustment()
+	{	return familiarWeightAdjustment;
+	}
+
+	public static int getDodecapedeWeightAdjustment()
+	{	return dodecapedeWeightAdjustment;
+	}
+
+	public static int getFamiliarItemWeightAdjustment()
+	{	return familiarItemWeightAdjustment;
+	}
+
+	/**
+	 * Accessor method to retrieve the total current combat percent
+	 * adjustment
+	 *
+	 * @return	Total Current Combat Percent Adjustment
+	 */
+
+	public static double getCombatPercentAdjustment()
+	{	return combatPercentAdjustment;
+	}
+
+	/**
+	 * Accessor method to retrieve the total current initiative
+	 * adjustment
+	 *
+	 * @return	Total Current Initiative Adjustment
+	 */
+
+	public static double getInitiativeAdjustment()
+	{	return initiativeAdjustment;
+	}
+
+	/**
+	 * Accessor method to retrieve the total current fixed XP
+	 * adjustment
+	 *
+	 * @return	Total Current Fixed XP Adjustment
+	 */
+
+	public static double getFixedXPAdjustment()
+	{	return fixedXPAdjustment;
+	}
+
+	/**
+	 * Accessor method to retrieve the total current meat drop percent
+	 * adjustment
+	 *
+	 * @return	Total Current Meat Drop Percent Adjustment
+	 */
+
+	public static double getMeatDropPercentAdjustment()
+	{	return meatDropPercentAdjustment;
+	}
+
+	/**
+	 * Accessor method to retrieve the total current item drop percent
+	 * adjustment
+	 *
+	 * @return	Total Current Item Drop Percent Adjustment
+	 */
+
+	public static double getItemDropPercentAdjustment()
+	{	return itemDropPercentAdjustment;
+	}
+
+	/**
 	 * Accessor method to set the equipment the character is currently using.
 	 * This does not take into account the power of the item or anything of
 	 * that nature; only the item's name is stored.  Note that if no item is
@@ -908,13 +1030,13 @@ public abstract class KoLCharacter extends StaticEntity
 			if ( equipment[i] == null || equipment[i].equals( "none" ) || equipment[i].equals( EquipmentRequest.UNEQUIP ) )
 				KoLCharacter.equipment.set( i, EquipmentRequest.UNEQUIP );
 			else if ( TradeableItemDatabase.getConsumptionType( equipment[i] ) == ConsumeItemRequest.EQUIP_ACCESSORY )
-				KoLCharacter.equipment.set( i, equipment[i].toLowerCase() );
+				KoLCharacter.equipment.set( i, equipment[i] );
 			else
-				KoLCharacter.equipment.set( i, equipment[i].toLowerCase() + " (+" + EquipmentDatabase.getPower( equipment[i] ) + ")" );
+				KoLCharacter.equipment.set( i, equipment[i] + " (+" + EquipmentDatabase.getPower( equipment[i] ) + ")" );
 		}
 
-		if ( equipment.length > FAMILIAR && currentFamiliar != null )
-			currentFamiliar.setItem( equipment[FAMILIAR].toLowerCase() );
+		if ( equipment.length > FAMILIAR && currentFamiliar != FamiliarData.NO_FAMILIAR )
+			currentFamiliar.setItem( equipment[FAMILIAR] );
 
 		// Rebuild outfits if given a new list
 		if ( customOutfits != null )
@@ -924,8 +1046,9 @@ public abstract class KoLCharacter extends StaticEntity
 			EquipmentDatabase.updateOutfits();
 		}
 
-		FamiliarData.updateWeightModifier();
 		ClassSkillsDatabase.updateManaModifier();
+		recalculateAdjustments( false );
+		updateStatus();
 	}
 
 	/**
@@ -954,6 +1077,14 @@ public abstract class KoLCharacter extends StaticEntity
 		return EquipmentRequest.UNEQUIP;
 	}
 
+	public static int getFakeHands()
+	{	return fakeHands;
+	}
+
+	public static void setFakeHands( int hands )
+	{	fakeHands = hands;
+	}
+
 	/**
 	 * Accessor method to retrieve the name of a piece of equipment
 	 * @param	type	the type of equipment
@@ -962,18 +1093,29 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static String getCurrentEquipmentName( int type )
 	{
-		String name = getEquipment( type );
+		if ( type == FAKEHAND )
+			return fakeHands > 0 ? "fake hand" : null;
+		return getEquipmentName( getEquipment( type ) );
+	}
+
+	/**
+	 * Accessor method to retrieve the name of a piece of equipment
+	 * @param	equipmentDescription	the description of equipment
+	 * @return	String	name of the equipped item or null if none
+	 */
+
+	public static String getEquipmentName( String equipmentDescription )
+	{
+		if ( equipmentDescription == null )
+			return null;
 
 		// If slot not currently equipped, return null
-		if ( name.equals( EquipmentRequest.UNEQUIP ))
+		if ( equipmentDescription.equals( EquipmentRequest.UNEQUIP ))
 			return null;
 
 		// Strip off item power
-		int paren = name.indexOf( " (" );
-		if ( paren >= 0 )
-			name = name.substring( 0, paren );
-
-		return name;
+		int parenIndex = equipmentDescription.indexOf( " (" );
+		return parenIndex == -1 ? equipmentDescription : equipmentDescription.substring( 0, parenIndex );
 	}
 
 	/**
@@ -995,8 +1137,30 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static int weaponHandedness()
 	{
-		String name = getCurrentEquipmentName( WEAPON );
+		String name = getEquipmentName( (String) equipmentLists[ WEAPON ].getSelectedItem() );
 		return ( name == null) ? 0 : EquipmentDatabase.getHands( name );
+	}
+
+	/**
+	 * Accessor method to determine if character's weapon is ranged
+	 * @return	boolean	true if weapon is ranged
+	 */
+
+	public static boolean rangedWeapon()
+	{
+		String name = getEquipmentName( (String) equipmentLists[ WEAPON ].getSelectedItem() );
+		return name != null && EquipmentDatabase.isRanged( name );
+	}
+
+	/**
+	 * Accessor method to determine if character is currently dual-wielding
+	 * @return	boolean	true if character has two weapons equipped
+	 */
+
+	public static boolean dualWielding()
+	{
+		String name = getEquipmentName( (String) equipmentLists[ OFFHAND ].getSelectedItem() );
+		return name != null && EquipmentDatabase.getHands( name ) == 1;
 	}
 
 	/**
@@ -1011,24 +1175,65 @@ public abstract class KoLCharacter extends StaticEntity
 	public static void updateEquipmentLists()
 	{
 		EquipmentDatabase.updateOutfits();
-
-		updateEquipmentList( equipmentLists[HAT], ConsumeItemRequest.EQUIP_HAT, getEquipment( HAT ) );
-		updateEquipmentList( equipmentLists[WEAPON], ConsumeItemRequest.EQUIP_WEAPON, getEquipment( WEAPON ) );
-		updateEquipmentList( equipmentLists[OFFHAND], ConsumeItemRequest.EQUIP_OFFHAND, getEquipment( OFFHAND ) );
-		updateEquipmentList( equipmentLists[SHIRT], ConsumeItemRequest.EQUIP_SHIRT, getEquipment( SHIRT ) );
-		updateEquipmentList( equipmentLists[PANTS], ConsumeItemRequest.EQUIP_PANTS, getEquipment( PANTS ) );
-		updateEquipmentList( equipmentLists[ACCESSORY1], ConsumeItemRequest.EQUIP_ACCESSORY, getEquipment( ACCESSORY1 ) );
-		updateEquipmentList( equipmentLists[ACCESSORY2], ConsumeItemRequest.EQUIP_ACCESSORY, getEquipment( ACCESSORY2 ) );
-		updateEquipmentList( equipmentLists[ACCESSORY3], ConsumeItemRequest.EQUIP_ACCESSORY, getEquipment( ACCESSORY3 ) );
-		updateEquipmentList( equipmentLists[FAMILIAR], ConsumeItemRequest.EQUIP_FAMILIAR, getEquipment( FAMILIAR ) );
+		for ( int i = 0; i <= FAMILIAR; ++i )
+			updateEquipmentList( i );
 	}
 
-	public static void updateEquipmentList( LockableListModel currentList, int currentFilter, String equippedItem )
-	{
-		currentList.setSelectedItem( null );
-		currentList.clear();
+	public static void updateEquipmentList( int listIndex )
+	{	updateEquipmentList( listIndex, getEquipment( listIndex ) );
+	}
 
-		currentList.addAll( getFilteredItems( currentFilter, equippedItem ) );
+	public static void updateEquipmentList( int listIndex, String equippedItem )
+	{
+		int consumeFilter = 0;
+		switch ( listIndex )
+		{
+			case HAT:
+				consumeFilter = ConsumeItemRequest.EQUIP_HAT;
+				break;
+			case WEAPON:
+				consumeFilter = ConsumeItemRequest.EQUIP_WEAPON;
+				break;
+			case OFFHAND:
+				consumeFilter = ConsumeItemRequest.EQUIP_OFFHAND;
+				break;
+			case SHIRT:
+				consumeFilter = ConsumeItemRequest.EQUIP_SHIRT;
+				break;
+			case PANTS:
+				consumeFilter = ConsumeItemRequest.EQUIP_PANTS;
+				break;
+			case ACCESSORY1:
+			case ACCESSORY2:
+			case ACCESSORY3:
+				consumeFilter = ConsumeItemRequest.EQUIP_ACCESSORY;
+				break;
+			case FAMILIAR:
+				consumeFilter = ConsumeItemRequest.EQUIP_FAMILIAR;
+				break;
+			default:
+				return;
+		}
+
+		updateEquipmentList( equipmentLists[ listIndex ], consumeFilter, equippedItem );
+	}
+
+	private static void updateEquipmentList( LockableListModel currentList, int consumeFilter, String equippedItem )
+	{
+		List newItems = getFilteredItems( consumeFilter, equippedItem );
+		if ( currentList.equals( newItems ) )
+			return;
+
+		if ( currentList.size() < newItems.size() )
+		{
+			newItems.removeAll( currentList );
+			currentList.addAll( newItems );
+		}
+		else
+		{
+			currentList.retainAll( newItems );
+		}
+
 		currentList.setSelectedItem( equippedItem );
 	}
 
@@ -1037,12 +1242,18 @@ public abstract class KoLCharacter extends StaticEntity
 		List items = new ArrayList();
 
 		// If we are looking for off-hand items, the character is
-		// currently equipped with a one-handed weapon, and the
+		// currently equipped with a one-handed melee weapon, and the
 		// character has the ability to dual-wield weapons, then also
 		// search for one-handed weapons.
+
 		boolean dual = ( filterID == ConsumeItemRequest.EQUIP_OFFHAND &&
-				 weaponHandedness() == 1 &&
-				 hasSkill( "Double-Fisted Skull Smashing" ) );
+			weaponHandedness() == 1 && !rangedWeapon() &&
+			hasSkill( "Double-Fisted Skull Smashing" ) );
+
+		// If the character is currently dual wielding, only melee
+		// weapons are allowed in the main weapon slot
+
+		boolean dualWielding = dualWielding();
 
 		// If we are looking for familiar items, but we don't
 		// have a familiar, then no familiar items can actually
@@ -1056,31 +1267,50 @@ public abstract class KoLCharacter extends StaticEntity
 
 		for ( int i = 0; i < inventory.size(); ++i )
 		{
-			String currentItem = ((AdventureResult)inventory.get(i)).getName().toLowerCase();
+			String currentItem = ((AdventureResult)inventory.get(i)).getName();
 			int type = TradeableItemDatabase.getConsumptionType( currentItem );
 
-			if ( type == filterID || ( dual && type == ConsumeItemRequest.EQUIP_WEAPON && EquipmentDatabase.getHands( currentItem ) == 1 ) )
+			// If we want off-hand items and we can dual wield,
+			// allow one-handed melee weapons
+
+			if ( filterID == ConsumeItemRequest.EQUIP_OFFHAND && dual && type == ConsumeItemRequest.EQUIP_WEAPON )
 			{
-				// If it's a familiar item, make sure it's OK
-				// for current familiar.
-
-				if ( filterID == ConsumeItemRequest.EQUIP_FAMILIAR )
-				{
-					if ( currentFamiliar.canEquip( currentItem ) )
-						items.add( currentItem );
-				}
-
-				// Otherwise, see if we have the necessary stat
-				// to equip the item.
-
-				else if ( EquipmentDatabase.canEquip( currentItem ) )
-				{
-					if ( filterID != ConsumeItemRequest.EQUIP_ACCESSORY )
-						items.add( currentItem + " (+" + EquipmentDatabase.getPower( currentItem ) + ")" );
-					else
-						items.add( currentItem );
-				}
+				if ( !EquipmentDatabase.dualWieldable( currentItem ) )
+					continue;
 			}
+
+			// Otherwise, slot and item type must match
+
+			else if ( filterID != type )
+				continue;
+
+			// If we are currently dual-wielding, only melee
+			// weapons are allowed in the main weapon slot
+			// Two-handed ranged weapons are also allowed since
+			// they will remove both weapons when equipped
+
+			else if ( filterID == ConsumeItemRequest.EQUIP_WEAPON && dualWielding && EquipmentDatabase.isRanged( currentItem ) && EquipmentDatabase.getHands( currentItem ) == 1 )
+				continue;
+
+			// If we are equipping familiar items, make sure
+			// current familiar can use this one
+
+			if ( type == ConsumeItemRequest.EQUIP_FAMILIAR )
+			{
+				if ( currentFamiliar.canEquip( currentItem ) )
+					items.add( currentItem );
+				continue;
+			}
+
+			// It's a regular item. Make sure we meet requirements
+
+			if ( !EquipmentDatabase.canEquip( currentItem ) )
+				continue;
+
+			if ( filterID != ConsumeItemRequest.EQUIP_ACCESSORY )
+				items.add( currentItem + " (+" + EquipmentDatabase.getPower( currentItem ) + ")" );
+			else
+				items.add( currentItem );
 		}
 
 		// If we are looking at familiar items, include those which can
@@ -1483,6 +1713,8 @@ public abstract class KoLCharacter extends StaticEntity
 	public static void setMindControlLevel( int level )
 	{
 		KoLCharacter.mindControlLevel = level;
+		recalculateAdjustments( false );
+		updateStatus();
 	}
 
 	/**
@@ -1566,14 +1798,6 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static LockableListModel getEffects()
 	{	return activeEffects;
-	}
-
-	/**
-	 * Method to sort the effects by duration
-	 */
-
-	public static void sortEffects()
-	{	AdventureResult.sortListByCount( activeEffects );
 	}
 
 	/**
@@ -1742,6 +1966,8 @@ public abstract class KoLCharacter extends StaticEntity
 			battleSkillNames.add( "Skill: " + skill.getSkillName() );
 			break;
 		}
+
+                recalculateAdjustments( true );
 	}
 
 	/**
@@ -1936,6 +2162,62 @@ public abstract class KoLCharacter extends StaticEntity
 	}
 
 	/**
+	 * Accessor method to get arena wins
+	 * @return	wins
+	 */
+
+	public static int getArenaWins()
+	{
+		// Ensure that the arena opponent list is
+		// initialized.
+
+		CakeArenaManager.getOpponentList();
+		return arenaWins;
+	}
+
+	public static int getStillsAvailable()
+	{
+		if ( stillsAvailable == -1 )
+		{
+			boolean canStill = hasSkill( "Superhuman Cocktailcrafting" ) && (getClassType().startsWith( "Di" ) || getClassType().startsWith( "Ac" ));
+			if ( !canStill )
+			{
+				stillsAvailable = 0;
+				return 0;
+			}
+
+			KoLRequest request = new KoLRequest( StaticEntity.getClient(), "guild.php?place=still" );
+			request.run();
+
+			setStillsAvailable( request.responseText );
+		}
+
+		return stillsAvailable;
+	}
+
+	public static void setStillsAvailable( String responseText )
+	{
+		Matcher stillMatcher = Pattern.compile(
+			"lack readout with (\\d+) bright green lights" ).matcher( responseText );
+
+		if ( stillMatcher.find() )
+			stillsAvailable = Integer.parseInt( stillMatcher.group(1) );
+		else
+			stillsAvailable = 0;
+	}
+
+	/**
+	 * Accessor method to set arena wins
+	 * @parameter	wins
+	 */
+
+	public static void setArenaWins( int wins )
+	{
+		arenaWins = wins;
+		updateStatus();
+	}
+
+	/**
 	 * Accessor method to find the specified familiar.
 	 * @param	race
 	 * @return	familiar
@@ -1962,6 +2244,9 @@ public abstract class KoLCharacter extends StaticEntity
 	{
 		currentFamiliar = addFamiliar( familiar );
 		familiars.setSelectedItem( currentFamiliar );
+		updateEquipmentList( equipmentLists[FAMILIAR], ConsumeItemRequest.EQUIP_FAMILIAR, getFamiliarItem() );
+		recalculateAdjustments( false );
+		updateStatus();
 	}
 
 	/**
@@ -1972,7 +2257,11 @@ public abstract class KoLCharacter extends StaticEntity
 	public static void incrementFamilarWeight()
 	{
 		if ( currentFamiliar != null )
+		{
 			currentFamiliar.setWeight( currentFamiliar.getWeight() + 1 );
+			recalculateAdjustments( false );
+			updateStatus();
+		}
 	}
 
 	/**
@@ -2135,19 +2424,6 @@ public abstract class KoLCharacter extends StaticEntity
 				setTotalTurnsUsed( getTotalTurnsUsed() - result.getCount() );
 				if ( getTotalTurnsUsed() >= 600 && !KoLCharacter.isHardcore() )
 					setInteraction( true );
-
-				if ( !(StaticEntity.getClient().getCurrentRequest() instanceof CampgroundRequest) )
-				{
-					synchronized ( KoLRequest.class )
-					{
-						String scriptPath = StaticEntity.getProperty( "betweenBattleScript" );
-						if ( !scriptPath.equals( "" ) )
-							DEFAULT_SHELL.executeLine( scriptPath );
-
-						StaticEntity.getClient().recoverHP();
-						StaticEntity.getClient().recoverMP();
-					}
-				}
 			}
 		}
 		else if ( resultName.equals( AdventureResult.DRUNK ) )
@@ -2226,28 +2502,29 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static boolean hasEquipped( AdventureResult item )
 	{
-		String canonicalName = KoLDatabase.getCanonicalName( item.getName() );
+		String name = item.getName();
 		switch ( TradeableItemDatabase.getConsumptionType( item.getItemID() ) )
 		{
 			case ConsumeItemRequest.EQUIP_WEAPON:
-				return getEquipment( WEAPON ).startsWith( canonicalName );
+				return getEquipment( WEAPON ).startsWith( name ) ||
+					getEquipment( OFFHAND ).startsWith( name );
 
 			case ConsumeItemRequest.EQUIP_OFFHAND:
-				return getEquipment( OFFHAND ).startsWith( canonicalName );
+				return getEquipment( OFFHAND ).startsWith( name );
 
 			case ConsumeItemRequest.EQUIP_HAT:
-				return getEquipment( HAT ).startsWith( canonicalName );
+				return getEquipment( HAT ).startsWith( name );
 
 			case ConsumeItemRequest.EQUIP_SHIRT:
-				return getEquipment( SHIRT ).startsWith( canonicalName );
+				return getEquipment( SHIRT ).startsWith( name );
 
 			case ConsumeItemRequest.EQUIP_PANTS:
-				return getEquipment( PANTS ).startsWith( canonicalName );
+				return getEquipment( PANTS ).startsWith( name );
 
 			case ConsumeItemRequest.EQUIP_ACCESSORY:
-				return getEquipment( ACCESSORY1 ).startsWith( canonicalName ) ||
-					getEquipment( ACCESSORY2 ).startsWith( canonicalName ) ||
-					getEquipment( ACCESSORY3 ).startsWith( canonicalName );
+				return getEquipment( ACCESSORY1 ).startsWith( name ) ||
+					getEquipment( ACCESSORY2 ).startsWith( name ) ||
+					getEquipment( ACCESSORY3 ).startsWith( name );
 		}
 
 		return false;
@@ -2260,5 +2537,629 @@ public abstract class KoLCharacter extends StaticEntity
 
 		for ( int i = 0; i < listenerArray.length; ++i )
 			listenerArray[i].updateStatus();
+	}
+
+	public static LockableListModel getEvents()
+	{	return events;
+	}
+
+	public static void clearEvents()
+	{	events.clear();
+	}
+
+	// Effects that modify ML:
+
+	private static final AdventureResult ARIA = new AdventureResult( "Ur-Kel's Aria of Annoyance", 0 );
+
+	// Items that modify ML:
+
+	private static final int ICE_SICKLE = 1424;
+	private static final int HIPPO_WHIP = 1029;
+	private static final int GIANT_NEEDLE = 619;
+	private static final int GOTH_KID = 703;
+	private static final int HOCKEY_STICK = 1236;
+	private static final int SCARF = 1227;
+	private static final int AGGRAVATE_MONSTER = 835;
+	private static final int PITCHFORK = 1116;
+
+        // Effects that modify Familiar Weight
+	private static final AdventureResult GREEN_TONGUE = new AdventureResult( "Green Tongue", 0 );
+	private static final AdventureResult EMPATHY = new AdventureResult( "Empathy", 0 );
+	private static final AdventureResult LEASH = new AdventureResult( "Leash of Linguini", 0 );
+	private static final AdventureResult HEAVY_PETTING = new AdventureResult( "Heavy Petting", 0 );
+
+        // Skills that modify Familiar Weight
+	private static final String SYMPATHY = "Amphibian Sympathy";
+
+        // Items that modify Familiar Weight
+	private static final int PLEXIGLASS_PITH_HELMET = 1231;
+	private static final int firstTinyPlastic = 969;
+	private static final int lastTinyPlastic = 988;
+	private static final int firstTinyPlasticCrimbo = 1377;
+	private static final int lastTinyPlasticCrimbo = 1378;
+
+	// Familiars with special handling for weight
+
+	private static final int DODECAPEDE = 38;
+
+	// Effects that modify Combat Frequency
+	private static final AdventureResult CANTATA = new AdventureResult( "Carlweather's Cantata of Confrontation", 0 );
+	private static final AdventureResult SONATA = new AdventureResult( "The Sonata of Sneakiness", 0 );
+	private static final AdventureResult MUSK = new AdventureResult( "Musk of the Moose", 0 );
+	private static final AdventureResult SMOOTH = new AdventureResult( "Smooth Movements", 0 );
+	private static final AdventureResult STENCH = new AdventureResult( "Hippy Stench", 0 );
+	private static final AdventureResult SCENT = new AdventureResult( "Fresh Scent", 0 );
+
+	// Items that modify Combat Frequency
+	private static final int CONFLICT = 1298;
+	private static final int BAIT = 1300;
+
+	// Effects that modify Initiative
+  	private static final AdventureResult FUSILLI = new AdventureResult( "Springy Fusilli", 0 );
+	private static final AdventureResult CANTICLE = new AdventureResult( "Cletus's Canticle of Celerity", 0 );
+	private static final AdventureResult TICKING_CLOCK = new AdventureResult( "Ticking Clock", 0 );
+	private static final AdventureResult RELAXATION = new AdventureResult( "Extreme Muscle Relaxation", 0 );
+
+	// Skills that modify Initiative
+	private static final String SELF_PRESERVATION = "Overdeveloped Sense of Self Preservation";
+
+	// Items that modify Initiative
+	private static final int BONERDAGON_NECKLACE = 1248;
+	private static final int CRIMBO_PANTS = 650;
+	private static final int CHOPSTICKS = 1490;
+	private static final int PENGUIN_SHORTS = 396;
+	private static final int PENGUIN_KILT = 1281;
+	private static final int PENGUIN_SKIRT = 1280;
+	private static final int STAR_PANTS = 660;
+	private static final int COLD_NINJA_MASK = 348;
+	private static final int ICE_SKATES = 1427;
+	private static final int LEOTARRD = 415;
+	private static final int PIXEL_SWORD = 690;
+	private static final int SK8BOARD = 410;
+	private static final int CLOCKWORK_PANTS = 1099;
+	private static final int CROWBARRR = 414;
+	private static final int GNATWING_EARRING = 505;
+	private static final int INFERNAL_INSOLES = 477;
+	private static final int PLASTIC_FORK = 1151;
+	private static final int SHOVEL = 671;
+
+	// Effects that modify earned XP:
+
+	private static final AdventureResult ANTIPHON = new AdventureResult( "Aloysius' Antiphon of Aptitude", 0 );
+	private static final AdventureResult BLACK_TONGUE = new AdventureResult( "Black Tongue", 0 );
+	private static final AdventureResult ORANGE_TONGUE = new AdventureResult( "Orange Tongue", 0 );
+	private static final AdventureResult VEINY = new AdventureResult( "Big Veiny Brain", 0 );
+	private static final AdventureResult PEELED = new AdventureResult( "Peeled Eyeballs", 0 );
+	private static final AdventureResult WASABI = new AdventureResult( "Wasabi Sinuses", 0 );
+
+	// Items that modify earned XP:
+
+	private static final int ICE_BABY = 1425;
+	private static final int WAX_LIPS = 1260;
+
+	// Familiars that modify earned XP:
+
+	private static final int VOLLEYBALL = 12;
+	private static final int CHESHIRE = 23;
+	private static final int JILL = 24;
+	private static final int SHAMAN = 39;
+	private static final int MONKEY = 42;
+	private static final int HARE = 50;
+	private static final int HOBO = 52;
+
+	// Effects that modify Meat Drops
+	private static final AdventureResult RED_TONGUE = new AdventureResult( "Red Tongue", 0 );
+	private static final AdventureResult TACTICS = new AdventureResult( "Eggs-stortionary Tactics", 0 );
+	private static final AdventureResult POLKA = new AdventureResult( "Polka of Plenty", 0 );
+
+	// Skills that modify Meat Drops
+	private static final String NIMBLE_FINGERS = "Nimble Fingers";
+	private static final String PANHANDLING = "Expert Panhandling";
+	private static final String PICKPOCKETING = "Gnefarious Pickpocketing";
+
+	// Items that modify Meat Drops
+	private static final int TAM1 = 1040;
+	private static final int TAM2 = 1539;
+	private static final int MEAT_GEM = 876;
+	private static final int STAINLESS_SLACKS = 1228;
+	private static final int MONEY_CLIP = 1313;
+	private static final int PORQUOISE_NECKLACE = 720;
+	private static final int TOY_TRAIN = 1399;
+	private static final int TP_HERMIT = 990;
+	private static final int PENGUIN_WHIP = 1030;
+	private static final int BOX_IN_BOX_IN_BOX = 447;
+	private static final int BOX_IN_BOX = 445;
+	private static final int BOX = 427;
+
+	// Familiars that modify Meat Drops
+	private static final int LEPRECHAUN = 2;
+	private static final int TURKEY = 25;
+
+	// Effects that modify Item Drops
+	private static final AdventureResult PERCEPTION = new AdventureResult( "Eggs-tra Sensory Perception", 0 );
+	private static final AdventureResult BLUE_TONGUE = new AdventureResult( "Blue Tongue", 0 );
+	private static final AdventureResult PHAT_LOOT = new AdventureResult( "Fat Leon's Phat Loot Lyric", 0 );
+	private static final AdventureResult OBJECT_DETECTION = new AdventureResult( "Object Detection", 0 );
+
+	// Skills that modify Item Drops
+	private static final String MAD_LOOTING_SKILLZ = "Mad Looting Skillz";
+	private static final String OBSERVATIOGN = "Powers of Observatiogn";
+
+	// Items that modify Item Drops
+	private static final int JEKYLLIN = 1291;
+	private static final int HYPNODISK = 878;
+	private static final int MAYPOLE = 1152;
+	private static final int MRAJR = 896;
+	private static final int PLEXIGLASS_PANTS = 1234;
+	private static final int RICE_BOWL = 1491;
+	private static final int ICE_PICK = 1426;
+	private static final int MONOCLE = 1312;
+	private static final int DUCK = 1396;
+	private static final int MINERS_HELMET = 360;
+	private static final int GNAUGA_WHIP = 1032;
+
+	// KoLmafia does not support the "containers" slot.
+
+	// Mr. Container (482): +3%
+	// hemp backpack (218): +2%
+	// Newbiesport&trade; backpack (483): +1%
+
+	// Familiars that modify Item Drops
+	private static final int BABY_GRAVY_FAIRY = 15;
+	private static final int FLAMING_GRAVY_FAIRY = 34;
+	private static final int FROZEN_GRAVY_FAIRY = 35;
+	private static final int STINKY_GRAVY_FAIRY = 36;
+	private static final int SPOOKY_GRAVY_FAIRY = 37;
+	private static final int SLEAZY_GRAVY_FAIRY = 49;
+	private static final int PIXIE = 22;
+	private static final int DEMON = 41;
+	private static final int CRIMBO_ELF = 26;
+
+	public static boolean recalculateAdjustments( boolean update )
+	{
+		int newMonsterLevelAdjustment = 0;
+		int newFamiliarWeightAdjustment = 0;
+		int newDodecapedeWeightAdjustment = 0;
+		int newFamiliarItemWeightAdjustment = 0;
+		double newCombatPercentAdjustment = 0.0;
+		double newInitiativeAdjustment = 0.0;
+		double newFixedXPAdjustment = 0.0;
+		double newMeatDropPercentAdjustment = 0.0;
+		double newItemDropPercentAdjustment = 0.0;
+
+		int familiarID = currentFamiliar.getID();
+
+		// Look at mind control level
+		newMonsterLevelAdjustment += getMindControlLevel();
+
+		// Look at items
+		for ( int slot = HAT; slot <= FAMILIAR; ++slot )
+		{
+			AdventureResult item = getCurrentEquipment( slot );
+			if ( item == null )
+				continue;
+
+			int itemID = item.getItemID();
+
+			if ( slot == FAMILIAR )
+			{
+				newFamiliarItemWeightAdjustment = FamiliarData.itemWeightModifier( itemID );
+				if ( newFamiliarItemWeightAdjustment != 0 )
+					continue;
+
+				// Other familiar items have special effects
+				// which we handle below
+			}
+
+			if ( ( itemID >= firstTinyPlastic && itemID <= lastTinyPlastic ) ||
+			     ( itemID >= firstTinyPlasticCrimbo && itemID <= lastTinyPlasticCrimbo ) )
+			{
+				newFamiliarWeightAdjustment += 1;
+				newDodecapedeWeightAdjustment += 1;
+				continue;
+			}
+
+			switch ( itemID )
+			{
+			case HOCKEY_STICK:
+				newMonsterLevelAdjustment += 30;
+				break;
+			case SCARF:
+				newMonsterLevelAdjustment += 20;
+				break;
+			case ICE_SICKLE:
+				newMonsterLevelAdjustment += 15;
+				break;
+			case HIPPO_WHIP:
+				newMonsterLevelAdjustment += 10;
+				break;
+			case GIANT_NEEDLE:
+			case GOTH_KID:
+			case AGGRAVATE_MONSTER:
+			case PITCHFORK:
+				newMonsterLevelAdjustment += 5;
+				break;
+			case PLEXIGLASS_PITH_HELMET:
+				newFamiliarWeightAdjustment += 5;
+				newDodecapedeWeightAdjustment += 5;
+				break;
+			case BAIT:
+				newCombatPercentAdjustment += 5;
+				break;
+			case CONFLICT:
+				newCombatPercentAdjustment -= 5;
+				break;
+			case BONERDAGON_NECKLACE:
+			case CRIMBO_PANTS:
+				newInitiativeAdjustment += 30;
+				break;
+			case CHOPSTICKS:
+			case PENGUIN_SHORTS:
+			case PENGUIN_KILT:
+			case PENGUIN_SKIRT:
+			case STAR_PANTS:
+				newInitiativeAdjustment += 20;
+				break;
+			case COLD_NINJA_MASK:
+			case LEOTARRD:
+			case PIXEL_SWORD:
+			case SK8BOARD:
+				newInitiativeAdjustment += 15;
+				break;
+			case CLOCKWORK_PANTS:
+			case CROWBARRR:
+			case GNATWING_EARRING:
+			case INFERNAL_INSOLES:
+				newInitiativeAdjustment += 10;
+				break;
+			case PLASTIC_FORK:
+			case SHOVEL:
+				newInitiativeAdjustment -= 10;
+				break;
+			case WAX_LIPS:
+				newFixedXPAdjustment += 2.5;
+				break;
+			case ICE_BABY:
+				newFixedXPAdjustment += 1.0;
+				break;
+			case TAM1:
+			case TAM2:
+				newMeatDropPercentAdjustment += 50;
+				break;
+			case MEAT_GEM:
+				newMeatDropPercentAdjustment += 25;
+				break;
+			case STAINLESS_SLACKS:
+				newInitiativeAdjustment += 15;
+				newMeatDropPercentAdjustment += 20;
+				break;
+			case ICE_SKATES:
+				newInitiativeAdjustment += 15;
+				newMeatDropPercentAdjustment += 15;
+				break;
+			case MONEY_CLIP:
+				newMeatDropPercentAdjustment += 15;
+				break;
+			case PORQUOISE_NECKLACE:
+			case TOY_TRAIN:
+				newMeatDropPercentAdjustment += 10;
+				break;
+			case TP_HERMIT:
+				newMeatDropPercentAdjustment += 6;
+				break;
+			case PENGUIN_WHIP:
+			case BOX_IN_BOX_IN_BOX:
+				newMeatDropPercentAdjustment += 3;
+				break;
+			case BOX_IN_BOX:
+				newMeatDropPercentAdjustment += 2;
+				break;
+			case BOX:
+				newMeatDropPercentAdjustment += 1;
+				break;
+			case JEKYLLIN:
+				// newItemDropPercentAdjustment depends on moon phase
+				newItemDropPercentAdjustment += 15 + MoonPhaseDatabase.getMoonlight() * 5;
+				break;
+			case HYPNODISK:
+			case MAYPOLE:
+			case MRAJR:
+				newItemDropPercentAdjustment += 25;
+				break;
+			case PLEXIGLASS_PANTS:
+				newItemDropPercentAdjustment += 20;
+				newInitiativeAdjustment += 25;
+				break;
+			case RICE_BOWL:
+				// newItemDropPercentAdjustment += 20;
+				// Food items only
+				break;
+			case ICE_PICK:
+				newItemDropPercentAdjustment += 15;
+				break;
+			case MONOCLE:
+				newItemDropPercentAdjustment += 10;
+				break;
+			case DUCK:
+			case MINERS_HELMET:
+				newItemDropPercentAdjustment += 5;
+				break;
+			case GNAUGA_WHIP:
+				newItemDropPercentAdjustment += 3;
+				break;
+			}
+		}
+
+		// Look at skills
+
+		// Assume the character knows 50 skills and we have 10 that
+		// we're checking.
+		//
+		// If we iterate over the 50 skills, we make 10 string
+		// comparisons per skill, for a total of 500 comparisons
+		//
+		// If we look up the 10 skills one after the other, depending
+		// on how the skills are stored and whether the character knows
+		// it, it will take anywhere from 1 to 50 string comparisons
+		//
+		// Therefore, we'll simply call "hasSkill" on each skill of
+		// interest.
+
+		UseSkillRequest [] skills = new UseSkillRequest[ availableSkills.size() ];
+		availableSkills.toArray( skills );
+
+		if ( hasSkill( SYMPATHY ) )
+                {
+			newFamiliarWeightAdjustment += 5;
+			newDodecapedeWeightAdjustment -= 5;
+                }
+
+		if ( hasSkill( SELF_PRESERVATION ) )
+			newInitiativeAdjustment += 20;
+
+		if ( hasSkill( NIMBLE_FINGERS ) )
+			newMeatDropPercentAdjustment += 20;
+
+		if ( hasSkill( PANHANDLING ) || hasSkill( PICKPOCKETING ) )
+			newMeatDropPercentAdjustment += 10;
+
+		if ( hasSkill( MAD_LOOTING_SKILLZ ) )
+			newItemDropPercentAdjustment += 20;
+
+		if ( hasSkill( OBSERVATIOGN ) )
+			newItemDropPercentAdjustment += 10;
+
+		// Look at status effects
+
+		// A similar argument holds for why we should simply look up
+		// effects rather iterate over the list.
+
+		if ( ARIA.getCount( activeEffects ) > 0 )
+			newMonsterLevelAdjustment += 2 * getLevel();
+
+		if ( ANTIPHON.getCount( activeEffects ) > 0 )
+			newFixedXPAdjustment += 3;
+
+		if ( PHAT_LOOT.getCount( activeEffects ) > 0 )
+			newItemDropPercentAdjustment += 20;
+
+		if ( POLKA.getCount( activeEffects ) > 0 )
+			newMeatDropPercentAdjustment += 50;
+
+		if ( CANTATA.getCount( activeEffects ) > 0 )
+			newCombatPercentAdjustment += 5;
+
+		if ( SONATA.getCount( activeEffects ) > 0 )
+			newCombatPercentAdjustment -= 5;
+
+		if ( CANTICLE.getCount( activeEffects ) > 0 )
+			newInitiativeAdjustment += 30;
+
+		if ( EMPATHY.getCount( activeEffects ) > 0 )
+		{
+			newFamiliarWeightAdjustment += 5;
+			newDodecapedeWeightAdjustment += 5;
+		}
+
+		if ( LEASH.getCount( activeEffects ) > 0 )
+		{
+			newFamiliarWeightAdjustment += 5;
+			newDodecapedeWeightAdjustment += 5;
+		}
+
+		if ( HEAVY_PETTING.getCount( activeEffects ) > 0 )
+		{
+			newFamiliarWeightAdjustment += 5;
+			newDodecapedeWeightAdjustment += 5;
+		}
+
+		if ( FUSILLI.getCount( activeEffects ) > 0 )
+			newInitiativeAdjustment += 40;
+
+		if ( TICKING_CLOCK.getCount( activeEffects ) > 0 )
+			newInitiativeAdjustment += 20;
+
+		if ( RELAXATION.getCount( activeEffects ) > 0 )
+			newInitiativeAdjustment -= 25;
+
+		if ( MUSK.getCount( activeEffects ) > 0 )
+			newCombatPercentAdjustment += 5;
+
+		if ( SMOOTH.getCount( activeEffects ) > 0 )
+			newCombatPercentAdjustment -= 5;
+
+		if ( STENCH.getCount( activeEffects ) > 0 )
+			newCombatPercentAdjustment += 5;
+
+		if ( SCENT.getCount( activeEffects ) > 0 )
+			newCombatPercentAdjustment -= 5;
+
+		// Only one snowcone effect can be active at a time
+
+		if ( BLACK_TONGUE.getCount( activeEffects ) > 0 )
+		{
+			newFamiliarWeightAdjustment += 5;
+			newDodecapedeWeightAdjustment += 5;
+			newFixedXPAdjustment += 2.5;
+			newItemDropPercentAdjustment += 30;
+			newMeatDropPercentAdjustment += 30;
+		}
+		else if ( GREEN_TONGUE.getCount( activeEffects ) > 0 )
+		{
+			newFamiliarWeightAdjustment += 5;
+			newDodecapedeWeightAdjustment += 5;
+		}
+		else if ( RED_TONGUE.getCount( activeEffects ) > 0 )
+			newMeatDropPercentAdjustment += 30;
+		else if ( BLUE_TONGUE.getCount( activeEffects ) > 0 )
+			newItemDropPercentAdjustment += 30;
+		else if ( ORANGE_TONGUE.getCount( activeEffects ) > 0 )
+			newFixedXPAdjustment += 2.5;
+
+		if ( PERCEPTION.getCount( activeEffects ) > 0 )
+			newItemDropPercentAdjustment += 30;
+
+		if ( TACTICS.getCount( activeEffects ) > 0 )
+			newMeatDropPercentAdjustment += 50;
+
+		if ( VEINY.getCount( activeEffects ) > 0 )
+		{
+			newFixedXPAdjustment += 2;
+			newMeatDropPercentAdjustment -= 20;
+		}
+
+		if ( PEELED.getCount( activeEffects ) > 0 )
+		{
+			newItemDropPercentAdjustment += 40;
+			newMeatDropPercentAdjustment -= 16;
+			newFixedXPAdjustment -= 1;
+		}
+
+		if ( WASABI.getCount( activeEffects ) > 0 )
+		{
+			newMeatDropPercentAdjustment += 30;
+			newItemDropPercentAdjustment -= 10;
+			newFixedXPAdjustment -= 1;
+		}
+
+		if ( OBJECT_DETECTION.getCount( activeEffects ) > 0 )
+			newItemDropPercentAdjustment += 12.5;
+
+		// Now that we have calculated the familiar weight adjustment,
+		// look at familiar.
+		double modifier = (double)( currentFamiliar.getWeight() + newFamiliarWeightAdjustment + newFamiliarItemWeightAdjustment );
+		switch ( familiarID )
+		{
+		case BABY_GRAVY_FAIRY:
+		case FLAMING_GRAVY_FAIRY:
+		case FROZEN_GRAVY_FAIRY:
+		case STINKY_GRAVY_FAIRY:
+		case SPOOKY_GRAVY_FAIRY:
+		case SLEAZY_GRAVY_FAIRY:
+		case CRIMBO_ELF:
+			// Full gravy fairy equivalent familiar
+			newItemDropPercentAdjustment += modifier * 2.5;
+			break;
+
+		case PIXIE:
+		case DEMON:
+			// Full gravy fairy equivalent familiar
+			// Full leprechaun equivalent familiar
+			newItemDropPercentAdjustment += modifier * 2.5;
+			newMeatDropPercentAdjustment += modifier * 5;
+			break;
+
+		case VOLLEYBALL:
+		case HOBO:
+			// Full volleyball equivalent familiar
+			newFixedXPAdjustment += modifier / 4.0;
+			break;
+
+		case LEPRECHAUN:
+		case TURKEY:
+			// Full leprechaun equivalent familiar
+			newMeatDropPercentAdjustment += modifier * 5;
+			break;
+
+		case CHESHIRE:
+		case MONKEY:
+			// Full volleyball equivalent familiar
+			// Full leprechaun equivalent familiar
+			newFixedXPAdjustment += modifier / 4.0;
+			newMeatDropPercentAdjustment += modifier * 5;
+			break;
+
+		case SHAMAN:
+			// Full volleyball equivalent familiar
+			// Full gravy fairy equivalent familiar
+			newFixedXPAdjustment += modifier / 4.0;
+			newItemDropPercentAdjustment += modifier * 2.5;
+			break;
+
+		case JILL:
+			// Half volleyball equivalent familiar
+			newFixedXPAdjustment += modifier / 8.0;
+			break;
+
+		case HARE:
+			// Full volleyball equivalent 1/4 of the time
+			newFixedXPAdjustment += modifier / 16.0;
+			break;
+		}
+
+		boolean changed = false;
+		if ( monsterLevelAdjustment != newMonsterLevelAdjustment )
+		{
+			monsterLevelAdjustment = newMonsterLevelAdjustment;
+			changed = true;
+		}
+
+		if ( familiarWeightAdjustment != newFamiliarWeightAdjustment )
+		{
+			familiarWeightAdjustment = newFamiliarWeightAdjustment;
+			dodecapedeWeightAdjustment = newDodecapedeWeightAdjustment;
+			changed = true;
+		}
+
+		if ( familiarItemWeightAdjustment != newFamiliarItemWeightAdjustment )
+		{
+			familiarItemWeightAdjustment = newFamiliarItemWeightAdjustment;
+			changed = true;
+		}
+
+		if ( combatPercentAdjustment != newCombatPercentAdjustment )
+		{
+			combatPercentAdjustment = newCombatPercentAdjustment;
+			changed = true;
+		}
+
+		if ( initiativeAdjustment != newInitiativeAdjustment )
+		{
+			initiativeAdjustment = newInitiativeAdjustment;
+			changed = true;
+		}
+
+		if ( fixedXPAdjustment != newFixedXPAdjustment )
+		{
+			fixedXPAdjustment = newFixedXPAdjustment;
+			changed = true;
+		}
+
+		if ( meatDropPercentAdjustment != newMeatDropPercentAdjustment )
+		{
+			meatDropPercentAdjustment = newMeatDropPercentAdjustment;
+			changed = true;
+		}
+
+		if ( itemDropPercentAdjustment != newItemDropPercentAdjustment )
+		{
+			itemDropPercentAdjustment = newItemDropPercentAdjustment;
+			changed = true;
+		}
+
+		if ( changed && update )
+			updateStatus();
+
+		return changed;
 	}
 }

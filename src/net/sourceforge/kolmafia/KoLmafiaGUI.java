@@ -37,6 +37,8 @@ package net.sourceforge.kolmafia;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import java.awt.Component;
 import javax.swing.JEditorPane;
@@ -55,18 +57,6 @@ import java.lang.ref.WeakReference;
 
 public class KoLmafiaGUI extends KoLmafia
 {
-	static
-	{
-		System.setProperty( "com.apple.mrj.application.apple.menu.about.name", "KoLmafia" );
-		System.setProperty( "com.apple.mrj.application.live-resize", "true" );
-		System.setProperty( "com.apple.mrj.application.growbox.intrudes", "false" );
-
-		JEditorPane.registerEditorKitForContentType( "text/html", "net.sourceforge.kolmafia.RequestEditorKit" );
-
-		System.setProperty( "SHARED_MODULE_DIRECTORY", "net/sourceforge/kolmafia/" );
-		System.setProperty( "apple.laf.useScreenMenuBar", "true" );
-	}
-
 	private CreateFrameRunnable displayer;
 	private LimitedSizeChatBuffer buffer;
 
@@ -83,12 +73,6 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( StaticEntity.usesSystemTray() )
 			SystemTrayFrame.addTrayIcon();
 
-		if ( !StaticEntity.usesRelayWindows() && !System.getProperty( "os.name" ).startsWith( "Mac" ) )
-		{
-			KoLDesktop.getInstance().setExtendedState( KoLDesktop.MAXIMIZED_HORIZ );
-			KoLDesktop.getInstance().setVisible( true );
-		}
-
 		KoLmafiaGUI session = new KoLmafiaGUI();
 		StaticEntity.setClient( session );
 
@@ -97,12 +81,6 @@ public class KoLmafiaGUI extends KoLmafia
 
 		session.displayer = new CreateFrameRunnable( LoginFrame.class, parameters );
 		session.displayer.run();
-
-		String login = session.settings.getProperty( "autoLogin" );
-		String password = session.getSaveState( login );
-
-		if ( password != null )
-			(new LoginRequest( session, login, password, true, true )).run();
 	}
 
 	/**
@@ -119,32 +97,6 @@ public class KoLmafiaGUI extends KoLmafia
 			return;
 
 		super.updateDisplay( state, message );
-
-		// Next, update all of the panels with the
-		// desired update message.
-
-		WeakReference [] references = new WeakReference[ existingPanels.size() ];
-		existingPanels.toArray( references );
-
-		for ( int i = 0; i < references.length; ++i )
-		{
-			if ( references[i].get() != null )
-			{
-				if ( references[i].get() instanceof KoLPanel )
-					((KoLPanel) references[i].get()).setStatusMessage( state, message );
-
-				((Component)references[i].get()).setEnabled( state != CONTINUE_STATE );
-			}
-		}
-
-		// Finally, update all of the existing frames
-		// with the appropriate state.
-
-		KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
-		existingFrames.toArray( frames );
-
-		for ( int i = 0; i < frames.length; ++i )
-			frames[i].updateDisplayState( state );
 	}
 
 	/**
@@ -154,18 +106,60 @@ public class KoLmafiaGUI extends KoLmafia
 	 * loaded, and the user can begin adventuring.
 	 */
 
-	public void initialize( String loginname, String sessionID, boolean getBreakfast )
+	public synchronized void initialize( String username, String sessionID, boolean getBreakfast )
 	{
-		super.initialize( loginname, sessionID, getBreakfast );
-		String frameSetting = GLOBAL_SETTINGS.getProperty( "initialFrameLoading" );
+		super.initialize( username, sessionID, getBreakfast );
+		if ( refusesContinue() )
+			return;
 
-		if ( frameSetting.indexOf( "MailboxFrame" ) != -1 )
+		if ( getPasswordHash() != null )
+		{
 			(new MailboxRequest( this, "Inbox" )).run();
+			(new ChannelColorsRequest()).run();
+		}
+
+		String frameSetting = GLOBAL_SETTINGS.getProperty( "initialFrames" );
+		String desktopSetting = GLOBAL_SETTINGS.getProperty( "initialDesktop" );
 
 		// Reset all the titles on all existing frames.
 
 		SystemTrayFrame.updateTooltip();
 		KoLDesktop.updateTitle();
+
+		// Instantiate the appropriate instance of the
+		// frame that should be loaded based on the mode.
+
+		String [] frameArray = frameSetting.split( "," );
+		String [] desktopArray = desktopSetting.split( "," );
+
+		ArrayList initialFrameList = new ArrayList();
+
+		if ( !frameSetting.equals( "" ) )
+			for ( int i = 0; i < frameArray.length; ++i )
+				if ( !initialFrameList.contains( frameArray[i] ) )
+					initialFrameList.add( frameArray[i] );
+
+		for ( int i = 0; i < desktopArray.length; ++i )
+			initialFrameList.remove( desktopArray[i] );
+
+		if ( !initialFrameList.isEmpty() )
+		{
+			String [] initialFrames = new String[ initialFrameList.size() ];
+			initialFrameList.toArray( initialFrames );
+
+			for ( int i = 0; i < initialFrames.length; ++i )
+				constructFrame( initialFrames[i] );
+		}
+
+		if ( !GLOBAL_SETTINGS.getProperty( "initialDesktop" ).equals( "" ) )
+		{
+			if ( !KoLDesktop.getInstance().isVisible() )
+			{
+				KoLDesktop.getInstance().initializeTabs();
+				KoLDesktop.getInstance().pack();
+				KoLDesktop.getInstance().setVisible( true );
+			}
+		}
 
 		// If you've already loaded an adventure frame,
 		// or the login failed, then there's nothing left
@@ -180,39 +174,52 @@ public class KoLmafiaGUI extends KoLmafia
 		LoginFrame loginWindow = (LoginFrame) displayer.getCreation();
 		loginWindow.setVisible( false );
 
-		// Instantiate the appropriate instance of the
-		// frame that should be loaded based on the mode.
+		displayer = new CreateFrameRunnable( AdventureFrame.class );
+		loginWindow.dispose();
 
-		String [] initialFrames = frameSetting.split( "," );
-		for ( int i = 0; i < initialFrames.length; ++i )
+		if ( KoLMailManager.hasNewMessages() )
+			DEFAULT_SHELL.updateDisplay( "You have new mail." );
+	}
+
+	public static void constructFrame( String frameName )
+	{
+		if ( frameName.equals( "LocalRelayServer" ) )
 		{
-			if ( initialFrames[i].equals( "KoLMessenger" ) )
-			{
-				KoLMessenger.initialize();
-			}
-			if ( initialFrames[i].equals( "MailboxFrame" ) )
-			{
-				if ( KoLMailManager.hasNewMessages() )
-					(new CreateFrameRunnable( MailboxFrame.class, new Object [] { "Inbox" } )).run();
-			}
-			else
-			{
-				try
-				{
-					Class associatedClass = Class.forName( "net.sourceforge.kolmafia." + initialFrames[i] );
-					displayer = new CreateFrameRunnable( associatedClass );
-					displayer.run();
-				}
-				catch ( ClassNotFoundException e )
-				{
-					e.printStackTrace( KoLmafia.getLogStream() );
-					e.printStackTrace();
-				}
+			StaticEntity.getClient().startRelayServer();
+			return;
+		}
+		else if ( frameName.equals( "KoLMessenger" ) )
+		{
+			KoLMessenger.initialize();
+			return;
+		}
+		else if ( frameName.equals( "MailboxFrame" ) )
+		{
+			if ( KoLMailManager.getMessages( "Inbox" ).isEmpty() )
+				return;
+		}
+		else if ( frameName.equals( "EventsFrame" ) )
+		{
+			// Inside of the KoLRequest object, events frames are
+			// already automatically loaded on receipt of an event,
+			// so no additional processing needs to happen here.
 
-			}
+			return;
 		}
 
-		loginWindow.dispose();
+		try
+		{
+			Class associatedClass = Class.forName( "net.sourceforge.kolmafia." + frameName );
+			CreateFrameRunnable displayer = new CreateFrameRunnable( associatedClass );
+			displayer.run();
+		}
+		catch ( ClassNotFoundException e )
+		{
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
+		}
 	}
 
 	public void showHTML( String text, String title )
@@ -237,10 +244,7 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( selectedValue == null )
 			return;
 
-		(new RequestThread( new UneffectRequest( this, (AdventureResult) selectedValue ) )).start();
-		// Do a start() rather than a run() since this is invoked by
-		// the ItemManageFrame, not the menu. Let that frame enable the
-		// display and allow our thread to put up a status message.
+		(new RequestThread( new UneffectRequest( this, (AdventureResult) selectedValue ) )).run();
 	}
 
 	/**
@@ -263,11 +267,7 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( selectedValue == null )
 			return;
 
-		// Do a start() rather than a run() since this is invoked by
-		// the ItemManageFrame, not the menu. Let that frame enable the
-		// display and allow our thread to put up a status message.
-
-		(new RequestThread( new ZapRequest( this, wand, (AdventureResult) selectedValue ) )).start();
+		(new RequestThread( new ZapRequest( this, wand, (AdventureResult) selectedValue ) )).run();
 	}
 
 	/**
@@ -298,7 +298,7 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( tradeCount == 0 )
 			return;
 
-		(new RequestThread( new HermitRequest( this, selected, tradeCount ) )).start();
+		(new RequestThread( new HermitRequest( this, selected, tradeCount ) )).run();
 	}
 
 	/**
@@ -340,7 +340,7 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( tradeCount == 0 )
 			return;
 
-		(new RequestThread( new TrapperRequest( this, selected, tradeCount ) )).start();
+		(new RequestThread( new TrapperRequest( this, selected, tradeCount ) )).run();
 	}
 
 	/**
@@ -387,10 +387,10 @@ public class KoLmafiaGUI extends KoLmafia
 			sequence[1] = new BountyHunterRequest( this, selected.getItemID() );
 			sequence[2] = new ItemStorageRequest( this, ItemStorageRequest.CLOSET_TO_INVENTORY, items );
 
-			(new RequestThread( sequence )).start();
+			(new RequestThread( sequence )).run();
 		}
 		else
-			(new RequestThread( new BountyHunterRequest( this, TradeableItemDatabase.getItemID( selectedValue ) ) )).start();
+			(new RequestThread( new BountyHunterRequest( this, TradeableItemDatabase.getItemID( selectedValue ) ) )).run();
 	}
 
 	/**
@@ -422,7 +422,7 @@ public class KoLmafiaGUI extends KoLmafia
 		else
 			return;
 
-		(new RequestThread( new GalaktikRequest( this, type ) )).start();
+		(new RequestThread( new GalaktikRequest( this, type ) )).run();
 	}
 
 	/**
@@ -465,7 +465,7 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( selectedValue == null )
 			return;
 
-		(new RequestThread( new UntinkerRequest( this, selectedValue.getItemID() ) )).start();
+		(new RequestThread( new UntinkerRequest( this, selectedValue.getItemID() ) )).run();
 	}
 
 	/**
@@ -474,123 +474,52 @@ public class KoLmafiaGUI extends KoLmafia
 
 	public void makeMindControlRequest()
 	{
-		try
-		{
-			String [] levelArray = new String[12];
-			for ( int i = 0; i < 12; ++i )
-				levelArray[i] = "Level " + i;
+		String [] levelArray = new String[12];
+		for ( int i = 0; i < 12; ++i )
+			levelArray[i] = "Level " + i;
 
-			String selectedLevel = (String) JOptionPane.showInputDialog(
-				null, "Set the device to what level?", "Change mind control device from level " + KoLCharacter.getMindControlLevel(),
-					JOptionPane.INFORMATION_MESSAGE, null, levelArray, levelArray[ KoLCharacter.getMindControlLevel() ] );
+		String selectedLevel = (String) JOptionPane.showInputDialog(
+			null, "Set the device to what level?", "Change mind control device from level " + KoLCharacter.getMindControlLevel(),
+				JOptionPane.INFORMATION_MESSAGE, null, levelArray, levelArray[ KoLCharacter.getMindControlLevel() ] );
 
-			if ( selectedLevel == null)
-				return;
-
-			(new RequestThread( new MindControlRequest( this, df.parse( selectedLevel.split( " " )[1] ).intValue() ) )).start();
-		}
-		catch ( Exception e )
-		{
-			e.printStackTrace( KoLmafia.getLogStream() );
-			e.printStackTrace();
-		}
-	}
-
-	public void removeAllItemsFromStore()
-	{
-		(new StoreManageRequest( this )).run();
-
-		// Now determine the desired prices on items.
-		// If the value of an item is currently 100,
-		// then remove the item from the store.
-
-		StoreManager.SoldItem [] sold = new StoreManager.SoldItem[ StoreManager.getSoldItemList().size() ];
-		StoreManager.getSoldItemList().toArray( sold );
-
-		for ( int i = 0; i < sold.length && permitsContinue(); ++i )
-			(new StoreManageRequest( this, sold[i].getItemID() )).run();
-
-		updateDisplay( "Store emptying complete." );
-	}
-
-	/**
-	 * Hosts a massive sale on the items currently in your store.
-	 * Utilizes the "minimum meat" principle.
-	 */
-
-	public void makeEndOfRunSaleRequest()
-	{
-		if ( !KoLCharacter.canInteract() )
-		{
-			updateDisplay( ERROR_STATE, "You are not yet out of ronin." );
-			return;
-		}
-
-		if ( JOptionPane.NO_OPTION == JOptionPane.showConfirmDialog( null,
-			"Are you sure you'd like to host an end-of-run sale?", "MASSIVE SALE", JOptionPane.YES_NO_OPTION ) )
-				return;
-
-		// Find all tradeable items.  Tradeable items
-		// are marked by an autosell value of nonzero.
-
-		AdventureResult [] items = new AdventureResult[ KoLCharacter.getInventory().size() ];
-		KoLCharacter.getInventory().toArray( items );
-
-		ArrayList autosell = new ArrayList();
-		ArrayList automall = new ArrayList();
-
-		// Only place items in the mall which are not
-		// sold in NPC stores -- everything else, make
-		// sure you autosell.
-
-		for ( int i = 0; i < items.length; ++i )
-		{
-			if ( items[i].getCount() < 100 && TradeableItemDatabase.getPriceByID( items[i].getItemID() ) > 0 )
-			{
-				if ( NPCStoreDatabase.contains( items[i].getName() ) )
-					autosell.add( items[i] );
-				else
-					automall.add( items[i] );
-			}
-		}
-
-		// Now, place all the items in the mall at the
-		// maximum possible price.  This allows KoLmafia
-		// to determine the minimum price.
-
-		if ( autosell.size() > 0 && permitsContinue() )
-			(new AutoSellRequest( this, autosell.toArray(), AutoSellRequest.AUTOSELL )).run();
-
-		if ( automall.size() > 0 && permitsContinue() )
-			(new AutoSellRequest( this, automall.toArray(), AutoSellRequest.AUTOMALL )).run();
-
-		// Now, remove all the items that you intended
-		// to remove from the store due to pricing issues.
-
-		if ( permitsContinue() )
-			priceItemsAtLowestPrice();
-
-		updateDisplay( "Undercutting sale complete." );
-	}
-
-	/**
-	 * Utility method used to print a list to the given output
-	 * stream.  If there's a need to print to the current output
-	 * stream, simply pass the output stream to this method.
-	 */
-
-	protected void printList( List printing )
-	{
-		if ( printing.isEmpty() )
+		if ( selectedLevel == null)
 			return;
 
-		if ( printing.size() == 1 )
-		{
-			updateDisplay( ERROR_STATE, "You need " + printing.get(0).toString() + " before continuing." );
-			return;
+		(new RequestThread( new MindControlRequest( this, Integer.parseInt( selectedLevel.split( " " )[1] ) ) )).run();
+	}
+
+	private static class ChannelColorsRequest extends KoLRequest
+	{
+		public ChannelColorsRequest()
+		{	super( StaticEntity.getClient(), "account_chatcolors.php", true );
 		}
 
-		JOptionPane.showInputDialog( null, "The following items are still missing...", "Oops, you did it again!",
-			JOptionPane.INFORMATION_MESSAGE, null, printing.toArray(), null );
+		public void run()
+		{
+			super.run();
+
+			// First, add in all the colors for all of the
+			// channel tags (for people using standard KoL
+			// chatting mode).
+
+			Matcher colorMatcher = Pattern.compile( "<td>(.*?)&nbsp;&nbsp;&nbsp;&nbsp;</td>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			while ( colorMatcher.find() )
+				KoLMessenger.setColor( colorMatcher.group(1).toLowerCase(), Integer.parseInt( colorMatcher.group(2) ) );
+
+			// Add in other custom colors which are available
+			// in the chat options.
+
+			colorMatcher = Pattern.compile( "<select name=chatcolorself>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			if ( colorMatcher.find() )
+				KoLMessenger.setColor( "chatcolorself", Integer.parseInt( colorMatcher.group(1) ) );
+
+			colorMatcher = Pattern.compile( "<select name=chatcolorcontacts>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			if ( colorMatcher.find() )
+				KoLMessenger.setColor( "chatcolorcontacts", Integer.parseInt( colorMatcher.group(1) ) );
+
+			colorMatcher = Pattern.compile( "<select name=chatcolorothers>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			if ( colorMatcher.find() )
+				KoLMessenger.setColor( "chatcolorothers", Integer.parseInt( colorMatcher.group(1) ) );
+		}
 	}
 }

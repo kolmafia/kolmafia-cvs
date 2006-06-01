@@ -34,17 +34,27 @@
 
 package net.sourceforge.kolmafia;
 
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
 import javax.swing.Box;
 import javax.swing.JPanel;
 import javax.swing.JLabel;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JTextField;
 import javax.swing.BoxLayout;
 import javax.swing.JScrollPane;
+import javax.swing.JFileChooser;
 
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
 
 import java.lang.ref.WeakReference;
+import net.java.dev.spellcast.utilities.JComponentUtilities;
 import net.java.dev.spellcast.utilities.ActionVerifyPanel;
 
 /**
@@ -55,6 +65,7 @@ import net.java.dev.spellcast.utilities.ActionVerifyPanel;
 
 public abstract class KoLPanel extends ActionVerifyPanel implements KoLConstants
 {
+	private VerifiableElement [] elements;
 	protected JPanel actionStatusPanel;
 	protected StatusLabel actionStatusLabel;
 
@@ -85,6 +96,12 @@ public abstract class KoLPanel extends ActionVerifyPanel implements KoLConstants
 	protected KoLPanel( String confirmedText, String cancelledText )
 	{
 		super( confirmedText, cancelledText );
+		existingPanels.add( new WeakReference( this ) );
+	}
+
+	protected KoLPanel( String confirmedText, String cancelledText, boolean isCenterPanel )
+	{
+		super( confirmedText, cancelledText, isCenterPanel );
 		existingPanels.add( new WeakReference( this ) );
 	}
 
@@ -128,23 +145,62 @@ public abstract class KoLPanel extends ActionVerifyPanel implements KoLConstants
 	{
 		super.setContent( elements, mainPanel, eastPanel, isLabelPreceeding, bothDisabledOnClick );
 
-		boolean shouldAddStatusLabel = elements.length != 0;
-		for ( int i = 0; i < elements.length; ++i )
-			shouldAddStatusLabel &= !(elements[i].getInputField() instanceof JScrollPane);
+		// In addition to setting the content on these, also
+		// add a return-key listener to each of the input fields.
 
-		if ( shouldAddStatusLabel )
+		ActionConfirmListener listener = new ActionConfirmListener();
+		this.elements = elements;
+
+		if ( elements != null )
 		{
-			JPanel statusContainer = new JPanel();
-			statusContainer.setLayout( new BoxLayout( statusContainer, BoxLayout.Y_AXIS ) );
+			for ( int i = 0; i < elements.length; ++i )
+			{
+				if ( elements[i].getInputField() instanceof JComboBox )
+					((JComboBox)elements[i].getInputField()).addKeyListener( listener );
+				if ( elements[i].getInputField() instanceof JTextField )
+					((JTextField)elements[i].getInputField()).addKeyListener( listener );
+			}
+	
+			if ( shouldAddStatusLabel( elements ) )
+			{
+				JPanel statusContainer = new JPanel();
+				statusContainer.setLayout( new BoxLayout( statusContainer, BoxLayout.Y_AXIS ) );
+	
+				actionStatusPanel = new JPanel( new BorderLayout() );
+				actionStatusLabel = new StatusLabel();
+				actionStatusPanel.add( actionStatusLabel, BorderLayout.SOUTH );
+	
+				statusContainer.add( actionStatusPanel );
+				statusContainer.add( Box.createVerticalStrut( 20 ) );
+	
+				container.add( statusContainer, BorderLayout.SOUTH );
+			}
+		}
+	}
 
-			actionStatusPanel = new JPanel( new BorderLayout() );
-			actionStatusLabel = new StatusLabel();
-			actionStatusPanel.add( actionStatusLabel, BorderLayout.SOUTH );
+	public void setEnabled( boolean isEnabled )
+	{
+		super.setEnabled( isEnabled );
+		if ( elements == null || elements.length == 0 )
+			return;
 
-			statusContainer.add( actionStatusPanel );
-			statusContainer.add( Box.createVerticalStrut( 20 ) );
-
-			container.add( statusContainer, BorderLayout.SOUTH );
+		if ( elements[0].getInputField().isEnabled() == isEnabled )
+			return;
+		
+		for ( int i = 0; i < elements.length; ++i )
+			elements[i].getInputField().setEnabled( isEnabled );
+	}
+	
+	private class ActionConfirmListener extends KeyAdapter implements Runnable
+	{
+		public void keyReleased( KeyEvent e )
+		{
+			if ( e.getKeyCode() == KeyEvent.VK_ENTER )
+				(new RequestThread( this )).start();
+		}
+		
+		public void run()
+		{	actionConfirmed();
 		}
 	}
 
@@ -172,9 +228,80 @@ public abstract class KoLPanel extends ActionVerifyPanel implements KoLConstants
 		}
 	}
 
+	protected boolean shouldAddStatusLabel( VerifiableElement [] elements )
+	{
+		boolean shouldAddStatusLabel = elements != null && elements.length != 0;
+		for ( int i = 0; shouldAddStatusLabel && i < elements.length; ++i )
+			shouldAddStatusLabel &= !(elements[i].getInputField() instanceof JScrollPane);
+
+		return shouldAddStatusLabel;
+	}
+
+	/**
+	 * This internal class is used to process the request for selecting
+	 * a script using the file dialog.
+	 */
+
+	protected class ScriptSelectPanel extends JPanel implements ActionListener
+	{
+		private JTextField scriptField;
+		private JButton scriptButton;
+
+		public ScriptSelectPanel( JTextField scriptField )
+		{
+			setLayout( new BorderLayout( 0, 0 ) );
+
+			add( scriptField, BorderLayout.CENTER );
+			scriptButton = new JButton( "..." );
+
+			JComponentUtilities.setComponentSize( scriptButton, 20, 20 );
+			scriptButton.addActionListener( this );
+			add( scriptButton, BorderLayout.EAST );
+
+			this.scriptField = scriptField;
+		}
+		
+		public void setEnabled( boolean isEnabled )
+		{
+			scriptField.setEnabled( isEnabled );
+			scriptButton.setEnabled( isEnabled );
+		}
+		
+		public String getText()
+		{	return scriptField.getText();
+		}
+		
+		public void setText( String text )
+		{	scriptField.setText( text );
+		}
+
+		public void actionPerformed( ActionEvent e )
+		{
+			JFileChooser chooser = new JFileChooser( SCRIPT_DIRECTORY.getAbsolutePath() );
+			int returnVal = chooser.showOpenDialog( null );
+
+			if ( chooser.getSelectedFile() == null )
+				return;
+
+			scriptField.setText( chooser.getSelectedFile().getAbsolutePath() );
+		}
+	}
+
+	public void setStatusMessage( String s )
+	{	setStatusMessage( ENABLE_STATE, s );
+	}
+	
 	public void setStatusMessage( int displayState, String s )
 	{
 		if ( actionStatusLabel != null && !s.equals( "" ) )
 			actionStatusLabel.setStatusMessage( displayState, s );
+	}
+
+	protected final void setProperty( String name, String value )
+	{	StaticEntity.setProperty( name, value );
+	}
+
+	protected final String getProperty( String name )
+	{	return StaticEntity.getProperty( name );
 	}
 }
