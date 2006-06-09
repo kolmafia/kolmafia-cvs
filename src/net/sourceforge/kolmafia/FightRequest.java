@@ -129,19 +129,19 @@ public class FightRequest extends KoLRequest
 
 			action1 = "attack";
 		}
-		else if ( action1.equals( "abort" ) || !client.permitsContinue() )
+		else if ( action1.equals( "abort" ) || !KoLmafia.permitsContinue() )
 		{
 			// If the user has chosen to abort
 			// combat, flag it.
 
-			action1 = "...";
+			action1 = null;
 		}
 		else if ( haltTolerance != 0 && KoLCharacter.getCurrentHP() <= haltTolerance )
 		{
 			// If you plan on halting the battle
 			// due to HP loss, then flag it.
 
-			action1 = "...";
+			action1 = null;
 		}
 		else if ( action1.startsWith( "run" ) )
 		{
@@ -219,16 +219,25 @@ public class FightRequest extends KoLRequest
 
 	public void run()
 	{
-		nextRound();
-
-		if ( action1.equals( "..." ) || !client.permitsContinue() )
+		while ( this.turnsUsed == 0 )
 		{
-			DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Battle stopped.  Please finish in-browser." );
-			showInBrowser( true );
-			return;
-		}
+			clearDataFields();
+			action1 = null;
+			action2 = null;
 
-		super.run();
+			if ( !KoLmafia.refusesContinue() )
+				nextRound();
+
+			super.run();
+
+			if ( KoLmafia.refusesContinue() || action1 == null )
+			{
+				if ( turnsUsed == 0 )
+					showInBrowser( true );
+
+				return;
+			}
+		}
 	}
 
 	protected void processResults()
@@ -243,51 +252,14 @@ public class FightRequest extends KoLRequest
 		if ( roundCount == 1 )
 			FightRequest.encounter = AdventureRequest.registerEncounter( this );
 
-		if ( responseText.indexOf( "fight.php" ) != -1 )
+		if ( responseText.indexOf( "fight.php" ) == -1 )
 		{
-			// This is a fall-through state.  This means that
-			// you need to run another fight.
-		}
-		else if ( responseText.indexOf( "WINWINWIN" ) != -1 )
-		{
-			// The battle was won!  If the user canceled, say
-			// it's complete.
-
-			if ( !client.permitsContinue() )
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Battle completed, adventures aborted." );
-
 			this.turnsUsed = 1;
+			if ( KoLCharacter.getCurrentHP() == 0 )
+				KoLmafia.updateDisplay( ERROR_STATE, "You were defeated!" );
 		}
-		else if ( responseText.indexOf( "You run away" ) != -1 )
-		{
-			if ( !client.permitsContinue() )
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Battle completed, adventures aborted." );
-
-			this.turnsUsed = 1;			
-		}
-		else if ( responseText.indexOf( "You lose." ) != -1 )
-		{
-			// If you lose the battle, you should update the display to
-			// indicate that the battle has been finished; you should
-			// also notify the client that an adventure was completed,
-			// but that the loop should be halted.
-
-			if ( !client.permitsContinue() )
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Battle completed, adventures aborted." );
-			else if ( KoLCharacter.getCurrentHP() == 0 )
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You were defeated!" );
-
-			this.turnsUsed = 1;
-		}
-
-		// Otherwise, you still have more rounds to fight.
-		// move onto the next round and then rerun the
-		// request.
 
 		super.processResults();
-
-		if ( turnsUsed == 0 )
-			run();
 	}
 
 	public int getCombatRound()
@@ -328,6 +300,9 @@ public class FightRequest extends KoLRequest
 
 	private void payActionCost()
 	{
+		if ( action1 == null || action1.equals( "" ) )
+			return;
+
 		if ( action1.equals( "attack" ) || action1.equals( "runaway" ) )
 			return;
 
@@ -338,13 +313,13 @@ public class FightRequest extends KoLRequest
 			if ( hasActionCost( id1 ) )
 				client.processResult( new AdventureResult( id1, -1 ) );
 
-			if ( action2 != null )
-			{
-				int id2 = Integer.parseInt( action2.substring( 4 ) );
-			
-				if ( hasActionCost( id2 ) )
-					client.processResult( new AdventureResult( id2, -1 ) );
-			}
+			if ( action2 == null || action2.equals( "" ) )
+				return;
+
+			int id2 = Integer.parseInt( action2.substring( 4 ) );
+
+			if ( hasActionCost( id2 ) )
+				client.processResult( new AdventureResult( id2, -1 ) );
 
 			return;
 		}

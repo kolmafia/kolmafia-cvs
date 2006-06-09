@@ -51,7 +51,7 @@ public class RequestThread extends Thread implements KoLConstants
 	{	this( requests, 1 );
 	}
 
-	private RequestThread( Runnable [] requests, int repeatCount )
+	public RequestThread( Runnable [] requests, int repeatCount )
 	{
 		this.repeatCount = repeatCount;
 
@@ -76,9 +76,7 @@ public class RequestThread extends Thread implements KoLConstants
 		if ( requests.length == 0 )
 			return;
 
-		if ( !(requests[0] instanceof ChatRequest) )
-			StaticEntity.getClient().forceContinue();
-
+		KoLmafia.forceContinue();
 		for ( int i = 0; i < requests.length; ++i )
 		{
 			// Chat requests are only run once, no matter what
@@ -109,14 +107,19 @@ public class RequestThread extends Thread implements KoLConstants
 				for ( int j = 0; j < repeatCount; ++j )
 					requests[i].run();
 		}
+
+		KoLCharacter.refreshCalculatedLists();
+		System.gc();
+
+		KoLmafia.enableDisplay();
 	}
 
 	protected void run( KoLRequest request, int repeatCount )
 	{
 		// Standard KoL requests are handled through the
-		// client.makeRequest() method.
+		// makeRequest() method.
 
-		if ( StaticEntity.getClient().permitsContinue() )
+		if ( KoLmafia.permitsContinue() )
 			StaticEntity.getClient().makeRequest( request, repeatCount );
 	}
 }

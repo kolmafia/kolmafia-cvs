@@ -482,7 +482,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 								"Save arena parameters for the " + familiar.getRace() + "?",
 								"Save arena skills?", JOptionPane.YES_NO_OPTION ) )
 							FamiliarsDatabase.setFamiliarSkills( familiar.getRace(), skills );
-						DEFAULT_SHELL.updateDisplay( CONTINUE_STATE, "Learned skills are " + ( changed ? "different from" : "the same as" ) + " those in familiar database." );
+						KoLmafia.updateDisplay( CONTINUE_STATE, "Learned skills are " + ( changed ? "different from" : "the same as" ) + " those in familiar database." );
 
 					}
 				}
@@ -507,7 +507,6 @@ public class FamiliarTrainingFrame extends KoLFrame
 				setLayout( new BorderLayout( 10, 10 ) );
 
 				JEditorPane resultsDisplay = new JEditorPane();
-				resultsDisplay.setEditable( false );
 				JScrollPane scroller = results.setChatDisplay( resultsDisplay );
 				JComponentUtilities.setComponentSize( scroller, 400, 400 );
 
@@ -560,7 +559,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 			{
 				FamiliarData selection = (FamiliarData)getSelectedItem();
 				(new FamiliarRequest( StaticEntity.getClient(), selection )).run();
-				StaticEntity.getClient().updateDisplay( "Familiar changed." );
+				KoLmafia.updateDisplay( "Familiar changed." );
 				familiar = KoLCharacter.getFamiliar();
 				isChanging = false;
 			}
@@ -633,13 +632,13 @@ public class FamiliarTrainingFrame extends KoLFrame
 		FamiliarTool tool = new FamiliarTool( opponents );
 
 		// Let the battles begin!
-		DEFAULT_SHELL.updateDisplay( "Starting training session..." );
+		KoLmafia.updateDisplay( "Starting training session..." );
 
 		// Iterate until we reach the goal
-		while ( !goalMet( status, goal, type) )
+		while ( !goalMet( status, goal, type ) )
 		{
 			// If user canceled, bail now
-			if ( stop || !StaticEntity.getClient().permitsContinue() )
+			if ( stop || !KoLmafia.permitsContinue() )
 			{
 				statusMessage( ERROR_STATE, "Training session aborted." );
 				return false;
@@ -676,7 +675,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 			// Change into appropriate gear
 			status.changeGear( tool.bestWeight(), buffs );
-			if ( !StaticEntity.getClient().permitsContinue() )
+			if ( !KoLmafia.permitsContinue() )
 			{
 				if ( buffs )
 				{
@@ -764,7 +763,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		FamiliarTool tool = new FamiliarTool( opponents );
 
 		// Let the battles begin!
-		DEFAULT_SHELL.updateDisplay( "Starting training session..." );
+		KoLmafia.updateDisplay( "Starting training session..." );
 
 		// XP earned indexed by [event][rank]
 		int [][] xp = new int[4][3];
@@ -793,7 +792,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 						continue;
 
 					// If user canceled, bail now
-					if ( stop || !StaticEntity.getClient().permitsContinue() )
+					if ( stop || !KoLmafia.permitsContinue() )
 					{
 						statusMessage( ERROR_STATE, "Training session aborted." );
 						return null;
@@ -827,7 +826,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 					// Change into appropriate gear
 					status.changeGear( tool.bestWeight(), false );
-					if ( !StaticEntity.getClient().permitsContinue() )
+					if ( !KoLmafia.permitsContinue() )
 					{
 						statusMessage( ERROR_STATE, "Training stopped: internal error." );
 						return null;
@@ -911,7 +910,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		FamiliarData familiar = KoLCharacter.getFamiliar();
 		if ( familiar == FamiliarData.NO_FAMILIAR )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have a familiar equipped." );
+			KoLmafia.updateDisplay( ERROR_STATE, "You don't have a familiar equipped." );
 			return false;
 		}
 
@@ -938,13 +937,8 @@ public class FamiliarTrainingFrame extends KoLFrame
 			{
 				// Change gear and buff up
 				status.changeGear( goal, needBuffs );
-
-				// If we failed to buff, give up
-				if ( familiar.getModifiedWeight() < weight )
-					break;
-
-				// Otherwise, we're good to go
-				return true;
+				if ( familiar.getModifiedWeight() >= weight )
+					return true;
 			}
 
 			// If we've already tried using buffs, give up now
@@ -955,7 +949,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 			needBuffs = true;
 		}
 
-		DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Can't buff and equip familiar to reach " + weight + " lbs." );
+		KoLmafia.updateDisplay( ERROR_STATE, "Can't buff and equip familiar to reach " + weight + " lbs." );
 		return false;
 	}
 
@@ -970,7 +964,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		else
 			results.append( message + "<br>" );
 
-		DEFAULT_SHELL.updateDisplay( state, message );
+		KoLmafia.updateDisplay( state, message );
 	}
 
 	private static void printFamiliar( FamiliarStatus status, int goal, int type )
@@ -1143,7 +1137,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 		results.append( text.toString() );
 
-		DEFAULT_SHELL.updateDisplay( "Round " + round + ": " + familiar.getName() + " vs. " + opponent.getName() + "..." );
+		KoLmafia.updateDisplay( "Round " + round + ": " + familiar.getName() + " vs. " + opponent.getName() + "..." );
 	}
 
 	private static int fightMatch( FamiliarStatus status, FamiliarTool tool, CakeArenaManager.ArenaOpponent opponent )
@@ -1153,7 +1147,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 	private static int fightMatch( FamiliarStatus status, FamiliarTool tool, CakeArenaManager.ArenaOpponent opponent, int match )
 	{
 		// If user aborted, bail now
-		if ( !StaticEntity.getClient().permitsContinue())
+		if ( KoLmafia.refusesContinue() )
 			return 0;
 
 		// Tell the user about the match
@@ -1365,18 +1359,16 @@ public class FamiliarTrainingFrame extends KoLFrame
 		}
 
 		private void checkCurrentEquipment()
-		{	checkCurrentEquipment( KoLCharacter.getCurrentEquipment( KoLCharacter.HAT ),
-					       KoLCharacter.getCurrentEquipment( KoLCharacter.FAMILIAR ),
-					       KoLCharacter.getCurrentEquipment( KoLCharacter.ACCESSORY1 ),
-					       KoLCharacter.getCurrentEquipment( KoLCharacter.ACCESSORY2 ),
-					       KoLCharacter.getCurrentEquipment( KoLCharacter.ACCESSORY3 ) );
+		{
+			checkCurrentEquipment( KoLCharacter.getCurrentEquipment( KoLCharacter.HAT ),
+				KoLCharacter.getCurrentEquipment( KoLCharacter.FAMILIAR ),
+				KoLCharacter.getCurrentEquipment( KoLCharacter.ACCESSORY1 ),
+				KoLCharacter.getCurrentEquipment( KoLCharacter.ACCESSORY2 ),
+				KoLCharacter.getCurrentEquipment( KoLCharacter.ACCESSORY3 ) );
 		}
 
-		private void checkCurrentEquipment( AdventureResult hat,
-						    AdventureResult item,
-						    AdventureResult acc1,
-						    AdventureResult acc2,
-						    AdventureResult acc3 )
+		private void checkCurrentEquipment( AdventureResult hat, AdventureResult item,
+			AdventureResult acc1, AdventureResult acc2, AdventureResult acc3 )
 		{
 			// Initialize equipment to default
 			this.hat = null;
@@ -1842,12 +1834,14 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 			// Iterate over all the GearSets and choose the first
 			// one which is closest to the current GearSet
+
 			GearSet choice = null;
 			int choiceSwaps = Integer.MAX_VALUE;
 			int count = gearSets.size();
+
 			for ( int i = 0; i < count; ++i )
 			{
-				GearSet gear = (GearSet)gearSets.get( i );
+				GearSet gear = (GearSet) gearSets.get(i);
 				int swaps = gear.compareTo( current );
 				if ( swaps < choiceSwaps )
 				{
@@ -1871,13 +1865,13 @@ public class FamiliarTrainingFrame extends KoLFrame
 
 			if ( buffs )
 			{
-				boolean addLeash = buffs && leashAvailable && leashActive == 0;
-				boolean addEmpathy = buffs && empathyAvailable && empathyActive == 0;
-				boolean addSpray = buffs && heavyPettingAvailable && heavyPettingActive == 0;
+				boolean addLeash = leashAvailable && leashActive == 0;
+				boolean addEmpathy = empathyAvailable && empathyActive == 0;
+				boolean addSpray = heavyPettingAvailable && heavyPettingActive == 0;
 
 				if ( addLeash )
 					getHatGearSets( weight, addLeash, empathyActive > 0, heavyPettingActive > 0 );
-				if ( addLeash )
+				if ( addEmpathy )
 					getHatGearSets( weight, leashActive > 0, addEmpathy, heavyPettingActive > 0 );
 				if ( addSpray )
 					getHatGearSets( weight, leashActive > 0, empathyActive > 0, addSpray );

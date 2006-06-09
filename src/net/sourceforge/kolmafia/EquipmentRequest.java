@@ -53,14 +53,16 @@ public class EquipmentRequest extends PasswordHashRequest
 	public static final String UNEQUIP = "(none)";
 
 	public static final int CLOSET = 1;
-	public static final int EQUIPMENT = 2;
+	private static final int QUESTS = 2;
+	public static final int EQUIPMENT = 3;
+	private static final int CONSUMABLES = 4;
 
-	private static final int SAVE_OUTFIT = 3;
-	private static final int CHANGE_OUTFIT = 4;
+	private static final int SAVE_OUTFIT = 5;
+	private static final int CHANGE_OUTFIT = 6;
 
-	private static final int CHANGE_ITEM = 5;
-	private static final int REMOVE_ITEM = 6;
-	private static final int UNEQUIP_ALL = 7;
+	private static final int CHANGE_ITEM = 7;
+	private static final int REMOVE_ITEM = 8;
+	private static final int UNEQUIP_ALL = 9;
 
 	// Array indexed by equipment "slot" from KoLCharacter
 	//
@@ -93,7 +95,9 @@ public class EquipmentRequest extends PasswordHashRequest
 
 	public EquipmentRequest( KoLmafia client, int requestType )
 	{
-		super( client, requestType == CLOSET ? "closet.php" : requestType == UNEQUIP_ALL ? "inv_equip.php" : "inventory.php" );
+		super( client, requestType == CLOSET ? "closet.php" :
+			requestType == UNEQUIP_ALL ? "inv_equip.php" : "inventory.php" );
+
 		this.requestType = requestType;
 		this.outfit = null;
 		this.error = null;
@@ -101,7 +105,11 @@ public class EquipmentRequest extends PasswordHashRequest
 		// Otherwise, add the form field indicating which page
 		// of the inventory you want to request
 
-		if ( requestType != CLOSET )
+		if ( requestType == QUESTS )
+			addFormField( "which", "3" );
+		else if ( requestType == CONSUMABLES )
+			addFormField( "which", "1" );
+		else if ( requestType != CLOSET )
 			addFormField( "which", "2" );
 
 		if ( requestType == UNEQUIP_ALL )
@@ -115,7 +123,7 @@ public class EquipmentRequest extends PasswordHashRequest
 	{
 		super( client, "inv_equip.php" );
 		addFormField( "which", "2" );
-		
+
 		addFormField( "action", "customoutfit" );
 		addFormField( "outfitname", outfitName );
 		requestType = SAVE_OUTFIT;
@@ -179,7 +187,7 @@ public class EquipmentRequest extends PasswordHashRequest
 	private String getAction()
 	{
 		AdventureResult item = new AdventureResult( itemID, 0 );
-		if ( equipmentSlot != KoLCharacter.FAMILIAR && 
+		if ( equipmentSlot != KoLCharacter.FAMILIAR &&
 		     item.getCount( KoLCharacter.getInventory() ) == 0 )
 		{
 			error = "You don't have a " + item.getName();
@@ -317,7 +325,7 @@ public class EquipmentRequest extends PasswordHashRequest
 		// If we were given bogus parameters, report the error now
 		if ( error != null )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, error );
+			KoLmafia.updateDisplay( ERROR_STATE, error );
 			return;
 		}
 
@@ -359,7 +367,7 @@ public class EquipmentRequest extends PasswordHashRequest
 				client.getConditions().addAll( temporaryList );
 
 				// Bail now if the conditions were not met
-				if ( !client.permitsContinue() )
+				if ( !KoLmafia.permitsContinue() )
 					return;
 			}
 		}
@@ -392,7 +400,7 @@ public class EquipmentRequest extends PasswordHashRequest
 						{
 							if ( familiars[i].getItem() != null && familiars[i].getItem().indexOf( changeItemName ) != -1 )
 							{
-								DEFAULT_SHELL.updateDisplay( "Stealing " + result.getName() + " from " + familiars[i].getRace() + "..." );
+								KoLmafia.updateDisplay( "Stealing " + result.getName() + " from " + familiars[i].getRace() + "..." );
 								KoLRequest unequip = new KoLRequest( client, "familiar.php?pwd=&action=unequip&famid=" + familiars[i].getID(), true );
 								unequip.run();
 
@@ -419,36 +427,40 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		switch ( requestType )
 		{
+			case QUESTS:
+				KoLmafia.updateDisplay( "Updating quest items..." );
+				break;
+
 			case CLOSET:
-				DEFAULT_SHELL.updateDisplay( "Refreshing closet..." );
+				KoLmafia.updateDisplay( "Refreshing closet..." );
 				break;
 
 			case EQUIPMENT:
-				DEFAULT_SHELL.updateDisplay( "Retrieving equipment..." );
+				KoLmafia.updateDisplay( "Retrieving equipment..." );
 				break;
 
 			case SAVE_OUTFIT:
-				DEFAULT_SHELL.updateDisplay( "Saving outfit..." );
+				KoLmafia.updateDisplay( "Saving outfit..." );
 				break;
-				
+
 			case CHANGE_OUTFIT:
-				DEFAULT_SHELL.updateDisplay( "Putting on " + outfit + "..." );
+				KoLmafia.updateDisplay( "Putting on " + outfit + "..." );
 				break;
 
 			case CHANGE_ITEM:
-				DEFAULT_SHELL.updateDisplay( ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON ? "Wielding " : "Putting on " ) + TradeableItemDatabase.getItemName( itemID ) + "..." );
+				KoLmafia.updateDisplay( ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON ? "Wielding " : "Putting on " ) + TradeableItemDatabase.getItemName( itemID ) + "..." );
 				break;
 
 			case REMOVE_ITEM:
 				String item = KoLCharacter.getCurrentEquipmentName( equipmentSlot);
 				if ( item == null )
 					return;
-				
-				DEFAULT_SHELL.updateDisplay( "Taking off " + item + "..." );
+
+				KoLmafia.updateDisplay( "Taking off " + item + "..." );
 				break;
 
 			case UNEQUIP_ALL:
-				DEFAULT_SHELL.updateDisplay( "Taking off everything..." );
+				KoLmafia.updateDisplay( "Taking off everything..." );
 				break;
 		}
 
@@ -478,10 +490,19 @@ public class EquipmentRequest extends PasswordHashRequest
 			{
 				parseCloset();
 				super.processResults();
-				DEFAULT_SHELL.updateDisplay( "Inventory retrieved." );
+				(new EquipmentRequest( client, EquipmentRequest.QUESTS )).run();
+				(new EquipmentRequest( client, EquipmentRequest.EQUIPMENT )).run();
+				(new EquipmentRequest( client, EquipmentRequest.CONSUMABLES )).run();
+			}
+			else if ( requestType == QUESTS || requestType == CONSUMABLES )
+			{
+				parseQuestItems();
+				super.processResults();
+				KoLmafia.updateDisplay( "Quest item list retrieved." );
 			}
 			else
 			{
+				parseQuestItems();
 				String [] oldEquipment = new String[9];
 				int oldFakeHands = KoLCharacter.getFakeHands();
 
@@ -492,25 +513,28 @@ public class EquipmentRequest extends PasswordHashRequest
 					oldEquipment[i] = KoLCharacter.getEquipment( i );
 
 				parseEquipment( this.responseText );
+				if ( KoLmafia.cachedLogin != null )
+				{
+					for ( int i = 0; i < 9; ++i )
+						switchItem( oldEquipment[i], KoLCharacter.getEquipment( i ) );
 
-				for ( int i = 0; i < 9; ++i )
-					switchItem( oldEquipment[i], KoLCharacter.getEquipment( i ) );
+					// Adjust inventory of fake hands
+					int newFakeHands = KoLCharacter.getFakeHands();
+					if ( oldFakeHands != newFakeHands )
+						AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( FAKE_HAND, oldFakeHands - newFakeHands ) );
 
-				// Adjust inventory of fake hands
-				int newFakeHands = KoLCharacter.getFakeHands();
-				if ( oldFakeHands != newFakeHands )
-					AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( FAKE_HAND, oldFakeHands - newFakeHands ) );
+					CharpaneRequest.getInstance().run();
+				}
 
-				CharpaneRequest.getInstance().run();
 				KoLCharacter.recalculateAdjustments( false );
 				KoLCharacter.updateStatus();
 
 				if ( requestType == EQUIPMENT )
-					DEFAULT_SHELL.updateDisplay( "Equipment updated." );
+					KoLmafia.updateDisplay( "Equipment updated." );
 				else if ( requestType == SAVE_OUTFIT )
-					DEFAULT_SHELL.updateDisplay( "Outfit saved." );
+					KoLmafia.updateDisplay( "Outfit saved." );
 				else
-					DEFAULT_SHELL.updateDisplay( "Gear changed." );
+					KoLmafia.updateDisplay( "Gear changed." );
 			}
 
 			// After all the items have been switched,
@@ -522,7 +546,7 @@ public class EquipmentRequest extends PasswordHashRequest
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e );
 		}
 	}
@@ -574,7 +598,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			{
 				// This should not happen.  Therefore, print
 				// a stack trace for debug purposes.
-				
+
 				StaticEntity.printStackTrace( e );
 			}
 		}
@@ -618,9 +642,23 @@ public class EquipmentRequest extends PasswordHashRequest
 			{
 				// This should not happen.  Therefore, print
 				// a stack trace for debug purposes.
-				
+
 				StaticEntity.printStackTrace( e );
 			}
+		}
+	}
+
+	private void parseQuestItems()
+	{
+		Matcher itemMatcher = Pattern.compile( "<b>(<a.*?>)?([^<]+)(</a>)?</b>([^<]*?)<font size=1>" ).matcher( responseText );
+		while ( itemMatcher.find() )
+		{
+			String quantity = itemMatcher.group(4).trim();
+			AdventureResult item = new AdventureResult( itemMatcher.group(2),
+				quantity.length() == 0 ? 1 : Integer.parseInt( quantity.substring( 1, quantity.length() - 1 ) ) );
+
+			if ( !KoLCharacter.getInventory().contains( item ) )
+				AdventureResult.addResultToList( KoLCharacter.getInventory(), item );
 		}
 	}
 

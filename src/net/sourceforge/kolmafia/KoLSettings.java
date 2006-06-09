@@ -202,13 +202,14 @@ public class KoLSettings extends Properties implements UtilityConstants
 		hadChanges |= ensureProperty( "createWithoutBoxServants", "false" );
 		hadChanges |= ensureProperty( "defaultDropdown1", "0" );
 		hadChanges |= ensureProperty( "defaultDropdown2", "1" );
-		hadChanges |= ensureProperty( "defaultLimit", "13" );
+		hadChanges |= ensureProperty( "defaultLimit", "5" );
 		hadChanges |= ensureProperty( "defaultToRelayBrowser", "true" );
 		hadChanges |= ensureProperty( "eSoluScriptType", "0" );
 		hadChanges |= ensureProperty( "fontSize", "3" );
 		hadChanges |= ensureProperty( "forceReconnect", "false" );
+		hadChanges |= ensureProperty( "guiUsesOneWindow", "false" );
 		hadChanges |= ensureProperty( "hpAutoRecover", "-0.1" );
-		hadChanges |= ensureProperty( "hpAutoRecoverTarget", "1.0" );
+		hadChanges |= ensureProperty( "hpAutoRecoverTarget", "-0.1" );
 		hadChanges |= ensureProperty( "hpRecoveryScript", "" );
 		hadChanges |= ensureProperty( "hpRestores", "" );
 		hadChanges |= ensureProperty( "highlightList", "" );
@@ -227,8 +228,8 @@ public class KoLSettings extends Properties implements UtilityConstants
 		hadChanges |= ensureProperty( "lastUsername", "" );
 		hadChanges |= ensureProperty( "loginServer", "0" );
 		hadChanges |= ensureProperty( "luckySewerAdventure", "stolen accordion" );
-		hadChanges |= ensureProperty( "mpAutoRecover", "-0.1" );
-		hadChanges |= ensureProperty( "mpAutoRecoverTarget", "1.0" );
+		hadChanges |= ensureProperty( "mpAutoRecover", "0.0" );
+		hadChanges |= ensureProperty( "mpAutoRecoverTarget", "0.0" );
 		hadChanges |= ensureProperty( "mpRecoveryScript", "" );
 		hadChanges |= ensureProperty( "mpRestores", "" );
 		hadChanges |= ensureProperty( "proxySet", "false" );
@@ -236,7 +237,10 @@ public class KoLSettings extends Properties implements UtilityConstants
 		hadChanges |= ensureProperty( "relayAddsSimulatorLinks", "true" );
 		hadChanges |= ensureProperty( "relayAddsUseLinks", "true" );
 		hadChanges |= ensureProperty( "relayMovesManeuver", "true" );
+		hadChanges |= ensureProperty( "retrieveContacts", "true" );
 		hadChanges |= ensureProperty( "saveState", "" );
+		hadChanges |= ensureProperty( "scriptButtonPosition", "0" );
+		hadChanges |= ensureProperty( "scriptList", "win game" );
 		hadChanges |= ensureProperty( "serverFriendly", "false" );
 		hadChanges |= ensureProperty( "showAdventureZone", "true" );
 		hadChanges |= ensureProperty( "showAllRequests", "false" );
@@ -249,9 +253,9 @@ public class KoLSettings extends Properties implements UtilityConstants
 		hadChanges |= ensureProperty( "useTabbedChat", "1" );
 		hadChanges |= ensureProperty( "useTextHeavySidepane", "true" );
 		hadChanges |= ensureProperty( "useToolbars", "true" );
+		hadChanges |= ensureProperty( "violetFogGoal", "0" );
 		hadChanges |= ensureProperty( "whiteList", "" );
 		hadChanges |= ensureProperty( "zoneExcludeList", "Removed" );
-		hadChanges |= ensureProperty( "guiUsesOneWindow", "false" );
 
 		// These are settings related to choice adventures.
 		// Ensure that they exist, and if they do not, load
@@ -296,6 +300,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 		hadChanges |= ensureProperty( "choiceAdventure45", "0" );
 		hadChanges |= ensureNonZeroProperty( "choiceAdventure46", "3" );
 		hadChanges |= ensureNonZeroProperty( "choiceAdventure47", "2" );
+		hadChanges |= ensureNonZeroProperty( "choiceAdventure71", "1" );
 
 		// Wheel choice adventures need special handling.
 		// This is where everything is validated for that.

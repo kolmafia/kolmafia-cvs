@@ -57,7 +57,7 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 	};
 
 	private Class creationType;
-	private JFrame creation;
+	private KoLFrame creation;
 
 	private Constructor creator;
 	private Object [] parameters;
@@ -110,7 +110,7 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 
 		if ( this.creator == null )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Frame could not be loaded." );
+			KoLmafia.updateDisplay( ERROR_STATE, "Frame could not be loaded." );
 			return;
 		}
 
@@ -162,7 +162,7 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 
 				if ( result.equals( Boolean.TRUE ) )
 				{
-					DEFAULT_SHELL.updateDisplay( "You can't do that while adventuring." );
+					KoLmafia.updateDisplay( "You can't do that while adventuring." );
 					return false;
 				}
 			}
@@ -228,16 +228,28 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 		try
 		{
 			if ( this.creation == null )
-				this.creation = (JFrame) creator.newInstance( parameters );
+				this.creation = (KoLFrame) (JFrame) creator.newInstance( parameters );
 
 			String tabSetting = "," + GLOBAL_SETTINGS.getProperty( "initialDesktop" ) + ",";
 			String searchString = this.creation instanceof ChatFrame ? "KoLMessenger" :
-				this.creation instanceof KoLFrame ? ((KoLFrame)this.creation).getFrameName() : "...";
+				this.creation instanceof KoLFrame ? this.creation.getFrameName() : "...";
 
 			boolean appearsInTab = this.creation instanceof KoLFrame && tabSetting.indexOf( "," + searchString + "," ) != -1;
 
 			appearsInTab &= !(this.creation instanceof RequestFrame) ||
 				(this.creation.getClass() == RequestFrame.class && ((RequestFrame)this.creation).hasSideBar());
+
+			// If the gui is limited to one frame, then make this frame
+			// a tab and remove any extra tabs created this way perviouly.
+
+			if ( !(this.creation instanceof LoginFrame || this.creation instanceof OptionsFrame) &&
+				GLOBAL_SETTINGS.getProperty( "guiUsesOneWindow" ).equals( "true" ) )
+			{
+				if ( !appearsInTab )
+					KoLDesktop.removeExtraTabs();
+
+				appearsInTab = true;
+			}
 
 			// If the person is requesting a this.creation that is meant
 			// to appear in the KoLDesktop interface, then make
@@ -256,10 +268,9 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 
 			if ( !appearsInTab && this.creation instanceof KoLFrame )
 			{
-				KoLFrame frame = (KoLFrame) this.creation;
-				frame.constructToolbar();
-				if ( frame.useSidePane() )
-					frame.addCompactPane();
+				this.creation.constructToolbar();
+				if ( this.creation.useSidePane() )
+					this.creation.addCompactPane();
 
 				this.creation.setJMenuBar( new KoLMenuBar() );
 			}
@@ -278,27 +289,11 @@ public class CreateFrameRunnable implements Runnable, KoLConstants
 			this.creation.setEnabled( true );
 
 			if ( appearsInTab )
-				KoLDesktop.addTab( (KoLFrame) this.creation );
+				KoLDesktop.addTab( this.creation );
 			else
 				this.creation.setVisible( true );
 
 			this.creation.requestFocus();
-
-			if ( StaticEntity.getProperty( "guiUsesOneWindow" ).equals( "true" ) )
-			{
-				if ( KoLDesktop.instanceExists() && !appearsInTab && tabSetting.indexOf( ",KoLMessenger," ) == -1 )
-					KoLDesktop.getInstance().dispose();
-
-				KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
-				existingFrames.toArray( frames );
-				for ( int i = 0; i < frames.length; ++i )
-				{
-					boolean IsMiniBrowser = frames[i] instanceof RequestFrame && ((RequestFrame) frames[i]).hasSideBar();
-					if ( frames[i] != this.creation && !(frames[i] instanceof ChatFrame) && !IsMiniBrowser &&
-						(tabSetting.indexOf( "," + frames[i].getFrameName() + "," ) == -1) )
-						frames[i].dispose();
-				}
-	    }
 		}
 		catch ( Exception e )
 		{

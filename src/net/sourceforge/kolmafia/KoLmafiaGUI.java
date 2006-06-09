@@ -84,38 +84,27 @@ public class KoLmafiaGUI extends KoLmafia
 	}
 
 	/**
-	 * Updates the currently active display in the <code>KoLmafia</code>
-	 * session.
-	 */
-
-	public void updateDisplay( int state, String message )
-	{
-		// Only allow message to propogate if you
-		// are currently NOT in an abort state.
-
-		if ( currentState == ABORT_STATE && state != ABORT_STATE )
-			return;
-
-		super.updateDisplay( state, message );
-	}
-
-	/**
 	 * Initializes the <code>KoLmafia</code> session.  Called after
 	 * the login has been confirmed to notify the client that the
 	 * login was successful, the user-specific settings should be
 	 * loaded, and the user can begin adventuring.
 	 */
 
-	public synchronized void initialize( String username, String sessionID, boolean getBreakfast )
+	public synchronized void initialize( String username, String sessionID, boolean getBreakfast, boolean isQuickLogin )
 	{
-		super.initialize( username, sessionID, getBreakfast );
+		super.initialize( username, sessionID, getBreakfast, isQuickLogin );
 		if ( refusesContinue() )
 			return;
 
-		if ( getPasswordHash() != null )
+		if ( getPasswordHash() != null && !isQuickLogin )
 		{
 			(new MailboxRequest( this, "Inbox" )).run();
-			(new ChannelColorsRequest()).run();
+
+			if ( StaticEntity.getProperty( "retrieveContacts" ).equals( "true" ) )
+			{
+				(new ContactListRequest( this )).run();
+				StaticEntity.setProperty( "retrieveContacts", String.valueOf( !contactList.isEmpty() ) );
+			}
 		}
 
 		String frameSetting = GLOBAL_SETTINGS.getProperty( "initialFrames" );
@@ -178,7 +167,7 @@ public class KoLmafiaGUI extends KoLmafia
 		loginWindow.dispose();
 
 		if ( KoLMailManager.hasNewMessages() )
-			DEFAULT_SHELL.updateDisplay( "You have new mail." );
+			updateDisplay( "You have new mail." );
 	}
 
 	public static void constructFrame( String frameName )
@@ -486,40 +475,5 @@ public class KoLmafiaGUI extends KoLmafia
 			return;
 
 		(new RequestThread( new MindControlRequest( this, Integer.parseInt( selectedLevel.split( " " )[1] ) ) )).run();
-	}
-
-	private static class ChannelColorsRequest extends KoLRequest
-	{
-		public ChannelColorsRequest()
-		{	super( StaticEntity.getClient(), "account_chatcolors.php", true );
-		}
-
-		public void run()
-		{
-			super.run();
-
-			// First, add in all the colors for all of the
-			// channel tags (for people using standard KoL
-			// chatting mode).
-
-			Matcher colorMatcher = Pattern.compile( "<td>(.*?)&nbsp;&nbsp;&nbsp;&nbsp;</td>.*?<option value=(\\d+) selected>" ).matcher( responseText );
-			while ( colorMatcher.find() )
-				KoLMessenger.setColor( colorMatcher.group(1).toLowerCase(), Integer.parseInt( colorMatcher.group(2) ) );
-
-			// Add in other custom colors which are available
-			// in the chat options.
-
-			colorMatcher = Pattern.compile( "<select name=chatcolorself>.*?<option value=(\\d+) selected>" ).matcher( responseText );
-			if ( colorMatcher.find() )
-				KoLMessenger.setColor( "chatcolorself", Integer.parseInt( colorMatcher.group(1) ) );
-
-			colorMatcher = Pattern.compile( "<select name=chatcolorcontacts>.*?<option value=(\\d+) selected>" ).matcher( responseText );
-			if ( colorMatcher.find() )
-				KoLMessenger.setColor( "chatcolorcontacts", Integer.parseInt( colorMatcher.group(1) ) );
-
-			colorMatcher = Pattern.compile( "<select name=chatcolorothers>.*?<option value=(\\d+) selected>" ).matcher( responseText );
-			if ( colorMatcher.find() )
-				KoLMessenger.setColor( "chatcolorothers", Integer.parseInt( colorMatcher.group(1) ) );
-		}
 	}
 }

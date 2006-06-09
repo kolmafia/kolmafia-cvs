@@ -121,7 +121,6 @@ public class RequestFrame extends KoLFrame
 
 		setCurrentRequest( request );
 		this.mainDisplay = new JEditorPane();
-		this.mainDisplay.setEditable( false );
 
 		if ( !(this instanceof PendingTradesFrame) )
 			this.mainDisplay.addHyperlinkListener( new KoLHyperlinkAdapter() );
@@ -143,7 +142,6 @@ public class RequestFrame extends KoLFrame
 		else
 		{
 			this.sideDisplay = new JEditorPane();
-			this.sideDisplay.setEditable( false );
 			this.sideDisplay.addHyperlinkListener( new KoLHyperlinkAdapter() );
 
 			this.sideBuffer = new LimitedSizeChatBuffer( "Sidebar" );
@@ -246,7 +244,7 @@ public class RequestFrame extends KoLFrame
 		if ( hasSideBar() )
 			refreshStatus();
 
-		(new DisplayRequestThread( request, true )).start();
+		(new DisplayRequestThread( request )).start();
 	}
 
 	private class BrowserComboBox extends JComboBox implements ActionListener
@@ -312,10 +310,6 @@ public class RequestFrame extends KoLFrame
 	 */
 
 	public void refresh( KoLRequest request )
-	{	refresh( request, false );
-	}
-
-	public void refresh( KoLRequest request, boolean shouldEnable )
 	{
 		String location = request.getURLString();
 
@@ -327,7 +321,7 @@ public class RequestFrame extends KoLFrame
 			if ( request.getClass() == KoLRequest.class )
 				StaticEntity.getClient().getMacroStream().println( location );
 
-			(new DisplayRequestThread( request, shouldEnable )).start();
+			(new DisplayRequestThread( request )).start();
 		}
 		else
 			parent.refresh( request );
@@ -355,12 +349,10 @@ public class RequestFrame extends KoLFrame
 	protected class DisplayRequestThread extends Thread
 	{
 		private KoLRequest request;
-		private boolean shouldEnable;
 
-		public DisplayRequestThread( KoLRequest request, boolean shouldEnable )
+		public DisplayRequestThread( KoLRequest request )
 		{
 			this.request = request;
-			this.shouldEnable = shouldEnable;
 		}
 
 		public void run()
@@ -403,7 +395,7 @@ public class RequestFrame extends KoLFrame
 			if ( request == null )
 				return;
 
-			if ( request.responseText == null || request.responseText.length() == 0 )
+			if ( request.getClass() == KoLRequest.class && request.responseText == null || request.responseText.length() == 0 )
 			{
 				// New prevention mechanism: tell the requests that there
 				// will be no synchronization.
@@ -435,7 +427,6 @@ public class RequestFrame extends KoLFrame
 
 			mainBuffer.append( renderText );
 			mainDisplay.setCaretPosition( 0 );
-			System.gc();
 		}
 
 		private void updateClient()

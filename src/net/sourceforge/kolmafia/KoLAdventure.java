@@ -139,13 +139,16 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 
 	public void run()
 	{
+		KoLCharacter.setNextAdventure( this );
+
 		String action = StaticEntity.getProperty( "battleAction" );
 		int haltTolerance = (int)( Double.parseDouble( StaticEntity.getProperty( "battleStop" ) ) * (double) KoLCharacter.getMaximumHP() );
 
 		if ( ( action.equals( "item0536" ) && FightRequest.DICTIONARY1.getCount( KoLCharacter.getInventory() ) < 1 ) ||
 			 ( action.equals( "item1316" ) && FightRequest.DICTIONARY2.getCount( KoLCharacter.getInventory() ) < 1 ) )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Sorry, you don't have a dictionary." );
+			KoLmafia.updateDisplay( ERROR_STATE, "Sorry, you don't have a dictionary." );
+			KoLCharacter.setNextAdventure( null );
 			return;
 		}
 
@@ -154,12 +157,13 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 		// error message.
 
 		client.runBetweenBattleChecks();
-		if ( !client.permitsContinue() )
+		if ( !KoLmafia.permitsContinue() )
 			return;
 
 		if ( haltTolerance >= 0 && KoLCharacter.getCurrentHP() <= haltTolerance && !(request instanceof CampgroundRequest) )
 		{
-			DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Insufficient health to continue (auto-abort triggered)." );
+			KoLmafia.updateDisplay( ABORT_STATE, "Insufficient health to continue (auto-abort triggered)." );
+			KoLCharacter.setNextAdventure( null );
 			return;
 		}
 
@@ -168,7 +172,8 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 
 		if ( KoLCharacter.getAdventuresLeft() == 0 || KoLCharacter.getAdventuresLeft() < request.getAdventuresUsed() )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Insufficient adventures to continue." );
+			KoLmafia.updateDisplay( ERROR_STATE, "Insufficient adventures to continue." );
+			KoLCharacter.setNextAdventure( null );
 			return;
 		}
 
@@ -179,7 +184,8 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 			request.getAdventuresUsed() == 1 && (action.equals( "item0536" ) || action.equals( "item1316" )) &&
 			KoLCharacter.getFamiliar().getID() != 16 && KoLCharacter.getFamiliar().getID() != 17 && KoLCharacter.getFamiliar().getID() != 48 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "A dictionary would be useless there." );
+			KoLmafia.updateDisplay( ERROR_STATE, "A dictionary would be useless there." );
+			KoLCharacter.setNextAdventure( null );
 			return;
 		}
 

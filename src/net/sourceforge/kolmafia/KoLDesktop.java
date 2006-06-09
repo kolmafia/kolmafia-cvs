@@ -130,16 +130,43 @@ public class KoLDesktop extends KoLFrame implements ChangeListener
 				toolbarPanel = new JToolBar( "KoLmafia Toolbar", JToolBar.VERTICAL );
 				getContentPane().add( toolbarPanel, BorderLayout.WEST );
 				break;
-
-			case 4:
-				toolbarPanel = new JToolBar( "KoLmafia Toolbar", JToolBar.VERTICAL );
-				getContentPane().add( toolbarPanel, BorderLayout.EAST );
-				break;
 		}
 
 		setJMenuBar( new KoLMenuBar() );
-		addMainToolbar( toolbarPanel );
+		if ( toolbarPanel != null )
+			addMainToolbar( toolbarPanel );
+
 		tabs.addChangeListener( this );
+		String scriptButtons = GLOBAL_SETTINGS.getProperty( "scriptButtonPosition" );
+
+		if ( !scriptButtons.equals( "0" ) )
+		{
+			String [] scriptList = getProperty( "scriptList" ).split( " \\| " );
+
+			JToolBar scriptBar = null;
+
+			if ( scriptButtons.equals( "1" ) )
+			{
+				scriptBar = toolbarPanel;
+				scriptBar.addSeparator();
+			}
+			else
+			{
+				scriptBar =  new JToolBar( JToolBar.VERTICAL );
+				scriptBar.setFloatable( false );
+			}
+
+			for ( int i = 0; i < scriptList.length; ++i )
+				scriptBar.add( new LoadScriptButton( i + 1, scriptList[i] ) );
+
+			if ( scriptButtons.equals( "2" ) )
+			{
+				JPanel scriptBarHolder = new JPanel();
+				scriptBarHolder.add( scriptBar );
+
+				getContentPane().add( scriptBarHolder, BorderLayout.EAST );
+			}
+		}
 	}
 
 	public void stateChanged( ChangeEvent e )
@@ -155,8 +182,10 @@ public class KoLDesktop extends KoLFrame implements ChangeListener
 
 		String interfaceSetting = GLOBAL_SETTINGS.getProperty( "initialDesktop" );
 		String [] interfaceArray = interfaceSetting.split( "," );
-		for ( int i = 0; i < interfaceArray.length; ++i )
-			KoLmafiaGUI.constructFrame( interfaceArray[i] );
+
+		if ( !interfaceSetting.equals( "" ) )
+			for ( int i = 0; i < interfaceArray.length; ++i )
+				KoLmafiaGUI.constructFrame( interfaceArray[i] );
 
 		if ( tabs.getTabCount() != 0 )
 			tabs.setSelectedIndex(0);
@@ -208,6 +237,9 @@ public class KoLDesktop extends KoLFrame implements ChangeListener
 
 			tabIndex = INSTANCE.tabListing.size() - 1;
 		}
+
+		if ( !isInitializing )
+			INSTANCE.pack();
 
 		INSTANCE.tabs.setSelectedIndex( tabIndex );
 	}
@@ -293,6 +325,22 @@ public class KoLDesktop extends KoLFrame implements ChangeListener
 			toolbarPanel.add( new JToolBar.Separator() );
 
 			toolbarPanel.add( new DisplayFrameButton( "Preferences", "preferences.gif", OptionsFrame.class ) );
+		}
+	}
+
+	public static void removeExtraTabs()
+	{
+		if ( INSTANCE == null )
+			return;
+
+		String setting = GLOBAL_SETTINGS.getProperty( "initialDesktop" );
+		for ( int i = 0; i < INSTANCE.tabListing.size(); ++i )
+		{
+			KoLFrame frame = (KoLFrame) INSTANCE.tabListing.get( i );
+			if ( setting.indexOf( frame.getFrameName() ) != -1 || frame instanceof ChatFrame )
+				continue;
+
+			frame.dispose();
 		}
 	}
 }

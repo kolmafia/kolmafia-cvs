@@ -97,7 +97,7 @@ public class AdventureDatabase extends KoLDatabase
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e );
 		}
 	}
@@ -108,6 +108,8 @@ public class AdventureDatabase extends KoLDatabase
 		{ { "luckySewerAdventure" }, { "Sewer Gnomes" },
 		  { "seal-clubbing club", "seal tooth", "helmet turtle", "scroll of turtle summoning", "pasta spoon", "ravioli hat",
 		    "saucepan", "disco mask", "disco ball", "stolen accordion", "mariachi pants" } },
+
+		// Choice 1 is unknown
 
 		// Denim Axes Examined
 		{ { "choiceAdventure2" }, { "Palindome" },
@@ -125,6 +127,8 @@ public class AdventureDatabase extends KoLDatabase
 		{ { "choiceAdventure5" }, { "Gravy Barrow 1" },
 		  { "Enter the cave", "Don't enter the cave" } },
 
+		// Choice 6 is unknown
+
 		// How Depressing
 		{ { "choiceAdventure7" }, { "Gravy Barrow 2" },
 		  { "Put your hand in the depression", "Leave the cave" } },
@@ -132,6 +136,8 @@ public class AdventureDatabase extends KoLDatabase
 		// On the Verge of a Dirge
 		{ { "choiceAdventure8" }, { "Gravy Barrow 3" },
 		  { "Enter the chamber", "Enter the chamber", "Enter the chamber" } },
+
+		// Choices 9 - 13 are unknown
 
 		// A Bard Day's Night
 		{ { "choiceAdventure14" }, { "Knob Goblin Harem" },
@@ -191,6 +197,8 @@ public class AdventureDatabase extends KoLDatabase
 		{ { "choiceAdventure25" }, { "Dungeon of Doom" },
 		  { "Buy a magic lamp", "Buy some sort of cloak", "Leave without buying anything" } },
 
+		// Choices 26 - 39 are unknown
+
 		// The Effervescent Fray
 		{ { "choiceAdventure40" }, { "Cola Wars 1" },
 		  { "Cloaca-Cola fatigues", "Dyspepsi-Cola shield", "15 Mysticality" },
@@ -206,17 +214,25 @@ public class AdventureDatabase extends KoLDatabase
 		  { "Dyspepsi-Cola helmet", "Cloaca-Cola shield", "15 Moxie" },
 		  { "1326", "1327", null } },
 
+		// Choices 43 - 44 are unknown
+
 		// Maps and Legends
-		{ { "choiceAdventure45" }, { "Spooky Forest 3" },
+		{ { "choiceAdventure45" }, { "Spooky Forest 1" },
 		  { "Spooky Temple Map", "Ignore the monolith", "Nothing" } },
 
 		// An Interesting Choice
-		{ { "choiceAdventure46" }, { "Spooky Forest 4" },
+		{ { "choiceAdventure46" }, { "Spooky Forest 2" },
 		  { "Moxie", "Muscle", "Fight" } },
 
 		// Have a Heart
-		{ { "choiceAdventure47" }, { "Spooky Forest 5" },
+		{ { "choiceAdventure47" }, { "Spooky Forest 3" },
 		  { "Trade for used blood", "Keep your hearts" } },
+
+		// Choices 48 - 70 are violet fog adventures
+
+		// A Journey to the Center of Your Mind
+		{ { "choiceAdventure71" }, { "Half-Astral" },
+		  { "Take the Bad Trip", "Take the Mediocre Trip", "Take the Great Trip" } },
 	};
 
 	// Some choice adventures have a choice that behaves as an "ignore"
@@ -333,7 +349,7 @@ public class AdventureDatabase extends KoLDatabase
 		refreshAdventureList();
 		return adventures;
 	}
-	
+
 	public static void refreshAdventureList()
 	{
 		String [] zones = getProperty( "zoneExcludeList" ).split( "," );
@@ -359,7 +375,7 @@ public class AdventureDatabase extends KoLDatabase
 		}
 
 		if ( getProperty( "sortAdventures" ).equals( "true" ) )
-			adventures.sort();		
+			adventures.sort();
 	}
 
 	/**
@@ -380,7 +396,7 @@ public class AdventureDatabase extends KoLDatabase
 		int bestMatchIndex = -1;
 		int bestMatchLength = Integer.MAX_VALUE;
 		int bestMatchStartIndex = Integer.MAX_VALUE;
-		
+
 		for ( int i = 0; i < adventureTable[3].size(); ++i )
 		{
 			currentTest = adventureTable[3].get(i).toLowerCase();
@@ -400,7 +416,7 @@ public class AdventureDatabase extends KoLDatabase
 
 		return bestMatchIndex == -1 ? null : getAdventure( bestMatchIndex );
 	}
-	
+
 	private static KoLAdventure getAdventure( int tableIndex )
 	{
 		return new KoLAdventure( client,
@@ -428,7 +444,7 @@ public class AdventureDatabase extends KoLDatabase
 			// Make sure the car is in the inventory
 			retrieveItem( ConcoctionsDatabase.CAR );
 
-			if ( !client.permitsContinue() )
+			if ( !KoLmafia.permitsContinue() )
 				return;
 
 			// Obviate following request by checking accomplishment:
@@ -439,13 +455,13 @@ public class AdventureDatabase extends KoLDatabase
 			// visited the council -- check the main map to see if
 			// the beach is unlocked.
 
-			DEFAULT_SHELL.updateDisplay( "Validating map location..." );
+			KoLmafia.updateDisplay( "Validating map location..." );
 			request = new KoLRequest( client, "main.php" );
 			request.run();
 
 			if ( request.responseText.indexOf( "beach.php" ) == -1 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Beach is not yet unlocked." );
+				KoLmafia.updateDisplay( ERROR_STATE, "Beach is not yet unlocked." );
 				return;
 			}
 			return;
@@ -458,7 +474,7 @@ public class AdventureDatabase extends KoLDatabase
 			// "You have learned how to hunt Yetis from the L337
 			// Tr4pz0r."
 
-			DEFAULT_SHELL.updateDisplay( "Validating map location..." );
+			KoLmafia.updateDisplay( "Validating map location..." );
 			// See if we can get to the location already
 			request = new KoLRequest( client, "mclargehuge.php" );
 			request.run();
@@ -550,7 +566,7 @@ public class AdventureDatabase extends KoLDatabase
 
 					if ( !client.getConditions().isEmpty() )
 					{
-						DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unable to complete enchanted bean quest." );
+						KoLmafia.updateDisplay( ERROR_STATE, "Unable to complete enchanted bean quest." );
 						client.getConditions().clear();
 						client.getConditions().addAll( temporary );
 						return;
@@ -578,7 +594,7 @@ public class AdventureDatabase extends KoLDatabase
 		if ( request == null )
 			return;
 
-		DEFAULT_SHELL.updateDisplay( "Validating map location..." );
+		KoLmafia.updateDisplay( "Validating map location..." );
 		request.run();
 
 		// Now that the zone is armed, check to see
@@ -588,7 +604,7 @@ public class AdventureDatabase extends KoLDatabase
 
 		if ( request.responseText.indexOf( adventure.getAdventureID() ) == -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "This adventure is not yet unlocked." );
+			KoLmafia.updateDisplay( ERROR_STATE, "This adventure is not yet unlocked." );
 			return;
 		}
 	}
@@ -665,14 +681,18 @@ public class AdventureDatabase extends KoLDatabase
 			// Next, attempt to create the item from existing
 			// ingredients (if possible).
 
-			ItemCreationRequest creator = ItemCreationRequest.getInstance( client, item.getItemID(), item.getCount() );
+			ItemCreationRequest creator = ItemCreationRequest.getInstance( client, item.getItemID(), missingCount );
 			if ( creator != null )
 			{
-				retrieveItem( creator, missingCount );
-				missingCount = item.getCount() - item.getCount( KoLCharacter.getInventory() );
+				if ( ConcoctionsDatabase.getMixingMethod( item.getItemID() ) == ItemCreationRequest.NOCREATE ||
+					ConcoctionsDatabase.hasAnyIngredient( item.getItemID() ) )
+				{
+					retrieveItem( creator, missingCount );
+					missingCount = item.getCount() - item.getCount( KoLCharacter.getInventory() );
 
-				if ( missingCount <= 0 )
-					return;
+					if ( missingCount <= 0 )
+						return;
+				}
 			}
 
 			// Next, hermit item retrieval is possible when
@@ -707,7 +727,8 @@ public class AdventureDatabase extends KoLDatabase
 
 			boolean shouldPurchase = price != 0 && price != -1;
 			boolean canUseNPCStore = NPCStoreDatabase.contains( item.getName() );
-			boolean shouldAutoSatisfyEarly = canUseNPCStore;
+
+			boolean shouldAutoSatisfyEarly = canUseNPCStore || !ConcoctionsDatabase.hasAnyIngredient( item.getItemID() );
 			boolean shouldUseMall = getProperty( "autoSatisfyChecks" ).equals( "true" );
 
 			switch ( ConcoctionsDatabase.getMixingMethod( item.getItemID() ) )
@@ -722,16 +743,10 @@ public class AdventureDatabase extends KoLDatabase
 					shouldAutoSatisfyEarly = true;
 			}
 
-			if ( shouldPurchase && shouldAutoSatisfyEarly && (canUseNPCStore || shouldUseMall) )
+			if ( shouldPurchase && shouldAutoSatisfyEarly )
 			{
-				// Ignore all items which have no autosell value,
-				// because these tend to get really ugly in the mall.
-
-				if ( creator == null )
-				{
-					if ( canUseNPCStore || KoLCharacter.canInteract() )
-						missingCount = retrieveItem( "buy", null, item, missingCount );
-				}
+				if ( canUseNPCStore || (KoLCharacter.canInteract() && shouldUseMall) )
+					missingCount = retrieveItem( "buy", null, item, missingCount );
 			}
 
 			if ( missingCount <= 0 )
@@ -780,13 +795,13 @@ public class AdventureDatabase extends KoLDatabase
 			// then notify the client that there aren't enough items
 			// available to continue and cancel the request.
 
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You need " + missingCount + " more " + item.getName() + " to continue." );
+			KoLmafia.updateDisplay( ERROR_STATE, "You need " + missingCount + " more " + item.getName() + " to continue." );
 		}
 		catch ( Exception e )
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e );
 		}
 	}
@@ -801,6 +816,10 @@ public class AdventureDatabase extends KoLDatabase
 
 	public static boolean consumesAdventure( String choice, String decision )
 	{
+		// See if it's a free movement in the violet fog
+		if ( VioletFog.freeAdventure( choice, decision ) )
+			return false;
+
 		for ( int i = 0; i < IGNORABLE_CHOICES.length; ++i )
 			if ( choice.equals( IGNORABLE_CHOICES[i][0] ) )
 				return !decision.equals( IGNORABLE_CHOICES[i][1] );
@@ -861,7 +880,7 @@ public class AdventureDatabase extends KoLDatabase
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e );
 		}
 	}

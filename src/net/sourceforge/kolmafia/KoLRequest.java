@@ -71,6 +71,13 @@ import net.java.dev.spellcast.utilities.LockableListModel;
 
 public class KoLRequest implements Runnable, KoLConstants
 {
+	private static final AdventureResult [] WOODS_ITEMS = new AdventureResult[12];
+	static
+	{
+		for ( int i = 0; i < 12; ++i )
+			WOODS_ITEMS[i] = new AdventureResult( i + 1, 1 );
+	}
+
 	protected static boolean isCompactMode = false;
 	protected static boolean isServerFriendly = false;
 
@@ -190,6 +197,19 @@ public class KoLRequest implements Runnable, KoLConstants
 			{
 				KOL_HOST = SERVERS[i][0];
 				KOL_ROOT = "http://" + SERVERS[i][1] + "/";
+			}
+	}
+
+	private static void chooseNewLoginServer()
+	{
+		KoLmafia.updateDisplay( "Choosing new login server..." );
+		for ( int i = 0; i < SERVERS.length; ++i )
+			if ( SERVERS[i][0].equals( KOL_HOST ) )
+			{
+				int next = ( i + 1 ) % SERVERS.length;
+				KOL_HOST = SERVERS[next][0];
+				KOL_ROOT = "http://" + SERVERS[next][1] + "/";
+				return;
 			}
 	}
 
@@ -484,16 +504,9 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	public void run()
 	{
-		if ( !isDelayExempt() && client.refusesContinue() )
-			return;
+		isServerFriendly = getProperty( "serverFriendly" ).equals( "true" ) ||
+			getProperty( "showAllRequests" ).equals( "true" );
 
-		if ( !isDelayExempt() && !(this instanceof FightRequest) && client.getCurrentRequest() instanceof FightRequest && client.getCurrentRequest().getAdventuresUsed() == 0 )
-		{
-			DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Unexpected request attempted mid-fight." );
-			return;
-		}
-
-		KoLRequest.isServerFriendly = getProperty( "serverFriendly" ).equals( "true" );
 		execute();
 
 		if ( getURLString().equals( "main.php?refreshtop=true&noobmessage=true" ) )
@@ -522,7 +535,7 @@ public class KoLRequest implements Runnable, KoLConstants
 		do
 		{
 			statusChanged = false;
-			if ( !isDelayExempt() && ( getProperty( "showAllRequests" ).equals( "true" ) || isServerFriendly ) )
+			if ( !isDelayExempt() && isServerFriendly )
 				KoLRequest.delay();
 		}
 		while ( !prepareConnection() || !postClientData() || !retrieveServerReply() );
@@ -543,10 +556,8 @@ public class KoLRequest implements Runnable, KoLConstants
 			else
 				processResults();
 		}
-		else
-		{
-			client.setCurrentRequest( null );
-		}
+
+		client.setCurrentRequest( null );
 	}
 
 	private boolean shouldIgnoreResults()
@@ -564,7 +575,7 @@ public class KoLRequest implements Runnable, KoLConstants
 	 */
 
 	protected static void delay()
-	{	delay( 4000 );
+	{	delay( 1000 );
 	}
 
 	/**
@@ -638,7 +649,6 @@ public class KoLRequest implements Runnable, KoLConstants
 			// a stack trace for debug purposes.
 
 			StaticEntity.printStackTrace( e, "Error in URL: " + KOL_ROOT + formURLString );
-			KoLRequest.delay();
 			return false;
 		}
 
@@ -661,7 +671,9 @@ public class KoLRequest implements Runnable, KoLConstants
 			if ( !(this instanceof ChatRequest) )
 				KoLmafia.getDebugStream().println( "Error opening connection.  Retrying..." );
 
-			KoLRequest.delay();
+			if ( this instanceof LoginRequest)
+				chooseNewLoginServer();
+
 			return false;
 		}
 
@@ -728,7 +740,9 @@ public class KoLRequest implements Runnable, KoLConstants
 			if ( !(this instanceof ChatRequest) )
 				KoLmafia.getDebugStream().println( "Connection timed out during post.  Retrying..." );
 
-			KoLRequest.delay();
+			if ( this instanceof LoginRequest )
+				chooseNewLoginServer();
+
 			return false;
 		}
 	}
@@ -795,10 +809,14 @@ public class KoLRequest implements Runnable, KoLConstants
 			if ( !(this instanceof ChatRequest) )
 				KoLmafia.getDebugStream().println( "Connection timed out during response.  Retrying..." );
 
-			// Add in an extra delay in the event of a time-out in order
-			// to be nicer on the KoL servers.
+			// Add in an extra delay in the event of a time-out in
+			// order to be nicer on the KoL servers.
 
-			KoLRequest.delay();
+			if ( this instanceof LoginRequest)
+				chooseNewLoginServer();
+			else
+				KoLRequest.delay();
+
 			return false;
 		}
 
@@ -821,12 +839,12 @@ public class KoLRequest implements Runnable, KoLConstants
 				// If the system is down for maintenance, the user must be
 				// notified that they should try again later.
 
-				DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Nightly maintenance." );
+				KoLmafia.updateDisplay( ABORT_STATE, "Nightly maintenance." );
 				shouldStop = true;
 			}
 			else if ( redirectLocation.startsWith( "login.php" ) )
 			{
-				DEFAULT_SHELL.updateDisplay( ABORT_STATE, "Session timed out." );
+				KoLmafia.updateDisplay( ABORT_STATE, "Session timed out." );
 				shouldStop = true;
 			}
 			else if ( followRedirects )
@@ -1118,7 +1136,10 @@ public class KoLRequest implements Runnable, KoLConstants
 		if ( statusChanged && RequestFrame.willRefreshStatus() )
 			RequestFrame.refreshStatus();
 		else if ( statusChanged || needsRefresh )
+		{
 			CharpaneRequest.getInstance().run();
+			KoLCharacter.recalculateAdjustments( false );
+		}
 
 		KoLCharacter.updateStatus();
 	}
@@ -1160,7 +1181,7 @@ public class KoLRequest implements Runnable, KoLConstants
 			// be a bug in KoL itself. Bail now and let the user
 			// finish by hand.
 
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Encountered choice adventure with no choices." );
+			KoLmafia.updateDisplay( ERROR_STATE, "Encountered choice adventure with no choices." );
 			request.showInBrowser( true );
 			return false;
 		}
@@ -1169,12 +1190,28 @@ public class KoLRequest implements Runnable, KoLConstants
 		String option = "choiceAdventure" + choice;
 		String decision = getProperty( option );
 
+		// If this happens to be adventure 26 or 27,
+		// check against the player's conditions.
+
+		if ( (choice.equals( "26" ) || choice.equals( "27" )) && !client.getConditions().isEmpty() )
+		{
+			for ( int i = 0; i < 12; ++i )
+				if ( WOODS_ITEMS[i].getCount( client.getConditions() ) > 0 )
+					decision = choice.equals( "26" ) ? String.valueOf( (i / 4) + 1 ) : String.valueOf( ((i % 4) / 2) + 1 );
+		}
+
+		// If there is no setting which determines the
+		// decision, see if it's in the violet fog
+
+		if ( decision == null )
+			decision = VioletFog.handleChoice( choice );
+
 		// If there is currently no setting which determines the
 		// decision, give an error and bail.
 
 		if ( decision == null )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unsupported choice adventure #" + choice );
+			KoLmafia.updateDisplay( ERROR_STATE, "Unsupported choice adventure #" + choice );
 			request.showInBrowser( true );
 			return false;
 		}
@@ -1193,7 +1230,7 @@ public class KoLRequest implements Runnable, KoLConstants
 
 		if ( decision.equals( "0" ) )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Can't ignore choice adventure #" + choice );
+			KoLmafia.updateDisplay( ERROR_STATE, "Can't ignore choice adventure #" + choice );
 			request.showInBrowser( true );
 			return false;
 		}
@@ -1305,8 +1342,7 @@ public class KoLRequest implements Runnable, KoLConstants
 		// Only show the request if the response code is
 		// 200 (not a redirect or error).
 
-		if ( responseCode == 200 )
-			FightFrame.showRequest( this );
+		FightFrame.showRequest( this );
 	}
 
 	public String getCommandForm( int iterations )

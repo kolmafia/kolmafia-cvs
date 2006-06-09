@@ -75,9 +75,6 @@ public class KoLmafiaCLI extends KoLmafia
 	public static final int CLOSET = 4;
 
 	protected String previousLine;
-
-	private PrintStream outputStream = NullStream.INSTANCE;
-	private PrintStream mirrorStream = NullStream.INSTANCE;
 	private BufferedReader commandStream;
 
 	private KoLmafiaCLI lastScript;
@@ -101,7 +98,7 @@ public class KoLmafiaCLI extends KoLmafia
 		System.out.println();
 
 		StaticEntity.setClient( DEFAULT_SHELL );
-		DEFAULT_SHELL.outputStream = System.out;
+		KoLmafia.outputStream = System.out;
 
 		if ( initialScript.length() == 0 )
 		{
@@ -127,9 +124,6 @@ public class KoLmafiaCLI extends KoLmafia
 
 	public KoLmafiaCLI( InputStream inputStream )
 	{
-		if ( DEFAULT_SHELL != null )
-			outputStream = DEFAULT_SHELL.outputStream;
-
 		try
 		{
 			commandStream = new BufferedReader( new InputStreamReader( inputStream ) );
@@ -216,19 +210,18 @@ public class KoLmafiaCLI extends KoLmafia
 	 * loaded, and the user can begin adventuring.
 	 */
 
-	public synchronized void initialize( String username, String sessionID, boolean getBreakfast )
+	public synchronized void initialize( String username, String sessionID, boolean getBreakfast, boolean isQuickLogin )
 	{
 		if ( StaticEntity.getClient() != this )
 		{
-			StaticEntity.getClient().initialize( username, sessionID, getBreakfast );
+			StaticEntity.getClient().initialize( username, sessionID, getBreakfast, isQuickLogin );
+			return;
 		}
-		else
-		{
-			super.initialize( username, sessionID, getBreakfast );
-			printBlankLine();
-			executeCommand( "moons", "" );
-			printBlankLine();
-		}
+
+		super.initialize( username, sessionID, getBreakfast, isQuickLogin );
+		printBlankLine();
+		executeCommand( "moons", "" );
+		printBlankLine();
 	}
 
 	/**
@@ -243,12 +236,14 @@ public class KoLmafiaCLI extends KoLmafia
 
 		String line = null;
 
-		while ( (line = getNextLine()) != null && (StaticEntity.getClient().permitsContinue() || StaticEntity.getClient() == this) )
+		while ( (line = getNextLine()) != null && (permitsContinue() || StaticEntity.getClient() == this) )
 		{
 			if ( StaticEntity.getClient() == this )
 				printBlankLine();
 
 			executeLine( line );
+			KoLCharacter.refreshCalculatedLists();
+			System.gc();
 
 			if ( StaticEntity.getClient() == this )
 			{
@@ -336,7 +331,7 @@ public class KoLmafiaCLI extends KoLmafia
 		if ( line.indexOf( ";" ) != -1 )
 		{
 			String [] separateLines = line.split( ";" );
-			for ( int i = 0; i < separateLines.length && StaticEntity.getClient().permitsContinue(); ++i )
+			for ( int i = 0; i < separateLines.length && permitsContinue(); ++i )
 				if ( separateLines[i].length() > 0 )
 					executeLine( separateLines[i] );
 
@@ -369,7 +364,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			for ( int i = 0; i < messages.length - 1; ++i )
 			{
-				printLine( messages[i] );
+				updateDisplay( messages[i] );
 				KoLRequest.delay( 3000 );
 			}
 
@@ -614,7 +609,7 @@ public class KoLmafiaCLI extends KoLmafia
 				if ( previousLine != null )
 				{
 					int repeatCount = parameters.length() == 0 ? 1 : df.parse( parameters ).intValue();
-					for ( int i = 0; i < repeatCount && StaticEntity.getClient().permitsContinue(); ++i )
+					for ( int i = 0; i < repeatCount && permitsContinue(); ++i )
 						executeLine( previousLine );
 				}
 
@@ -775,6 +770,32 @@ public class KoLmafiaCLI extends KoLmafia
 			return;
 		}
 
+		if ( parameters.endsWith( "refresh" ) )
+		{
+			parameters = command;
+			command = "refresh";
+		}
+
+		if ( command.equals( "refresh" ) )
+		{
+			parameters = parameters.toLowerCase();
+
+			if ( parameters.equalsIgnoreCase( "all" ) )
+				StaticEntity.getClient().refreshSession();
+			else if ( parameters.startsWith( "status" ) || parameters.startsWith( "effects" ) )
+				(new CharsheetRequest( StaticEntity.getClient() )).run();
+			else if ( parameters.startsWith( "gear" ) || parameters.startsWith( "equipment" ) || parameters.startsWith( "outfit" ) )
+				(new EquipmentRequest( StaticEntity.getClient(), EquipmentRequest.EQUIPMENT )).run();
+			else if ( parameters.startsWith( "inv" ) )
+				(new EquipmentRequest( StaticEntity.getClient(), EquipmentRequest.CLOSET )).run();
+			else if ( parameters.startsWith( "storage" ) )
+				(new ItemStorageRequest( StaticEntity.getClient() )).run();
+			else if ( parameters.startsWith( "familiar" ) || parameters.startsWith( "terrarium" ) )
+				(new FamiliarRequest( StaticEntity.getClient() )).run();
+
+			return;
+		}
+
 		// Look!  It's the command to complete the
 		// Sorceress entryway.
 
@@ -788,7 +809,7 @@ public class KoLmafiaCLI extends KoLmafia
 		// Sorceress hedge maze!  This is placed
 		// right after for consistency.
 
-		if ( command.equals( "hedgemaze" ) )
+		if ( command.equals( "maze" ) || command.equals( "hedgemaze" ) )
 		{
 			SorceressLair.completeHedgeMaze();
 			return;
@@ -798,7 +819,7 @@ public class KoLmafiaCLI extends KoLmafia
 		// in the Sorceress's tower!  This is placed
 		// right after for consistency.
 
-		if ( command.equals( "guardians" ) )
+		if ( command.equals( "tower" ) || command.equals( "guardians" ) )
 		{
 			SorceressLair.fightTowerGuardians();
 			return;
@@ -911,12 +932,12 @@ public class KoLmafiaCLI extends KoLmafia
 
 			if ( parameters.equals( "worthless item" ) )
 			{
-				while ( KoLCharacter.getAdventuresLeft() > 0 && HermitRequest.getWorthlessItemCount() == 0 && StaticEntity.getClient().permitsContinue() )
+				while ( KoLCharacter.getAdventuresLeft() > 0 && HermitRequest.getWorthlessItemCount() == 0 && permitsContinue() )
 					executeLine( "buy 1 chewing gum on a string; adventure Unlucky Sewer" );
 
 				if ( HermitRequest.getWorthlessItemCount() == 0 )
 				{
-					DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unable to acquire a worthless item." );
+					updateDisplay( ERROR_STATE, "Unable to acquire a worthless item." );
 					return;
 				}
 			}
@@ -929,7 +950,7 @@ public class KoLmafiaCLI extends KoLmafia
 				}
 				else
 				{
-					DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Unable to acquire a worthless item." );
+					updateDisplay( ERROR_STATE, "Unable to acquire a worthless item." );
 					return;
 				}
 			}
@@ -1094,7 +1115,7 @@ public class KoLmafiaCLI extends KoLmafia
 		// Another popular command involves changing
 		// a specific piece of equipment.
 
-		if ( command.startsWith( "equip" ) )
+		if ( command.startsWith( "equip" ) || command.startsWith( "wear" ) || command.startsWith( "wield" ) )
 		{
 			executeEquipCommand( parameters );
 			return;
@@ -1103,7 +1124,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		// You can remove a specific piece of equipment.
 
-		if ( command.startsWith( "unequip" ) )
+		if ( command.startsWith( "unequip" ) || command.startsWith( "remove" ) )
 		{
 			executeUnequipCommand( parameters );
 			return;
@@ -1142,7 +1163,7 @@ public class KoLmafiaCLI extends KoLmafia
 				}
 			}
 
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You don't have that familiar." );
+			updateDisplay( ERROR_STATE, "You don't have that familiar." );
 			return;
 		}
 
@@ -1197,7 +1218,7 @@ public class KoLmafiaCLI extends KoLmafia
 			}
 
 			executeChangeOutfitCommand( parameters );
-			if ( StaticEntity.getClient().permitsContinue() )
+			if ( permitsContinue() )
 				executePrintCommand( "equip" );
 			return;
 		}
@@ -1305,20 +1326,6 @@ public class KoLmafiaCLI extends KoLmafia
 			return;
 		}
 
-		if ( (command.equals( "status" ) || command.equals( "effects" )) && parameters.startsWith( "refresh" ) )
-		{
-			(new CharsheetRequest( StaticEntity.getClient() )).run();
-			updateDisplay( "Status refreshed." );
-			parameters = parameters.length() == 7 ? "" : parameters.substring( 7 ).trim();
-		}
-
-		if ( command.startsWith( "inv" ) && parameters.equals( "refresh" ) )
-		{
-			(new EquipmentRequest( StaticEntity.getClient(), EquipmentRequest.CLOSET )).run();
-			updateDisplay( "Status refreshed." );
-			return;
-		}
-
 		// Finally, handle command abbreviations - in
 		// other words, commands that look like they're
 		// their own commands, but are actually commands
@@ -1361,7 +1368,7 @@ public class KoLmafiaCLI extends KoLmafia
 		unrepeatableCommands.add( "send " + parameters );
 		(new GreenMessageRequest( StaticEntity.getClient(), splitParameters[1], "Fear my moxie!", attachments, 0, false )).run();
 
-		if ( StaticEntity.getClient().permitsContinue() )
+		if ( permitsContinue() )
 			updateDisplay( "Message sent to " + splitParameters[1] );
 		else
 		{
@@ -1371,13 +1378,13 @@ public class KoLmafiaCLI extends KoLmafia
 			// Clear the error state for continuation on the
 			// message sending attempt.
 
-			if ( !StaticEntity.getClient().refusesContinue() )
-				StaticEntity.getClient().forceContinue();
+			if ( !refusesContinue() )
+				forceContinue();
 
 			(new GiftMessageRequest( StaticEntity.getClient(), splitParameters[1], "You are awesome.", "You are awesome.",
 				availablePackages.get( desiredPackageIndex ), attachments, 0 )).run();
 
-			if ( StaticEntity.getClient().permitsContinue() )
+			if ( permitsContinue() )
 				updateDisplay( "Gift sent to " + splitParameters[1] );
 			else
 				updateDisplay( ERROR_STATE, "Failed to send message to " + splitParameters[1] );
@@ -1461,12 +1468,12 @@ public class KoLmafiaCLI extends KoLmafia
 					return;
 				}
 
-				for ( int i = 0; i < runCount && StaticEntity.getClient().permitsContinue(); ++i )
+				for ( int i = 0; i < runCount && permitsContinue(); ++i )
 					advancedHandler.execute( scriptFile );
 			}
 			else
 			{
-				for ( int i = 0; i < runCount && StaticEntity.getClient().permitsContinue(); ++i )
+				for ( int i = 0; i < runCount && permitsContinue(); ++i )
 				{
 					lastScript = new KoLmafiaCLI( new FileInputStream( scriptFile ) );
 					lastScript.commandBuffer = commandBuffer;
@@ -1546,7 +1553,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 	private boolean testConditional( String parameters )
 	{
-		if ( !StaticEntity.getClient().permitsContinue() )
+		if ( !permitsContinue() )
 			return false;
 
 		// Allow checking for moon signs for stat days
@@ -1710,7 +1717,7 @@ public class KoLmafiaCLI extends KoLmafia
 				// If it is neither an item nor an effect, report
 				// the exception.
 
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Invalid operand [" + right + "] on right side of operator" );
+				updateDisplay( ERROR_STATE, "Invalid operand [" + right + "] on right side of operator" );
 			}
 		}
 
@@ -2217,7 +2224,7 @@ public class KoLmafiaCLI extends KoLmafia
 		if ( parameters.equals( "fake hand" ) )
 		{
 			if ( KoLCharacter.getFakeHands() == 0 )
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You're not wearing any fake hands" );
+				updateDisplay( ERROR_STATE, "You're not wearing any fake hands" );
 			else
 				StaticEntity.getClient().makeRequest( new EquipmentRequest( StaticEntity.getClient(), EquipmentRequest.UNEQUIP, KoLCharacter.FAKEHAND ) );
 
@@ -2237,7 +2244,7 @@ public class KoLmafiaCLI extends KoLmafia
 			}
 		}
 
-		DEFAULT_SHELL.updateDisplay( ERROR_STATE, "No equipment found matching string \"" + parameters + "\"" );
+		updateDisplay( ERROR_STATE, "No equipment found matching string \"" + parameters + "\"" );
 		return;
 	}
 
@@ -2545,7 +2552,7 @@ public class KoLmafiaCLI extends KoLmafia
 		}
 		else if ( parameters.indexOf( " " ) == -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
+			updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
 			return null;
 		}
 		else
@@ -2557,7 +2564,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			if ( matchingNames.size() == 0 )
 			{
-				DEFAULT_SHELL.updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
+				updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
 				return null;
 			}
 
@@ -2578,7 +2585,7 @@ public class KoLmafiaCLI extends KoLmafia
 					char c = itemCountString.charAt(i);
 					if ( !Character.isDigit( c ) && c != '-' && c != '+' )
 					{
-						DEFAULT_SHELL.updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
+						updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
 						return null;
 					}
 				}
@@ -2589,7 +2596,7 @@ public class KoLmafiaCLI extends KoLmafia
 				}
 				catch ( Exception e )
 				{
-					DEFAULT_SHELL.updateDisplay( ERROR_STATE, itemCountString + " is not a number." );
+					updateDisplay( ERROR_STATE, itemCountString + " is not a number." );
 					return null;
 				}
 			}
@@ -2597,7 +2604,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		if ( itemID == -1 )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
+			updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
 			return null;
 		}
 
@@ -2637,7 +2644,7 @@ public class KoLmafiaCLI extends KoLmafia
 		if ( matchType == INVENTORY )
 		{
 			AdventureDatabase.retrieveItem( firstMatch );
-			if ( !StaticEntity.getClient().permitsContinue() )
+			if ( !permitsContinue() )
 				return null;
 		}
 
@@ -2646,7 +2653,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		else if ( matchType == CLOSET && matchCount < itemCount )
 		{
-			DEFAULT_SHELL.updateDisplay( ERROR_STATE, "Insufficient " + TradeableItemDatabase.getItemName( itemID ) + " to continue." );
+			updateDisplay( ERROR_STATE, "Insufficient " + TradeableItemDatabase.getItemName( itemID ) + " to continue." );
 			return null;
 		}
 
@@ -2840,7 +2847,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		String plot = MushroomPlot.getMushroomPlot( false );
 
-		if ( StaticEntity.getClient().permitsContinue() )
+		if ( permitsContinue() )
 		{
 			updateDisplay( "Current:" );
 			updateDisplay( plot );
@@ -3209,7 +3216,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		for ( int i = 0; i < effects.length; ++i )
 			if ( effects[i].getName().toLowerCase().indexOf( effectToUneffect ) != -1 )
-				(new UneffectRequest( StaticEntity.getClient(), effects[i] )).run();
+				StaticEntity.getClient().makeRequest( new UneffectRequest( StaticEntity.getClient(), effects[i] ) );
 	}
 
 	/**
@@ -3251,7 +3258,7 @@ public class KoLmafiaCLI extends KoLmafia
 		String oldLine = previousLine;
 		boolean clovers = HermitRequest.isCloverDay();
 
-		if ( !StaticEntity.getClient().permitsContinue() )
+		if ( !permitsContinue() )
 			return;
 
 		if ( previousLine.indexOf( " " ) == -1 )
@@ -3471,41 +3478,6 @@ public class KoLmafiaCLI extends KoLmafia
 
 		LocalRelayServer.addStatusMessage( colorBuffer.toString() );
 		commandBuffer.append( colorBuffer.toString() );
-	}
-
-	/**
-	 * Updates the currently active display in the <code>KoLmafia</code>
-	 * session.
-	 */
-
-	public void updateDisplay( int state, String message )
-	{
-		if ( StaticEntity.getClient() == null )
-			return;
-
-		// Only allow message to propogate if you
-		// are currently NOT in an abort state.
-
-		if ( currentState == ABORT_STATE && state != ABORT_STATE )
-			return;
-
-		// Don't bother with empty-string messages,
-		// as they serve no purpose under this setup.
-
-		if ( message.equals( "" ) )
-			return;
-
-		outputStream.println( message );
-		mirrorStream.println( message );
-
-		if ( StaticEntity.getClient() instanceof KoLmafiaGUI )
-			StaticEntity.getClient().updateDisplay( state, message );
-		else
-		{
-			super.updateDisplay( state, message );
-			if ( message.equals( "Login failed." ) )
-				attemptLogin();
-		}
 	}
 
 	/**

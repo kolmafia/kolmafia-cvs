@@ -54,10 +54,14 @@ import net.java.dev.spellcast.utilities.DataUtilities;
 
 public abstract class KoLMessenger extends StaticEntity
 {
-	private static final SimpleDateFormat EVENT_TIMESTAMP = new SimpleDateFormat( "MM/dd/yy hh:mm:ss a" );
+	private static final SimpleDateFormat EVENT_TIMESTAMP = new SimpleDateFormat( "MM/dd/yy hh:mm a" );
+
+	private static final String DEFAULT_TIMESTAMP_COLOR = "#7695B4";
+	private static final SimpleDateFormat MESSAGE_TIMESTAMP = new SimpleDateFormat( "[HH:mm]" );
 
 	private static TreeMap colors = new TreeMap();
 	private static String CHATLOG_BASENAME = "";
+
 	private static final Color DEFAULT_HIGHLIGHT = new Color( 128, 0, 128 );
 
 	private static final String [] AVAILABLE_COLORS =
@@ -121,7 +125,7 @@ public abstract class KoLMessenger extends StaticEntity
 		if ( getProperty( "autoLogChat" ).equals( "true" ) )
 			initializeChatLogs();
 	}
-	
+
 	protected static void setColor( String channel, int colorIndex )
 	{	colors.put( channel, AVAILABLE_COLORS[ colorIndex ] );
 	}
@@ -145,7 +149,15 @@ public abstract class KoLMessenger extends StaticEntity
 			return;
 
 		reset();  isRunning = true;
-		(new RequestThread( new ChatRequest( client, null, "/listen" ) )).start();
+		boolean requestColors = client.shouldMakeConflictingRequest();
+
+		Runnable [] requests = new Runnable[ requestColors ? 2 : 1 ];
+		requests[ requestColors ? 1 : 0 ] = new ChatRequest( client, null, "/listen" );
+
+		if ( requestColors )
+			requests[0] = new ChannelColorsRequest();
+
+		(new RequestThread( requests )).start();
 
 		// Clear the highlights and add all the ones which
 		// were saved from the last session.
@@ -467,7 +479,7 @@ public abstract class KoLMessenger extends StaticEntity
 		{
 			playerName = playerMatcher.group(2).replaceAll( "<.*?>", "" ).replaceAll( " \\(.*?\\)", "" ).replaceAll( ":" , "" );
 			playerID = playerMatcher.group(1);
-			
+
 			// Handle the new player profile links -- in
 			// this case, ignore the registration.
 
@@ -558,7 +570,7 @@ public abstract class KoLMessenger extends StaticEntity
 	{
 		if ( !isRunning() )
 			return;
-	
+
 		// Now, extract the contact list and update KoLMessenger to indicate
 		// the contact list found in the last /friends update
 
@@ -715,75 +727,77 @@ public abstract class KoLMessenger extends StaticEntity
 
 		try
 		{
-	
+
 			if ( message.startsWith( "No longer" ) && !instantMessageBuffers.containsKey( bufferKey ) )
 				return;
-	
+
 			buffer = getChatBuffer( bufferKey );
-	
+
 			// Figure out what the properly formatted HTML looks like
 			// first, based on who sent the message and whether or not
 			// there are supposed to be italics.
-	
+
 			// There are a bunch of messages that are supposed to be
 			// formatted in green.  These are all handled first.
-	
+
 			if ( message.indexOf( "<a" ) == -1 || message.indexOf( "</a>," ) != -1 || message.startsWith( "<a class=nounder" ) )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.startsWith( "<a target=mainpane href=\'" ) )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.startsWith( "<a target=mainpane href=\"messages.php\">" ) )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.indexOf( "has proposed a trade" ) != -1 )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.indexOf( "has cancelled a trade" ) != -1 )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.indexOf( "has responded to a trade" ) != -1 )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.indexOf( "has declined a trade" ) != -1 )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			else if ( message.indexOf( "has accepted a trade" ) != -1 )
 				displayHTML = "<font color=green>" + message + "</font>";
-	
+
 			// Then, private messages resulting from a /last command
 			// show up in blue.  These are handled next.
-	
+
 			else if ( message.startsWith( "<b>from " ) || message.startsWith( "<b>to " ) )
 				displayHTML = "<font color=blue>" + message + "</font>";
-	
+
 			// Mod warnings and system messages turn up in red.  There
 			// are kick messages which show up in red as well, but those
 			// should also have mod warning attached.
-	
+
 			else if ( message.indexOf( ">Mod Warning<" ) != -1 || message.indexOf( ">System Message<" ) != -1 )
 				displayHTML = "<font color=red>" + message + "</font>";
-	
+
 			else
 			{
 				// Finally, all other messages are treated normally, with
 				// no special formatting needed.
-	
+
 				Matcher nameMatcher = Pattern.compile( "<a.*?>(.*?)</a>" ).matcher( message );
 				String contactName = nameMatcher.find() ? nameMatcher.group(1).replaceAll( "<.*?>", "" ) : message;
-				displayHTML = message.replaceFirst( contactName, "<font color=\"" + getColor( contactName ) + "\">" + contactName + "</font>" );
-	
+
+				if ( contactName.indexOf( "*" ) == -1 )
+					displayHTML = message.replaceFirst( contactName, "<font color=\"" + getColor( contactName ) + "\">" + contactName + "</font>" );
+
 				// All messages which don't have a colon following the name
 				// are italicized messages from actions.
-	
+
 				if ( message.indexOf( "</a>:" ) == -1 && message.indexOf( "</b>:" ) == -1 )
 					displayHTML = "<i>" + displayHTML + "</i>";
 			}
-	
+
 			// Add the appropriate eSolu scriptlet additions to the
 			// processed chat message.
-	
+
 			if ( !getProperty( "eSoluScriptType" ).equals( "0" ) )
 			{
 				Matcher whoMatcher = Pattern.compile( "showplayer\\.php\\?who=[\\d]+" ).matcher( message );
@@ -791,52 +805,55 @@ public abstract class KoLMessenger extends StaticEntity
 				{
 					String link = whoMatcher.group();
 					boolean useColors = getProperty( "eSoluScriptType" ).equals( "1" );
-	
+
 					StringBuffer linkBuffer = new StringBuffer();
-	
+
 					linkBuffer.append( "</b> " );
-	
+
 					linkBuffer.append( "<a href=\"" + link + "_1\" alt=\"send blue message\">" );
 					linkBuffer.append( useColors ? "<font color=blue>" : "<font color=gray>" );
 					linkBuffer.append( "[p]</font></a>" );
-	
+
 					linkBuffer.append( "<a href=\"" + link + "_4\" alt=\"send trade request\">" );
 					linkBuffer.append( useColors ? "<font color=green>" : "<font color=gray>" );
 					linkBuffer.append( "[t]</font></a>" );
-	
+
 					linkBuffer.append( "<a href=\"" + link + "_5\" alt=\"search mall store\">" );
 					linkBuffer.append( useColors ? "<font color=maroon>" : "<font color=gray>" );
 					linkBuffer.append( "[m]</font></a>" );
-	
+
 					linkBuffer.append( "<a href=\"" + link + "_9\" alt=\"put on ignore list\">" );
 					linkBuffer.append( useColors ? "<font color=red>" : "<font color=gray>" );
 					linkBuffer.append( "[x]</font></a>" );
-	
+
 					displayHTML = displayHTML.replaceFirst( "</b>", linkBuffer.toString() );
 				}
 			}
-	
+
 			// Now, if the person is using LoathingChat style for
 			// doing their chatting, then make sure to append the
 			// channel with the appropriate color.
-	
+
 			if ( bufferKey.startsWith( "[" ) && channel.startsWith( "/" ) )
 				displayHTML = "<font color=\"" + getColor( channel.substring(1) ) + "\">[" + channel.substring(1) + "]</font> " + displayHTML;
-	
+
 			// Now that everything has been properly formatted,
 			// show the display HTML.
-	
-			buffer.append( displayHTML + "<br>" );
+
+			StringBuffer timestamp = new StringBuffer();
+			timestamp.append( "<font color=\"" );
+			timestamp.append( DEFAULT_TIMESTAMP_COLOR );
+			timestamp.append( "\">" );
+			timestamp.append( MESSAGE_TIMESTAMP.format( new Date() ) );
+			timestamp.append( "</font>" );
+
+			buffer.append( timestamp.toString() + "&nbsp;" + displayHTML + "<br>" );
 			if ( displayHTML.startsWith( "<font color=green>" ) )
-			{
-				changeToUserTimeZone();
 				KoLCharacter.getEvents().add( EVENT_TIMESTAMP.format( new Date() ) + " - " + displayHTML.replaceAll( "<.*?>", "" ) );
-				changeToKoLTimeZone();
-			}
 
 			// Check to make sure that in the time it took for
 			// everything to be processed, chat didn't get closed.
-	
+
 			if ( useTabbedChat )
 				tabbedFrame.highlightTab( bufferKey );
 		}
@@ -844,7 +861,7 @@ public abstract class KoLMessenger extends StaticEntity
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e, "Error in channel " + channel,
 				new String [] { "Channel: " + channel, "Buffer key: " + bufferKey, "Object signature: " + buffer,
 					"Use tabs: " + useTabbedChat, "Tabbed frame: " + tabbedFrame, "Collection signature: " + instantMessageBuffers,
@@ -902,7 +919,7 @@ public abstract class KoLMessenger extends StaticEntity
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e );
 		}
 	}
@@ -929,7 +946,7 @@ public abstract class KoLMessenger extends StaticEntity
 			{
 				if ( !isRunning )
 					return;
-				
+
 				LimitedSizeChatBuffer buffer = new LimitedSizeChatBuffer( KoLCharacter.getUsername() + ": " +
 					channel + " - Started " + Calendar.getInstance().getTime().toString(), true );
 				instantMessageBuffers.put( channel, buffer );
@@ -964,7 +981,7 @@ public abstract class KoLMessenger extends StaticEntity
 			{
 				// This should not happen.  Therefore, print
 				// a stack trace for debug purposes.
-				
+
 				StaticEntity.printStackTrace( e );
 			}
 		}
@@ -1102,5 +1119,40 @@ public abstract class KoLMessenger extends StaticEntity
 		for ( int i = 0; i < keys.length; ++i )
 			if ( !keys[i].equals( "[highs]" ) )
 				getChatBuffer( (String) keys[i] ).applyHighlights();
+	}
+
+	private static class ChannelColorsRequest extends KoLRequest
+	{
+		public ChannelColorsRequest()
+		{	super( StaticEntity.getClient(), "account_chatcolors.php", true );
+		}
+
+		public void run()
+		{
+			super.run();
+
+			// First, add in all the colors for all of the
+			// channel tags (for people using standard KoL
+			// chatting mode).
+
+			Matcher colorMatcher = Pattern.compile( "<td>(.*?)&nbsp;&nbsp;&nbsp;&nbsp;</td>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			while ( colorMatcher.find() )
+				KoLMessenger.setColor( colorMatcher.group(1).toLowerCase(), Integer.parseInt( colorMatcher.group(2) ) );
+
+			// Add in other custom colors which are available
+			// in the chat options.
+
+			colorMatcher = Pattern.compile( "<select name=chatcolorself>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			if ( colorMatcher.find() )
+				KoLMessenger.setColor( "chatcolorself", Integer.parseInt( colorMatcher.group(1) ) );
+
+			colorMatcher = Pattern.compile( "<select name=chatcolorcontacts>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			if ( colorMatcher.find() )
+				KoLMessenger.setColor( "chatcolorcontacts", Integer.parseInt( colorMatcher.group(1) ) );
+
+			colorMatcher = Pattern.compile( "<select name=chatcolorothers>.*?<option value=(\\d+) selected>" ).matcher( responseText );
+			if ( colorMatcher.find() )
+				KoLMessenger.setColor( "chatcolorothers", Integer.parseInt( colorMatcher.group(1) ) );
+		}
 	}
 }

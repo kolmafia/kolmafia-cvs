@@ -15,12 +15,11 @@
 #
 # Missing Combat Percent Data (marked with -1):
 #
-# Battlefield (Cloaca Uniform)
-# Battlefield (Dyspepsi Uniform)
 # Bugbear Pens
 # Dark Elbow of the Woods: Demoninja, G Imp, L Imp, Der Bierdieb
 # Dark Heart of the Woods: Fallen Archfiend, G Imp, P Imp, Friar No More
 # Dark Neck of the Woods: Hellion, P Imp, W Imp, On Wings of Fire
+# Degrassi Knoll
 # Dungeons of Doom
 # Spooky Gravy Barrow
 #
@@ -39,15 +38,13 @@
 #
 # Assumptions:
 #
-# Knob Goblin Kitchens: similar to Laboratory: chef: 2  master chef: 1
-# Guano Junction: New monster: Vampire Bat - equally likely
 # Hole in the Sky: Three new constellations - equally likely
 
-8-Bit Realm	100	Blooper	Bullet Bill	Buzzy Beetle	Goomba	Keese	Koopa Troopa	Octoroc	Tektite	Zol
+8-Bit Realm	100	Blooper	Bullet Bill	Buzzy Beetle	Goomba	Keese	Koopa Troopa	Octorok	Tektite	Zol
 Bat Hole Entryway	100	Albino Bat	Pine Bat	Regular Old Bat
 Batrat and Ratbat Burrow	100	Batrat	Ratbat
-Battlefield (Cloaca Uniform)	-1	Dyspepsi-Cola General	Dyspepsi-Cola Knight	Dyspepsi-Cola Soldier
-Battlefield (Dyspepsi Uniform)	-1	 Cloaca-Cola Catapult Engineer	Cloaca-Cola Footsoldier	Cloaca-Cola Soldier
+Battlefield (Cloaca Uniform)	95	Dyspepsi-Cola General	Dyspepsi-Cola Knight	Dyspepsi-Cola Soldier
+Battlefield (Dyspepsi Uniform)	95	Cloaca-Cola Catapult Engineer	Cloaca-Cola Footsoldier	Cloaca-Cola Soldier
 Beanbat Chamber	100	Beanbat
 Bugbear Pens	-1	An Angry Bugbear	A Bugged Bugbear	Mad Bugbears	A Revolting Bugbear	A Revolving Bugbear	An Annoying Spooky Gravy Fairy: 0
 Camp Logging Camp	80	Decent Lumberjack	Lumberjack Supervisor	Lumberjill	Lumberjuan	Hockey Elemental: -1
@@ -75,11 +72,11 @@ Guano Junction	100	Baseball Bat	Briefcase Bat	Perpendicular Bat	Skullbat	Doughba
 Haert of the Cyrpt	100	The Bonerdagon
 Haunted Pantry	50	Possessed Can of Tomatoes: 3	Fiendish Can of Asparagus: 3	Flame-Broiled Meat Blob: 2	Undead Elbow Macaroni: 3
 Hippy Camp	100	Crusty Hippy	Crusty Hippy Jewelry Maker	Crusty Hippy Vegan Chef	Dirty Hippy	Dirty Hippy Jewelry Maker	Dirty Hippy Vegan Chef	Filthy Hippy	Filthy Hippy Jewelry Maker	Filthy Hippy Vegan Chef
-Hole in the Sky	100	The Astronomer	One-Eyed Willie	The Burrowing Bishop	The Family Jewels	The Hooded Warrior	The Junk	The Pork Sword	The Skinflute	The Trouser Snake	The Twig and Berries
+Hole in the Sky	100	The Astronomer: 3	One-Eyed Willie: 2	The Burrowing Bishop: 2	The Family Jewels: 2	The Hooded Warrior: 2	The Junk: 2	The Pork Sword: 2	The Skinflute: 2	The Trouser Snake: 2	The Twig and Berries: 2
 Icy Peak	100	Knott Yeti
 Itznotyerzitz Mine	75	7-Foot Dwarf (Moil)	7-Foot Dwarf (Royale)	7-Foot Dwarf Foreman
 Knob Goblin Harem	60	Knob Goblin Elite Guardsman: 1	Knob Goblin Harem Girl: 2
-Knob Goblin Kitchens	100	Knob Goblin Chef: 2	Knob Goblin Master Chef: 1
+Knob Goblin Kitchens	100	Knob Goblin Chef: 3	Knob Goblin Master Chef: 2
 Knob Goblin Laboratory	100	Knob Goblin Mad Scientist: 2	Knob Goblin Very Mad Scientist: 1
 Knob Goblin Treasury	85	Knob Goblin Bean Counter	Knob Goblin Elite Guardsman	Infinite Meat Bug: -1
 Menagerie 1	100	BASIC Elemental	Fruit Golem	Knob Goblin Mutant

@@ -74,6 +74,9 @@ public class HagnkStorageFrame extends KoLFrame
 		tabs.addTab( "Equipment", equip );
 
 		framePanel.add( tabs, BorderLayout.CENTER );
+
+		if ( KoLCharacter.getStorage().isEmpty() && StaticEntity.getClient().shouldMakeConflictingRequest() )
+			(new RequestThread( new ItemStorageRequest( StaticEntity.getClient() ) )).start();
 	}
 
 	public static void setPullsRemaining( String pullsRemaining )
@@ -206,7 +209,7 @@ public class HagnkStorageFrame extends KoLFrame
 			{
 				if ( !KoLCharacter.canInteract() )
 				{
-					DEFAULT_SHELL.updateDisplay( ERROR_STATE, "You are not yet out of Ronin." );
+					KoLmafia.updateDisplay( ERROR_STATE, "You are not yet out of Ronin." );
 					return;
 				}
 

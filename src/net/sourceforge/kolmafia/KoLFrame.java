@@ -234,14 +234,7 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		{
 			KoLMessenger.dispose();
 			StaticEntity.closeSession();
-
-			if ( this instanceof LoginFrame )
-			{
-				SystemTrayFrame.removeTrayIcon();
-				System.exit(0);
-			}
-			else
-				KoLmafiaGUI.main( new String[0] );
+			KoLmafiaGUI.main( new String[0] );
 		}
 	}
 
@@ -507,7 +500,6 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		switch ( displayState )
 		{
 			case ABORT_STATE:
-			case ERROR_STATE:
 
 				if ( refresher != null )
 					refresher.getCompactPane().setBackground( ERROR_COLOR );
@@ -523,7 +515,7 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 				setEnabled( true );
 				break;
 
-			case CONTINUE_STATE:
+			default:
 
 				if ( refresher != null )
 					refresher.getCompactPane().setBackground( DISABLED_COLOR );
@@ -775,7 +767,7 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	(new RequestThread( new CreateFrameRunnable( frameClass ) )).start();
+		{	(new Thread( new CreateFrameRunnable( frameClass ) )).start();
 		}
 	}
 
@@ -875,14 +867,13 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 			setToolTipText( tooltip );
 			addActionListener( this );
 
-			parameters = new Object[3];
-			parameters[0] = StaticEntity.getClient();
-			parameters[1] = tooltip;
-			parameters[2] = panel;
+			parameters = new Object[2];
+			parameters[0] = tooltip;
+			parameters[1] = panel;
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	(new RequestThread( new CreateFrameRunnable( KoLPanelFrame.class, parameters ) )).start();
+		{	(new Thread( new CreateFrameRunnable( KoLPanelFrame.class, parameters ) )).start();
 		}
 	}
 
@@ -1183,5 +1174,63 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 
 	public static boolean executesConflictingRequest()
 	{	return false;
+	}
+
+	/**
+	 * A generic panel which adds a label to the bottom of the KoLPanel
+	 * to update the panel's status.  It also provides a thread which is
+	 * guaranteed to be a daemon thread for updating the frame which
+	 * also retrieves a reference to the StaticEntity.getClient()'s current settings.
+	 */
+
+	protected abstract class OptionsPanel extends LabeledKoLPanel
+	{
+		public OptionsPanel()
+		{	this( new Dimension( 130, 20 ), new Dimension( 260, 20 ) );
+		}
+
+		public OptionsPanel( String panelTitle )
+		{	this( panelTitle, new Dimension( 130, 20 ), new Dimension( 260, 20 ) );
+		}
+
+		public OptionsPanel( Dimension left, Dimension right )
+		{	this( null, left, right );
+		}
+
+		public OptionsPanel( String panelTitle, Dimension left, Dimension right )
+		{	super( panelTitle, left, right );
+		}
+
+		public void setStatusMessage( int displayState, String message )
+		{
+		}
+
+		protected void actionConfirmed()
+		{
+		}
+	}
+
+	protected class LoadScriptButton extends JButton implements Runnable, ActionListener
+	{
+		private String scriptPath;
+
+		public LoadScriptButton( int scriptID, String scriptPath )
+		{
+			super( String.valueOf( scriptID ) );
+
+			addActionListener( this );
+			this.scriptPath = scriptPath;
+			setToolTipText( scriptPath );
+
+			JComponentUtilities.setComponentSize( this, 30, 30 );
+		}
+
+		public void actionPerformed( ActionEvent e )
+		{	(new RequestThread( this )).start();
+		}
+
+		public void run()
+		{	DEFAULT_SHELL.executeLine( scriptPath );
+		}
 	}
 }

@@ -111,7 +111,6 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 		tabbedListDisplay.setMinimumSize( new Dimension( 0, 150 ) );
 
 		this.messageContent = new JEditorPane();
-		messageContent.setEditable( false );
 		messageContent.addHyperlinkListener( new MailLinkClickedListener() );
 
 		this.mailBuffer = new LimitedSizeChatBuffer( "KoL Mail Message", false );
@@ -290,6 +289,7 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 						"Would you like to delete the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
 					{
 						KoLMailManager.deleteMessages( mailboxName, messages );
+						KoLmafia.enableDisplay();
 					}
 
 					return;
@@ -305,6 +305,7 @@ public class MailboxFrame extends KoLFrame implements ChangeListener
 						"Would you like to save the selected messages?", "Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE ) )
 					{
 						KoLMailManager.saveMessages( messages );
+						KoLmafia.enableDisplay();
 					}
 
 					return;

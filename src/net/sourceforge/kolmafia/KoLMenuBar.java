@@ -676,7 +676,6 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			if ( executePath == null )
 				return;
 
-			StaticEntity.getClient().forceContinue();
 			DEFAULT_SHELL.executeLine( executePath );
 		}
 	}
@@ -713,7 +712,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		}
 
 		public void actionPerformed( ActionEvent e )
-		{	(new RequestThread( new CreateFrameRunnable( frameClass, parameters ) )).start();
+		{	(new Thread( new CreateFrameRunnable( frameClass, parameters ) )).start();
 		}
 	}
 

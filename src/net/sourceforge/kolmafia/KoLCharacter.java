@@ -287,11 +287,12 @@ public abstract class KoLCharacter extends StaticEntity
 
 	private static int arenaWins = 0;
 	private static int stillsAvailable = 0;
+	private static boolean refreshEnabled = false;
 
 	// Listener-driven container items
 
 	private static List listenerList = new ArrayList();
-	private static boolean beanstalkArmed;
+	private static boolean beanstalkArmed = false;
 
 	// Ascension-related variables
 
@@ -304,6 +305,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static int mindControlLevel = 0;
 
 	private static String autosellMode = "";
+	private static KoLAdventure nextAdventure = null;
 
 	/**
 	 * Constructs a new <code>KoLCharacter</code> with the given name.
@@ -353,6 +355,7 @@ public abstract class KoLCharacter extends StaticEntity
 		activeEffects.clear();
 		usableSkills.clear();
 		availableSkills.clear();
+		client.resetBreakfastSummonings();
 
 		isHardcore = false;
 		canInteract = true;
@@ -368,7 +371,9 @@ public abstract class KoLCharacter extends StaticEntity
 		familiars.clear();
 		familiars.add( FamiliarData.NO_FAMILIAR );
 		arenaWins = 0;
+
 		stillsAvailable = -1;
+		refreshEnabled = false;
 
 		beanstalkArmed = false;
 
@@ -390,6 +395,17 @@ public abstract class KoLCharacter extends StaticEntity
 		}
 
 		updateEquipmentLists();
+
+		// Clear the violet fog path table
+		VioletFog.reset();
+	}
+
+	public static KoLAdventure getNextAdventure()
+	{	return nextAdventure;
+	}
+
+	public static void setNextAdventure( KoLAdventure next )
+	{	nextAdventure = next;
 	}
 
 	public static boolean isFallingDown()
@@ -1732,8 +1748,7 @@ public abstract class KoLCharacter extends StaticEntity
 	 */
 
 	public static void setAutosellMode( String mode )
-	{
-		KoLCharacter.autosellMode = mode;
+	{	KoLCharacter.autosellMode = mode;
 	}
 
 	/**
@@ -1853,6 +1868,11 @@ public abstract class KoLCharacter extends StaticEntity
 
 		for ( int i = 0; i < skillArray.length; ++i )
 			addAvailableSkill( skillArray[i] );
+
+		// Superhuman Cocktailcrafting affects # of summons for
+		// Advanced Cocktailcrafting
+		if ( hasSkill( "Superhuman Cocktailcrafting" ) )
+			client.setBreakfastSummonings( KoLmafia.COCKTAILCRAFTING, 5 );
 
 		// Add derived skills based on base skills
 		addDerivedSkills();
@@ -2198,7 +2218,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static void setStillsAvailable( String responseText )
 	{
 		Matcher stillMatcher = Pattern.compile(
-			"lack readout with (\\d+) bright green lights" ).matcher( responseText );
+			"lack readout with (\\d+) bright green light" ).matcher( responseText );
 
 		if ( stillMatcher.find() )
 			stillsAvailable = Integer.parseInt( stillMatcher.group(1) );
@@ -2342,8 +2362,17 @@ public abstract class KoLCharacter extends StaticEntity
 	 * the processing of results.
 	 */
 
+	public static void refreshCalculatedLists( boolean enabled )
+	{
+		refreshEnabled = enabled;
+		refreshCalculatedLists();
+	}
+
 	public static void refreshCalculatedLists()
 	{
+		if ( !refreshEnabled )
+			return;
+
 		if ( username.equals( "" ) )
 			return;
 
@@ -2376,7 +2405,6 @@ public abstract class KoLCharacter extends StaticEntity
 			}
 		}
 	}
-
 
 	/**
 	 * Processes a result received through adventuring.
@@ -2441,9 +2469,6 @@ public abstract class KoLCharacter extends StaticEntity
 			else if ( result.isMoxieGain() )
 				totalSubpoints[2] += result.getCount();
 		}
-
-		// Refresh after every result processing.
-		refreshCalculatedLists();
 	}
 
 	/**
@@ -2488,16 +2513,22 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static boolean hasItem( AdventureResult item, boolean shouldCreate )
 	{
-		if ( item.getCount( getInventory() ) > 0 || item.getCount( getCloset() ) > 0 || hasEquipped( item ) )
+		int count = item.getCount( getInventory() ) + item.getCount( getCloset() ) +
+			(hasEquipped( item ) ? 1 : 0);
+
+		if ( count > 0 && count >= item.getCount() )
 			return true;
 
 		if ( shouldCreate )
 		{
 			ItemCreationRequest creation = ItemCreationRequest.getInstance( client, item.getItemID(), 1 );
-			return creation != null && creation.getCount( ConcoctionsDatabase.getConcoctions() ) > 0;
+			if ( creation == null )
+				return false;
+
+			count += creation.getCount( ConcoctionsDatabase.getConcoctions() );
 		}
 
-		return false;
+		return count > 0 && count >= item.getCount();
 	}
 
 	public static boolean hasEquipped( AdventureResult item )
@@ -2550,6 +2581,7 @@ public abstract class KoLCharacter extends StaticEntity
 	// Effects that modify ML:
 
 	private static final AdventureResult ARIA = new AdventureResult( "Ur-Kel's Aria of Annoyance", 0 );
+	private static final AdventureResult GREEN_CUPCAKE = new AdventureResult( "Cupcake of Wrath", 0 );
 
 	// Items that modify ML:
 
@@ -2631,6 +2663,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static final AdventureResult VEINY = new AdventureResult( "Big Veiny Brain", 0 );
 	private static final AdventureResult PEELED = new AdventureResult( "Peeled Eyeballs", 0 );
 	private static final AdventureResult WASABI = new AdventureResult( "Wasabi Sinuses", 0 );
+	private static final AdventureResult ORANGE_CUPCAKE = new AdventureResult( "Shiny Happy Cupcake", 0 );
 
 	// Items that modify earned XP:
 
@@ -2651,6 +2684,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static final AdventureResult RED_TONGUE = new AdventureResult( "Red Tongue", 0 );
 	private static final AdventureResult TACTICS = new AdventureResult( "Eggs-stortionary Tactics", 0 );
 	private static final AdventureResult POLKA = new AdventureResult( "Polka of Plenty", 0 );
+	private static final AdventureResult PINK_CUPCAKE = new AdventureResult( "Your Cupcake Senses Are Tingling", 0 );
 
 	// Skills that modify Meat Drops
 	private static final String NIMBLE_FINGERS = "Nimble Fingers";
@@ -2680,6 +2714,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static final AdventureResult BLUE_TONGUE = new AdventureResult( "Blue Tongue", 0 );
 	private static final AdventureResult PHAT_LOOT = new AdventureResult( "Fat Leon's Phat Loot Lyric", 0 );
 	private static final AdventureResult OBJECT_DETECTION = new AdventureResult( "Object Detection", 0 );
+	private static final AdventureResult BLUE_CUPCAKE = new AdventureResult( "Cupcake of Choice", 0 );
 
 	// Skills that modify Item Drops
 	private static final String MAD_LOOTING_SKILLZ = "Mad Looting Skillz";
@@ -3000,21 +3035,33 @@ public abstract class KoLCharacter extends StaticEntity
 		{
 			newFamiliarWeightAdjustment += 5;
 			newDodecapedeWeightAdjustment += 5;
-			newFixedXPAdjustment += 2.5;
+			newFixedXPAdjustment += 3;
 			newItemDropPercentAdjustment += 30;
 			newMeatDropPercentAdjustment += 30;
 		}
+		else if ( BLUE_TONGUE.getCount( activeEffects ) > 0 )
+			newItemDropPercentAdjustment += 30;
 		else if ( GREEN_TONGUE.getCount( activeEffects ) > 0 )
 		{
 			newFamiliarWeightAdjustment += 5;
 			newDodecapedeWeightAdjustment += 5;
 		}
+		else if ( ORANGE_TONGUE.getCount( activeEffects ) > 0 )
+			newFixedXPAdjustment += 3;
 		else if ( RED_TONGUE.getCount( activeEffects ) > 0 )
 			newMeatDropPercentAdjustment += 30;
-		else if ( BLUE_TONGUE.getCount( activeEffects ) > 0 )
+
+		// Only one cupcake effect can be active at a time
+		// Assumption: same as snowcone effects.
+
+		if ( BLUE_CUPCAKE.getCount( activeEffects ) > 0 )
 			newItemDropPercentAdjustment += 30;
-		else if ( ORANGE_TONGUE.getCount( activeEffects ) > 0 )
-			newFixedXPAdjustment += 2.5;
+		else if ( GREEN_CUPCAKE.getCount( activeEffects ) > 0 )
+			newMonsterLevelAdjustment += 10;
+		else if ( ORANGE_CUPCAKE.getCount( activeEffects ) > 0 )
+			newFixedXPAdjustment += 3;
+		else if ( PINK_CUPCAKE.getCount( activeEffects ) > 0 )
+			newMeatDropPercentAdjustment += 30;
 
 		if ( PERCEPTION.getCount( activeEffects ) > 0 )
 			newItemDropPercentAdjustment += 30;
