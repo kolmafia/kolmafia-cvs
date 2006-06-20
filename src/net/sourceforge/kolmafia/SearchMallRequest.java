@@ -215,11 +215,11 @@ public class SearchMallRequest extends KoLRequest
 			// are available from NPC stores, since that's all that
 			// can be used in this circumstance.
 
-			boolean npcStoreExists = true;
+			boolean npcStoreExists = false;
 			for ( int i = 0; i < itemNames.size(); ++i )
-				npcStoreExists &= NPCStoreDatabase.contains( (String) itemNames.get(i) );
+				npcStoreExists |= NPCStoreDatabase.contains( (String) itemNames.get(i) );
 
-			if ( KoLCharacter.getLevel() < 5 || (!KoLCharacter.canInteract() && npcStoreExists) )
+			if ( npcStoreExists )
 			{
 				finalizeList( itemNames );
 				return;
@@ -265,12 +265,12 @@ public class SearchMallRequest extends KoLRequest
 					String itemName = priceMatcher.group(2);
 
 					int itemID = Integer.parseInt( priceID.substring( 0, priceID.length() - 9 ) );
-					int quantity = df.parse( priceMatcher.group(3) ).intValue();
+					int quantity = COMMA_FORMAT.parse( priceMatcher.group(3) ).intValue();
 					int limit = quantity;
 
 					Matcher limitMatcher = limitPattern.matcher( priceMatcher.group(4) );
 					if ( limitMatcher.find() )
-						limit = df.parse( limitMatcher.group(1) ).intValue();
+						limit = COMMA_FORMAT.parse( limitMatcher.group(1) ).intValue();
 
 					int price = Integer.parseInt( priceID.substring( priceID.length() - 9 ) );
 					results.add( new MallPurchaseRequest( client, itemName, itemID, quantity, shopID, shopName, price, limit, true ) );

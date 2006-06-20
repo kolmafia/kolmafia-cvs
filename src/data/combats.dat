@@ -5,7 +5,7 @@
 # Monsters extracted from Kittiwake's Monster Survival Guide:
 #
 # http://forums.kingdomofloathing.com/viewtopic.php?t=39973&start=0
-# http://kol.network-forums.com/viewtopic.php?p=1757
+# http://forums.hardcoreoxygenation.com/viewtopic.php?t=218
 #
 # Last edited by Kittiwake on Fri Apr 14, 2006 4:48 am
 #
@@ -16,11 +16,6 @@
 # Missing Combat Percent Data (marked with -1):
 #
 # Bugbear Pens
-# Dark Elbow of the Woods: Demoninja, G Imp, L Imp, Der Bierdieb
-# Dark Heart of the Woods: Fallen Archfiend, G Imp, P Imp, Friar No More
-# Dark Neck of the Woods: Hellion, P Imp, W Imp, On Wings of Fire
-# Degrassi Knoll
-# Dungeons of Doom
 # Spooky Gravy Barrow
 #
 # All monsters are usually equally likely to appear. For those areas
@@ -35,12 +30,11 @@
 # A weight of 0 means this is a one-time (boss) encounter in the area. A
 # weight of -1 means this is an ultra-rare encounter. Neither type of
 # monster will be included in average XP calculations.
-#
-# Assumptions:
-#
-# Hole in the Sky: Three new constellations - equally likely
 
 8-Bit Realm	100	Blooper	Bullet Bill	Buzzy Beetle	Goomba	Keese	Koopa Troopa	Octorok	Tektite	Zol
+An Incredibly Strange Place (Bad Trip)	100	Swarm of Country Bats	Trippy Floating Head (Sky)	Trippy Floating Head (Stench)	Trippy Floating Head (Todd)	Zombie Baby
+An Incredibly Strange Place (Mediocre Trip)	100	Feeling That You're Being Watched	Really Interesting Wallpaper	The Best Carpet Ever	Urge to Stare at Your Hands	Visible Music
+An Incredibly Strange Place (Great Trip)	100	Angels of Avalon	Bustle in the Hedgerow	Elders of the Gentle Race	Gathering of Angels?	Higher Plane Serpents
 Bat Hole Entryway	100	Albino Bat	Pine Bat	Regular Old Bat
 Batrat and Ratbat Burrow	100	Batrat	Ratbat
 Battlefield (Cloaca Uniform)	95	Dyspepsi-Cola General	Dyspepsi-Cola Knight	Dyspepsi-Cola Soldier
@@ -53,16 +47,16 @@ Post-Cyrpt Cemetary	100	Corpulent Zobmie	Grave Rober Zmobie	Senile Lihc	Slick Li
 Pre-Cyrpt Cemetary	100	Ghoul	Grave Rober	Lihc	Skleleton	Smart Skelton	Zmobie	Zobmie
 Crimbo Town Toy Factory	100	Striking Factory-Worker Elf	Striking Gift-Wrapper Elf	Striking Middle-Management Elf	Striking Pencil-Pusher Elf	Striking Stocking-Stuffer Elf
 Daily Dungeon	-1	Dairy Ooze	Dodecapede	Giant Giant Moth	Mayonnaise Wasp	Pencil Golem	Sabre-Toothed Lime	Tonic Water Elemental	Vampire Clam
-Dark Elbow of the Woods	-1	Demoninja	G Imp	L Imp
-Dark Heart of the Woods	-1	Fallen Archfiend	G Imp	P Imp
-Dark Neck of the Woods	-1	Hellion	P Imp	W Imp
+Dark Elbow of the Woods	95	Demoninja	G Imp	L Imp
+Dark Heart of the Woods	95	Fallen Archfiend	G Imp	P Imp
+Dark Neck of the Woods	95	Hellion	P Imp	W Imp
 Deep Fat Friar's Gate	95	Demoninja	Fallen Archfiend	G Imp	Hellion	L Imp	P Imp	W Imp	Hypnotist of Hey Deze: -1
 Defiled Alcove	100	Corpulent Zobmie	Grave Rober Zmobie	Conjoined Zmombie
 Defiled Cranny	100	Gluttonous Ghuol	Gaunt Ghuol	Huge Ghuol: 0
 Defiled Niche	100	Senile Lihc	Slick Lihc	Garganthulihc: 0
 Defiled Nook	100	Spiny Skelelton	Toothy Sklelton	Giant Skeelton: 0
-Degrassi Knoll	-1	Gnollish Bodybuilder	Gnollish Crossdresser	Gnollish Flyslayer	Gnollish Gearhead	Gnollish Piebaker	Gnollish Plungermaster	Gnollish Sorceress	Gnollish Tirejuggler	Gnollish War Chef	Guard Bugbear	One-Eyed Gnoll
-Dungeons of Doom	-1	Swarm of Killer Bees	Acid Blob	Mind Flayer	Large Kobold	Quantum Mechanic	Mimic: 0
+Degrassi Knoll	80	Gnollish Crossdresser: 2	Gnollish Flyslayer: 2	Gnollish Gearhead: 3	Gnollish Piebaker: 2	Gnollish Plungermaster: 2	Gnollish Tirejuggler: 2	Gnollish War Chef: 2	Guard Bugbear: 2	One-Eyed Gnoll: 2
+Dungeons of Doom	70	Swarm of Killer Bees	Acid Blob	Mind Flayer	Large Kobold	Quantum Mechanic	Mimic: 0
 eXtreme Slope	60	Sk8 Gnome	eXtreme Cross-Country Hippy	eXtreme Orcish Snowboarder
 Fernswarthy's Tower	100	Brainsweeper	Bread Golem	Chowder Golem	Weretaco	Yeast Beast	Lesser Fruit Golem
 Frat House	100	Orcish Frat Boy (French Maid)	Orcish Frat Boy (Sorority Orcs)	Orcish Frat Boy (Paddling)

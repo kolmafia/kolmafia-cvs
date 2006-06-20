@@ -169,7 +169,14 @@ public class ItemStorageRequest extends SendMessageRequest
 		{
 			case EMPTY_STORAGE:
 				while ( !KoLCharacter.getStorage().isEmpty() )
-					client.processResult( (AdventureResult) KoLCharacter.getStorage().remove(0) );
+				{
+					AdventureResult item = (AdventureResult) KoLCharacter.getStorage().remove(0);
+					AdventureResult.addResultToList( KoLCharacter.getInventory(), item );
+					AdventureResult.addResultToList( StaticEntity.getClient().getSessionTally(), item );
+
+					KoLCharacter.refreshCalculatedLists();
+				}
+
 				break;
 
 			case STORAGE_TO_INVENTORY:
@@ -187,7 +194,6 @@ public class ItemStorageRequest extends SendMessageRequest
 
 		super.processResults();
 		KoLCharacter.updateStatus();
-		KoLCharacter.refreshCalculatedLists();
 	}
 
 	/**
@@ -247,7 +253,7 @@ public class ItemStorageRequest extends SendMessageRequest
 		{
 			try
 			{
-				afterMeatInCloset = df.parse( meatInClosetMatcher.group(1) ).intValue();
+				afterMeatInCloset = COMMA_FORMAT.parse( meatInClosetMatcher.group(1) ).intValue();
 			}
 			catch ( Exception e )
 			{
@@ -305,12 +311,12 @@ public class ItemStorageRequest extends SendMessageRequest
 			try
 			{
 				lastFindIndex = optionMatcher.end();
-				int itemID = df.parse( optionMatcher.group(1) ).intValue();
+				int itemID = COMMA_FORMAT.parse( optionMatcher.group(1) ).intValue();
 
 				if ( TradeableItemDatabase.getItemName( itemID ) == null )
 					TradeableItemDatabase.registerItem( itemID, optionMatcher.group(2).trim() );
 
-				AdventureResult result = new AdventureResult( itemID, df.parse( optionMatcher.group(3) ).intValue() );
+				AdventureResult result = new AdventureResult( itemID, COMMA_FORMAT.parse( optionMatcher.group(3) ).intValue() );
 				AdventureResult.addResultToList( storageContents, result );
 			}
 			catch ( Exception e )

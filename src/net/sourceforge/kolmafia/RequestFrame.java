@@ -125,7 +125,7 @@ public class RequestFrame extends KoLFrame
 		if ( !(this instanceof PendingTradesFrame) )
 			this.mainDisplay.addHyperlinkListener( new KoLHyperlinkAdapter() );
 
-		this.mainBuffer = new LimitedSizeChatBuffer( "Mini-Browser" );
+		this.mainBuffer = new LimitedSizeChatBuffer( "Mini-Browser", false, false );
 		JScrollPane mainScroller = this.mainBuffer.setChatDisplay( this.mainDisplay );
 
 		// Game text descriptions and player searches should not add
@@ -144,7 +144,7 @@ public class RequestFrame extends KoLFrame
 			this.sideDisplay = new JEditorPane();
 			this.sideDisplay.addHyperlinkListener( new KoLHyperlinkAdapter() );
 
-			this.sideBuffer = new LimitedSizeChatBuffer( "Sidebar" );
+			this.sideBuffer = new LimitedSizeChatBuffer( "Sidebar", false, false );
 			JScrollPane sideScroller = this.sideBuffer.setChatDisplay( sideDisplay );
 			JComponentUtilities.setComponentSize( sideScroller, 150, 450 );
 
@@ -162,11 +162,11 @@ public class RequestFrame extends KoLFrame
 			functionSelect.addItem( new BrowserComboBoxItem( "Consumables", "inventory.php?which=1" ) );
 			functionSelect.addItem( new BrowserComboBoxItem( "Equipment", "inventory.php?which=2" ) );
 			functionSelect.addItem( new BrowserComboBoxItem( "Miscellaneous", "inventory.php?which=3" ) );
-			functionSelect.addItem( new BrowserComboBoxItem( "Character Sheet", "charsheet.php" ) );
+			functionSelect.addItem( new BrowserComboBoxItem( "Character", "charsheet.php" ) );
+			functionSelect.addItem( new BrowserComboBoxItem( "Quests", "questlog.php" ) );
+			functionSelect.addItem( new BrowserComboBoxItem( "Skills", "skills.php" ) );
 			functionSelect.addItem( new BrowserComboBoxItem( "Terrarium", "familiar.php" ) );
-			functionSelect.addItem( new BrowserComboBoxItem( "Usable Skills", "skills.php" ) );
 			functionSelect.addItem( new BrowserComboBoxItem( "Read Messages", "messages.php" ) );
-			functionSelect.addItem( new BrowserComboBoxItem( "Quest Log", "questlog.php" ) );
 			functionSelect.addItem( new BrowserComboBoxItem( "Account Menu", "account.php" ) );
 
 			// Add the browser "goto" menu, because people
@@ -395,7 +395,7 @@ public class RequestFrame extends KoLFrame
 			if ( request == null )
 				return;
 
-			if ( request.getClass() == KoLRequest.class && request.responseText == null || request.responseText.length() == 0 )
+			if ( request.getClass() == KoLRequest.class && (request.responseText == null || request.responseText.length() == 0) )
 			{
 				// New prevention mechanism: tell the requests that there
 				// will be no synchronization.
@@ -534,9 +534,7 @@ public class RequestFrame extends KoLFrame
 		public void run()
 		{
 			int adventuresBefore = KoLCharacter.getAdventuresLeft();
-
-			CharpaneRequest instance = CharpaneRequest.getInstance();
-			instance.run();
+			CharpaneRequest.getInstance().run( true );
 
 			if ( adventuresBefore > KoLCharacter.getAdventuresLeft() && runBetweenBattleChecks != null && runBetweenBattleChecks.isSelected() )
 			{
@@ -552,10 +550,10 @@ public class RequestFrame extends KoLFrame
 				gotoSelect.setEnabled( true );
 				functionSelect.setEnabled( true );
 
-				instance.run();
+				CharpaneRequest.getInstance().run( true );
 			}
 
-			refreshStatus( getDisplayHTML( instance.responseText ) );
+			refreshStatus( getDisplayHTML( CharpaneRequest.getInstance().responseText ) );
 		}
 
 		public void refreshStatus( String text )

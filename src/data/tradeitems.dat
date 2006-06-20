@@ -415,14 +415,14 @@
 415	leotarrrd	10	100
 416	safarrri hat	9	100
 417	henna tattoo	4	38
-418	arse-a'fire elixir	4	36
-419	orangish aphrodisiac	4	36
-420	grapefruit juice of powerful power	4	36
-421	wrath serum	4	36
-422	drab potion	4	36
-423	tomato smoothie	4	36
-424	cosmic lemonade	4	36
-425	equilibrium juice	4	36
+418	Ferrigno's Elixir of Power	4	36
+419	serum of sarcasm	4	36
+420	tomato juice of powerful power	4	36
+421	philter of phorce	4	36
+422	potion of potency	4	36
+423	cordial of concentration	4	36
+424	ointment of the occult	4	36
+425	oil of expertise	4	36
 426	potion of temporary gr8tness	4	36
 427	box	13	19
 428	nothing-in-the-box	0	26
@@ -643,7 +643,7 @@
 643	skeleton key ring	3	67
 644	Crimbo pressie	0	0
 645	wrapping paper	0	-1
-646	fruitcake	1	-1
+646	fruitcake	1	37
 647	present	0	-1
 648	Crimbo sword	12	-1
 649	Crimbo hat	9	-1
@@ -764,7 +764,7 @@
 764	spectral pickle	1	352
 765	briny vinegar	0	160
 766	ghost pickle on a stick	5	450
-767	dill potion	4	77
+767	cologne of contempt	4	77
 768	spork	12	35
 769	voodoo doll	13	25
 770	basic meat fez	9	140
@@ -782,7 +782,7 @@
 782	Mr. Exploiter	8	250000000
 783	'Villa' document	0	125000000
 784	Acqua Del Piatto Merlot	2	-1
-785	Mystery Raffle Ticket #5	0	-1
+785	raffle ticket	0	-1
 786	strawberry	1	35
 787	bottle of rum	2	35
 788	strawberry daiquiri	2	65
@@ -790,8 +790,8 @@
 790	grog	2	78
 791	Mafia bow tie	8	-1
 792	Golden Mr. Accessory	8	-1
-793	potion of chalky equality	4	36
-794	alarming strawberry juice	4	36
+793	oil of stability	4	36
+794	oil of slipperiness	4	36
 795	Acque Luride Grezze Cabernet	2	-1
 796	cement shoes	8	-1
 797	rockin' wagon	2	115
@@ -902,7 +902,7 @@
 902	100-Watt bulb	7	75
 903	Spasmi Dolorosi Del Rene Champagne	2	-1
 904	old school Mafia knickerbockers	10	0
-905	Yummy Tummy bean	3	-1
+905	Yummy Tummy bean	3	20
 906	Rock Pops	4	-1
 907	Mr. Mediocrebar	4	-1
 908	Cold Hots candy	4	-1
@@ -923,7 +923,7 @@
 923	broken cellular phone	0	-1
 924	crimbo elfling	5	-1
 925	dental pliers	7	75
-926	papotion of papower	4	38
+926	Hawking's Elixir of Brilliance	4	38
 927	Ferita Del Petto Zinfandel	2	-1
 928	fuzzy bracelets	8	0
 929	arse-shooting crossbow	12	0
@@ -1033,9 +1033,9 @@
 1033	gnauga hide	0	60
 1034	hippo skin buckler	13	144
 1035	penguin skin buckler	13	142
-1036	yak skin buckler	13	142
+1036	yakskin buckler	13	142
 1037	gnauga hide buckler	13	140
-1038	maraschino moxiosity potion	4	38
+1038	Connery's Elixir of Audacity	4	38
 1039
 1040	lucky Tam O'Shanter	7	-1
 1041	green beer	2	100
@@ -1341,9 +1341,9 @@
 1341	Dyspepsi-Cola-issue canteen	8	35
 1342	picture of a dead guy's girlfriend	3	35
 1343	zombie pineal gland	0	-1
-1344	Gummi-Gnauga	4	-1
-1345	Now and Earlier	4	-1
-1346	Sugar Cog	4	-1
+1344	Gummi-Gnauga	4	30
+1345	Now and Earlier	4	35
+1346	Sugar Cog	4	30
 1347	loaded serum blowgun	0	-1
 1348	empty blowgun	0	-1
 1349	miniscule temporal rip	5	-1
@@ -1434,25 +1434,25 @@
 1434	fruit basket	4	400
 1435	hot pink lipstick	7	-1
 1436	hot stuffing	0	100
-1437
-1438
-1439
-1440
-1441
-1442
-1443
-1444
-1445
-1446
-1447
-1448
-1449
-1450
-1451
-1452
-1453
-1454
-1455
+1437	useless powder	4	-1
+1438	twinkly powder	4	30
+1439	hot powder	4	30
+1440	cold powder	4	30
+1441	spooky powder	4	30
+1442	stench powder	4	30
+1443	sleaze powder	4	30
+1444	twinkly nuggets	4	60
+1445	hot nuggets	4	60
+1446	cold nuggets	4	60
+1447	spooky nuggets	4	60
+1448	stench nuggets	4	60
+1449	sleaze nuggets	4	60
+1450	twinkly wad	4	90
+1451	hot wad	4	90
+1452	cold wad	4	90
+1453	spooky wad	4	90
+1454	stench wad	4	90
+1455	sleaze wad	4	90
 1456	double daisy	0	10000
 1457	miniature stuffed Goth Giant	13	10000
 1458	Valentine's Day cake	1	10000
@@ -1531,22 +1531,22 @@
 1531	grass skirt	10	-1
 1532	grass hat	9	-1
 1533	grass blade	12	-1
-1534
+1534	raffle prize box	3	0
 1535
 1536	homeless hobo spirit	5	-1
 1537	weegee sqouija	7	75
 1538	sparkly engagement ring	8	0
 1539	lucky Tam O'Shatner	7	-1
-1540
-1541
-1542
-1543
-1544
-1545
-1546
+1540	Grimacite goggles	9	-1
+1541	Grimacite glaive	12	-1
+1542	Grimacite greaves	10	-1
+1543	Grimacite garter	8	-1
+1544	Grimacite galoshes	8	-1
+1545	Grimacite gorget	8	-1
+1546	Grimacite guayabera	11	-1
 1547	Codex of Capsaicin Conjuration	13	2000
 1548	Gazpacho's Glacial Grimoire	13	2000
-1549
+1549	MSG	0	1000
 1550	second-hand knockoff engagement ring	8	0
 1551	bottle of Domesticated Turkey	2	70
 1552	bottle of Definit	2	70
@@ -1573,7 +1573,7 @@
 1573	caipifruta	2	130
 1574	teqiwila	2	130
 1575	Divine	2	160
-1576	Gordon Bennet	2	160
+1576	Gordon Bennett	2	160
 1577	tangarita	2	160
 1578	mandarina colada	2	160
 1579	gimlet	2	160
@@ -1584,16 +1584,16 @@
 1584	Mae West	2	160
 1585	Mon Tiki	2	160
 1586	teqiwila slammer	2	160
-1587
-1588
-1589
-1590
-1591
-1592
-1593
-1594
-1595
-1596
+1587	Knob lo mein	1	72
+1588	asparagus lo mein	1	72
+1589	Knoll lo mein	1	72
+1590	spooky lo mein	1	72
+1591	olive lo mein	1	72
+1592	hot hi mein	1	144
+1593	cold hi mein	1	144
+1594	spooky hi mein	1	144
+1595	stinky hi mein	1	144
+1596	sleazy hi mein	1	144
 1597	Junior LAAAAME merit badge	8	-1
 1598	Senior LAAAAME merit badge	8	-1
 1599	jazz soap	3	5
@@ -1602,14 +1602,14 @@
 1602	prussian cathouse with a fly in it	0	130
 1603	Mae West with a fly in it	0	130
 1604	astronaut ice-cream	3	0
-1605
-1606
-1607
-1608
-1609
-1610
-1611
-1612
+1605	delectable catalyst	4	500
+1606	ultimate wad	3	-1
+1607	libation of liveliness	4	36
+1608	eyedrops of the ermine	4	36
+1609	perfume of prejudice	4	36
+1610	eyedrops of the ocelot	4	36
+1611	potent potion of potency	4	36
+1612	concentrated cordial of concentration	4	36
 1613	coffin lid	13	55
 1614	white satin shield	13	85
 1615	Cerebral Cloche	9	100
@@ -1632,3 +1632,21 @@
 1632	Spanish fly trap	13	0
 1633	Spanish fly	0	0
 1634	around the world	2	0
+1635	scrumdiddlyumptious solution	0	-1
+1636	Toddler-sized Dragon Costume	7	0
+1637	phial of hotness	4	-1
+1638	phial of coldness	4	-1
+1639	phial of spookiness	4	-1
+1640	phial of stench	4	-1
+1641	phial of sleaziness	4	-1
+1642	Grimacite Bock	2	-1
+1643	wedge of gray cheese	1	-1
+1644	hot and sour sauce	0	100
+1645	cold and sour sauce	0	100
+1646	spooky and sour sauce	0	100
+1647	stench and sour sauce	0	100
+1648	sleazy and sour sauce	0	100
+1649	brick	0	5
+1650	milk of magnesium	3	36
+1651	foie gras	1	30
+1652	candy brain	4	54

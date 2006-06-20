@@ -90,6 +90,7 @@ public class ConsumeItemRequest extends KoLRequest
 	private static final int BLUE = 1416;
 	private static final int BLACK = 1417;
 	private static final int HILARIOUS_TOME = 1498;
+	private static final int ASTRAL_MUSHROOM = 1622;
 
 	private static final int GIFT1 = 1167;
 	private static final int GIFT2 = 1168;
@@ -103,6 +104,7 @@ public class ConsumeItemRequest extends KoLRequest
 	private static final int GIFT10 = 1176;
 	private static final int GIFT11 = 1177;
 	private static final int GIFTV = 1460;
+	private static final int GIFTR = 1534;
 
 	private static final AdventureResult POISON = new AdventureResult( "Poisoned", 1, true );
 	private static final AdventureResult SAPLING = new AdventureResult( 75, -1 );
@@ -323,6 +325,7 @@ public class ConsumeItemRequest extends KoLRequest
 		case GIFT10:
 		case GIFT11:
 		case GIFTV:
+		case GIFTR:
 			// If it's a gift package, get the inner message
 
 			// "You can't receive things from other players
@@ -621,6 +624,23 @@ public class ConsumeItemRequest extends KoLRequest
 				return;
 			KoLCharacter.addAvailableSkill( new UseSkillRequest( client, "Summon Hilarious Objects", "", 1 ) );
 			break;
+
+		case ASTRAL_MUSHROOM:
+			// "You eat the mushroom, and are suddenly engulfed in
+			// a whirling maelstrom of colors and sensations as
+			// your awareness is whisked away to some strange
+			// alternate dimension. Who would have thought that a
+			// glowing, ethereal mushroom could have that kind of
+			// effect?"
+			//
+			// vs.
+			//
+			// "Whoo, man, lemme tell you, you don't need to be
+			// eating another one of those just now, okay?"
+			if ( responseText.indexOf( "whirling maelstrom" ) == -1 )
+				return;
+			StaticEntity.setProperty( "nextAdventure", "" );
+			break;
 		}
 
 		// If we get here, we know that the item is consumed by being
@@ -665,10 +685,47 @@ public class ConsumeItemRequest extends KoLRequest
 		}
 
 		commandString.append( itemUsed.getCount() );
-		commandString.append( " \"" );
+		commandString.append( ' ' );
 		commandString.append( itemUsed.getName() );
-		commandString.append( "\"" );
-
 		return commandString.toString();
+	}
+
+	public static boolean processRequest( KoLmafia client, String urlString )
+	{
+		int consumptionType = NO_CONSUME;
+		AdventureResult itemUsed = null;
+
+		Matcher itemMatcher = Pattern.compile( "whichitem=(\\d+)" ).matcher( urlString );
+		if ( itemMatcher.find() )
+			itemUsed = new AdventureResult( Integer.parseInt( itemMatcher.group(1) ), 1 );
+
+		if ( urlString.indexOf( "inv_eat.php" ) != -1 )
+			consumptionType = CONSUME_EAT;
+		else if ( urlString.indexOf( "inv_booze.php" ) != -1 )
+			consumptionType = CONSUME_DRINK;
+		else if ( urlString.indexOf( "multiuse.php" ) != -1 )
+			consumptionType = CONSUME_MULTIPLE;
+		else if ( urlString.indexOf( "skills.php" ) != -1 )
+			consumptionType = CONSUME_RESTORE;
+		else if ( urlString.indexOf( "inv_familiar.php" ) != -1 )
+			consumptionType = GROW_FAMILIAR;
+		else if ( urlString.indexOf( "inv_use.php" ) != -1 )
+			consumptionType = CONSUME_USE;
+		else
+			return false;
+
+		if ( urlString.indexOf( "multiuse.php" ) != -1 || urlString.indexOf( "skills.php" ) != -1 )
+		{
+			Matcher quantityMatcher = Pattern.compile( "quantity=(\\d+)" ).matcher( urlString );
+			if ( quantityMatcher.find() )
+				itemUsed = itemUsed.getInstance( Integer.parseInt( quantityMatcher.group(1) ) );
+		}
+
+		String useTypeAsString = (consumptionType == ConsumeItemRequest.CONSUME_EAT) ? "eat " :
+			(consumptionType == ConsumeItemRequest.CONSUME_DRINK) ? "drink " : "use ";
+
+		KoLmafia.getSessionStream().println( useTypeAsString + itemUsed.getCount() + " " + itemUsed.getName() );
+		client.processResult( itemUsed.getNegation() );
+		return true;
 	}
 }

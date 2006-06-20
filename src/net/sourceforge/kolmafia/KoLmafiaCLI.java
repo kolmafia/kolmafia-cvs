@@ -53,6 +53,7 @@ import java.text.DecimalFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import jline.ConsoleReader;
 import net.java.dev.spellcast.utilities.LockableListModel;
 import net.java.dev.spellcast.utilities.DataUtilities;
 
@@ -74,11 +75,14 @@ public class KoLmafiaCLI extends KoLmafia
 	public static final int CREATION = 3;
 	public static final int CLOSET = 4;
 
-	protected String previousLine;
+	private String previousLine;
 	private BufferedReader commandStream;
 
 	private KoLmafiaCLI lastScript;
-	private KoLmafiaASH advancedHandler;
+
+	private static boolean isExecutingCheckOnlyCommand;
+	private static KoLmafiaASH advancedHandler = new KoLmafiaASH();
+	private static ConsoleReader CONSOLE = null;
 
 	public static void main( String [] args )
 	{
@@ -99,6 +103,15 @@ public class KoLmafiaCLI extends KoLmafia
 
 		StaticEntity.setClient( DEFAULT_SHELL );
 		KoLmafia.outputStream = System.out;
+
+		try
+		{
+			if ( !System.getProperty( "os.name" ).startsWith( "Win" ) )
+				CONSOLE = new ConsoleReader();
+		}
+		catch ( Exception e )
+		{
+		}
 
 		if ( initialScript.length() == 0 )
 		{
@@ -126,7 +139,8 @@ public class KoLmafiaCLI extends KoLmafia
 	{
 		try
 		{
-			commandStream = new BufferedReader( new InputStreamReader( inputStream ) );
+			if ( inputStream != System.in || System.getProperty( "os.name" ).startsWith( "Win" ) )
+				commandStream = new BufferedReader( new InputStreamReader( inputStream ) );
 		}
 		catch ( Exception e )
 		{
@@ -135,8 +149,6 @@ public class KoLmafiaCLI extends KoLmafia
 
 			StaticEntity.printStackTrace( e, "Error opening input stream." );
 		}
-
-		advancedHandler = new KoLmafiaASH();
 	}
 
 	public void getBreakfast( boolean checkSettings )
@@ -167,7 +179,7 @@ public class KoLmafiaCLI extends KoLmafia
 			{
 				outputStream.println();
 				outputStream.print( "username: " );
-				username = commandStream.readLine();
+				username = CONSOLE == null ? commandStream.readLine() : CONSOLE.readLine();
 			}
 
 			if ( username == null || username.length() == 0 )
@@ -176,12 +188,15 @@ public class KoLmafiaCLI extends KoLmafia
 				return;
 			}
 
+			if ( username.startsWith( "login " ) )
+				username = username.substring( 6 );
+				
 			String password = StaticEntity.getClient().getSaveState( username );
 
 			if ( password == null )
 			{
 				outputStream.print( "password: " );
-				password = commandStream.readLine();
+				password = CONSOLE == null ? commandStream.readLine() : CONSOLE.readLine( new Character( '*' ) );
 			}
 
 			if ( password == null || password.length() == 0 )
@@ -239,10 +254,13 @@ public class KoLmafiaCLI extends KoLmafia
 		while ( (line = getNextLine()) != null && (permitsContinue() || StaticEntity.getClient() == this) )
 		{
 			if ( StaticEntity.getClient() == this )
+			{
+				enableDisplay();
 				printBlankLine();
+			}
 
+			forceContinue();
 			executeLine( line );
-			KoLCharacter.refreshCalculatedLists();
 			System.gc();
 
 			if ( StaticEntity.getClient() == this )
@@ -261,7 +279,7 @@ public class KoLmafiaCLI extends KoLmafia
 				line = getNextLine();
 
 				if ( line != null && line.startsWith( "y" ) || line.startsWith( "Y" ) )
-					DEFAULT_SHELL.forceContinue();
+					forceContinue();
 			}
 		}
 
@@ -294,7 +312,8 @@ public class KoLmafiaCLI extends KoLmafia
 				// loop when you've read a valid line (which is a non-comment
 				// and a non-blank line) or when you've reached EOF.
 
-				line = commandStream.readLine();
+				line = DEFAULT_SHELL == this && CONSOLE != null ? CONSOLE.readLine() :
+					commandStream.readLine();
 			}
 			while ( line != null && (line.trim().length() == 0 || line.trim().startsWith( "#" ) || line.trim().startsWith( "//" ) || line.trim().startsWith( "\'" )) );
 
@@ -325,10 +344,13 @@ public class KoLmafiaCLI extends KoLmafia
 
 	public synchronized void executeLine( String line )
 	{
+		if ( refusesContinue() )
+			return;
+
 		// If it gets this far, that means the continue
 		// state can be reset.
 
-		if ( line.indexOf( ";" ) != -1 )
+		if ( line.indexOf( ";" ) != -1 && !line.startsWith( "set" ) )
 		{
 			String [] separateLines = line.split( ";" );
 			for ( int i = 0; i < separateLines.length && permitsContinue(); ++i )
@@ -346,11 +368,9 @@ public class KoLmafiaCLI extends KoLmafia
 		line = line.replaceAll( "\\s+", " " ).trim();
 		if ( unrepeatableCommands.contains( line ) )
 		{
-			updateDisplay( ERROR_STATE, "Sorry.  You can only do that once per session." );
+			updateDisplay( ABORT_STATE, "Sorry.  You can only do that once per session." );
 			return;
 		}
-
-		StaticEntity.getClient().forceContinue();
 
 		// Win game sanity check.  This will find its
 		// way back into the GUI ... one day.
@@ -380,7 +400,14 @@ public class KoLmafiaCLI extends KoLmafia
 			if ( !command.equals( "repeat" ) )
 				previousLine = line;
 
+			if ( command.endsWith( "?" ) )
+			{
+				isExecutingCheckOnlyCommand = true;
+				command = command.substring( 0, command.length() - 1 );
+			}
+
 			executeCommand( command, parameters );
+			isExecutingCheckOnlyCommand = false;
 		}
 	}
 
@@ -435,7 +462,7 @@ public class KoLmafiaCLI extends KoLmafia
 		{
 			try
 			{
-				int seconds = parameters.equals( "" ) ? 1 : df.parse( parameters ).intValue();
+				int seconds = parameters.equals( "" ) ? 1 : COMMA_FORMAT.parse( parameters ).intValue();
 				StaticEntity.executeCountdown( "Countdown: ", seconds );
 			}
 			catch ( Exception e )
@@ -500,6 +527,11 @@ public class KoLmafiaCLI extends KoLmafia
 			StaticEntity.setProperty( parameters.substring( 0, splitIndex ).trim(), parameters.substring( splitIndex + 1 ).trim() );
 			return;
 		}
+		else if ( command.equals( "get" ) )
+		{
+			printLine( StaticEntity.getProperty( parameters ) );
+			return;
+		}
 
 		// Handle the if-statement and the while-statement.
 		// The while-statement will not get a separate comment
@@ -562,7 +594,7 @@ public class KoLmafiaCLI extends KoLmafia
 		if ( command.equals( "exit" ) || command.equals( "quit" ) || command.equals( "logout" ) )
 		{
 			updateDisplay( "Logging out..." );
-			(new LogoutRequest( StaticEntity.getClient() )).run();
+			StaticEntity.closeSession();
 
 			updateDisplay( "Exiting KoLmafia..." );
 			System.exit(0);
@@ -608,7 +640,7 @@ public class KoLmafiaCLI extends KoLmafia
 			{
 				if ( previousLine != null )
 				{
-					int repeatCount = parameters.length() == 0 ? 1 : df.parse( parameters ).intValue();
+					int repeatCount = parameters.length() == 0 ? 1 : COMMA_FORMAT.parse( parameters ).intValue();
 					for ( int i = 0; i < repeatCount && permitsContinue(); ++i )
 						executeLine( previousLine );
 				}
@@ -641,7 +673,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			try
 			{
-				today = sdf.parse( sdf.format( today ) );
+				today = DATED_FILENAME_FORMAT.parse( DATED_FILENAME_FORMAT.format( today ) );
 			}
 			catch ( Exception e )
 			{
@@ -801,7 +833,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		if ( command.equals( "entryway" ) )
 		{
-			SorceressLair.completeEntryway();
+			SorceressLair.completeCloveredEntryway();
 			return;
 		}
 
@@ -1008,6 +1040,14 @@ public class KoLmafiaCLI extends KoLmafia
 		if ( command.equals( "zap" ) )
 		{
 			makeZapRequest();
+			return;
+		}
+
+		// Smashing is a type of item usage
+
+		if ( command.equals( "smash" ) || command.equals( "pulverize" ) )
+		{
+			makePulverizeRequest();
 			return;
 		}
 
@@ -1331,8 +1371,8 @@ public class KoLmafiaCLI extends KoLmafia
 		// their own commands, but are actually commands
 		// which are derived from other commands.
 
-		if ( command.startsWith( "inv" ) || command.equals( "session" ) || command.equals( "summary" ) ||
-			command.equals( "effects" ) || command.startsWith( "status" ) || command.equals( "encounters" ) )
+		if ( command.startsWith( "inv" ) || command.equals( "closet" ) || command.equals( "session" ) || command.equals( "summary" ) ||
+			command.equals( "effects" ) || command.startsWith( "status" ) || command.equals( "encounters" ) || command.equals( "skills" ) )
 		{
 			executePrintCommand( command + " " + parameters );
 			return;
@@ -1346,7 +1386,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 	public void showHTML( String text, String title )
 	{
-		DEFAULT_SHELL.printLine( text.replaceAll( "<br>", LINE_BREAK ).replaceAll( "<(p|blockquote)>", LINE_BREAK + LINE_BREAK ).replaceAll(
+		printLine( text.replaceAll( "<br>", LINE_BREAK ).replaceAll( "<(p|blockquote)>", LINE_BREAK + LINE_BREAK ).replaceAll(
 			LINE_BREAK + "(" + LINE_BREAK + ")+", LINE_BREAK + LINE_BREAK ).replaceAll( "<.*?>", "" ).replaceAll( "&nbsp;", " " ).replaceAll(
 			"&trade;", " [tm]" ).replaceAll( "&ntilde;", "n" ).replaceAll( "&quot;", "" ) );
 	}
@@ -1460,7 +1500,10 @@ public class KoLmafiaCLI extends KoLmafia
 				return;
 			}
 
-			if ( isASHFile( scriptFile ) )
+			// Allow the ".ash" to appear anywhere in the filename
+			// in a case-insensitive manner.
+
+			if ( Pattern.compile( "\\.ash", Pattern.CASE_INSENSITIVE ).matcher( scriptFile.getPath() ).find() )
 			{
 				if ( previousLine.startsWith( "validate " ) || previousLine.startsWith( "verify" ) )
 				{
@@ -1492,13 +1535,6 @@ public class KoLmafiaCLI extends KoLmafia
 			StaticEntity.printStackTrace( e );
 			return;
 		}
-	}
-
-	private boolean isASHFile( File scriptFile )
-	{
-		String name = scriptFile.getPath();
-		int dot = name.lastIndexOf( "." );
-		return ( dot >= 0 && name.substring( dot + 1 ).equalsIgnoreCase( "ash" ));
 	}
 
 	/**
@@ -1664,7 +1700,10 @@ public class KoLmafiaCLI extends KoLmafia
 		if ( left.equals( "meat" ) )
 			return KoLCharacter.getAvailableMeat();
 
-		if ( left.equals( "inebriety") || left.equals( "drunkenness") || left.equals( "drunkness"))
+		if ( left.equals( "adventures" ) )
+			return KoLCharacter.getAdventuresLeft();
+
+		if ( left.equals( "inebriety") || left.equals( "drunkenness" ) || left.equals( "drunkness" ) )
 			return KoLCharacter.getInebriety();
 
 		// Items first for one reason: Knob Goblin perfume
@@ -1781,15 +1820,22 @@ public class KoLmafiaCLI extends KoLmafia
 				StaticEntity.getClient().useDisjunction = true;
 
 			if ( StaticEntity.getClient().useDisjunction )
+			{
 				updateDisplay( "All non-stat conditions will be ORed together." );
+				sessionStream.println( "All non-stat objectives will be ORed together." );
+			}
 			else
+			{
 				updateDisplay( "All non-stat conditions will be ANDed together." );
+				sessionStream.println( "All non-stat objectives will be ANDed together." );
+			}
 
 			return true;
 		}
 		else if ( option.equals( "add" ) )
 		{
 			String conditionString = parameters.substring( option.length() ).trim();
+			sessionStream.println( "Objective: " + conditionString );
 
 			if ( conditionString.length() == 0 )
 				return true;
@@ -1843,7 +1889,7 @@ public class KoLmafiaCLI extends KoLmafia
 				try
 				{
 					String [] splitCondition = conditionString.split( "\\s+" );
-					int amount = df.parse( splitCondition[0] ).intValue();
+					int amount = COMMA_FORMAT.parse( splitCondition[0] ).intValue();
 
 					condition = new AdventureResult( AdventureResult.MEAT, amount );
 				}
@@ -1859,7 +1905,7 @@ public class KoLmafiaCLI extends KoLmafia
 				try
 				{
 					String [] splitCondition = conditionString.split( "\\s+" );
-					int points = df.parse( splitCondition[0] ).intValue();
+					int points = COMMA_FORMAT.parse( splitCondition[0] ).intValue();
 
 					int [] subpoints = new int[3];
 					int statIndex = conditionString.indexOf( "mus" ) != -1 ? 0 : conditionString.indexOf( "mys" ) != -1 ? 1 : 2;
@@ -1903,7 +1949,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 					String numberString = conditionString.split( "\\s+" )[0];
 
-					int points = df.parse( numberString.endsWith( "%" ) ? numberString.substring( 0, numberString.length() - 1 ) :
+					int points = COMMA_FORMAT.parse( numberString.endsWith( "%" ) ? numberString.substring( 0, numberString.length() - 1 ) :
 						numberString ).intValue();
 
 					if ( numberString.endsWith( "%" ) )
@@ -1972,7 +2018,7 @@ public class KoLmafiaCLI extends KoLmafia
 		try
 		{
 			StaticEntity.getClient().makeRequest( new CampgroundRequest( StaticEntity.getClient(), parameterList[0] ),
-				parameterList.length == 1 ? 1 : df.parse( parameterList[1] ).intValue() );
+				parameterList.length == 1 ? 1 : COMMA_FORMAT.parse( parameterList[1] ).intValue() );
 		}
 		catch ( Exception e )
 		{
@@ -2050,7 +2096,7 @@ public class KoLmafiaCLI extends KoLmafia
 				buffCount = (int) ( KoLCharacter.getCurrentMP() /
 						    ClassSkillsDatabase.getMPConsumptionByID( ClassSkillsDatabase.getSkillID( skillName ) ) );
 			else
-				buffCount = df.parse( buffCountString ).intValue();
+				buffCount = COMMA_FORMAT.parse( buffCountString ).intValue();
 		}
 		catch ( Exception e )
 		{
@@ -2140,7 +2186,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 		try
 		{
-			amount = df.parse( parameterList[1] ).intValue();
+			amount = COMMA_FORMAT.parse( parameterList[1] ).intValue();
 		}
 		catch ( Exception e )
 		{
@@ -2203,7 +2249,7 @@ public class KoLmafiaCLI extends KoLmafia
 	}
 
 	/**
-	 * A special module used specifically for  unequipping items.
+	 * A special module used specifically for unequipping items.
 	 */
 
 	private void executeUnequipCommand( String parameters )
@@ -2261,6 +2307,8 @@ public class KoLmafiaCLI extends KoLmafia
 			return;
 		}
 
+		PrintStream oldSessionStream = sessionStream;
+		sessionStream = NullStream.INSTANCE;
 		String [] parameterList = parameters.split( " " );
 
 		String filter = "";
@@ -2295,6 +2343,7 @@ public class KoLmafiaCLI extends KoLmafia
 				// a stack trace for debug purposes.
 
 				StaticEntity.printStackTrace( e, "Error opening file <" + parameterList[1] + ">" );
+				sessionStream = oldSessionStream;
 				return;
 			}
 		}
@@ -2305,6 +2354,8 @@ public class KoLmafiaCLI extends KoLmafia
 
 		if ( parameterList.length > 1 && !parameterList[1].equals( "filter" ) )
 			updateDisplay( "Data has been printed to \"" + parameterList[1] + "\"" );
+
+		sessionStream = oldSessionStream;
 	}
 
 	/**
@@ -2329,8 +2380,8 @@ public class KoLmafiaCLI extends KoLmafia
 		else if ( desiredData.startsWith( "stat" ) )
 		{
 			printLine( "Lv: " + KoLCharacter.getLevel() );
-			printLine( "HP: " + KoLCharacter.getCurrentHP() + " / " + df.format( KoLCharacter.getMaximumHP() ) );
-			printLine( "MP: " + KoLCharacter.getCurrentMP() + " / " + df.format( KoLCharacter.getMaximumMP() ) );
+			printLine( "HP: " + KoLCharacter.getCurrentHP() + " / " + COMMA_FORMAT.format( KoLCharacter.getMaximumHP() ) );
+			printLine( "MP: " + KoLCharacter.getCurrentMP() + " / " + COMMA_FORMAT.format( KoLCharacter.getMaximumMP() ) );
 
 			printBlankLine();
 
@@ -2341,7 +2392,7 @@ public class KoLmafiaCLI extends KoLmafia
 			printBlankLine();
 
 			printLine( "Advs: " + KoLCharacter.getAdventuresLeft() );
-			printLine( "Meat: " + df.format( KoLCharacter.getAvailableMeat() ) );
+			printLine( "Meat: " + COMMA_FORMAT.format( KoLCharacter.getAvailableMeat() ) );
 			printLine( "Drunk: " + KoLCharacter.getInebriety() );
 
 			printBlankLine();
@@ -2391,7 +2442,8 @@ public class KoLmafiaCLI extends KoLmafia
 		{
 			List mainList = desiredData.equals( "closet" ) ? KoLCharacter.getCloset() : desiredData.equals( "summary" ) ? StaticEntity.getClient().tally :
 				desiredData.equals( "outfits" ) ? KoLCharacter.getOutfits() : desiredData.equals( "familiars" ) ? KoLCharacter.getFamiliarList() :
-				desiredData.equals( "effects" ) ? KoLCharacter.getEffects() : KoLCharacter.getInventory();
+				desiredData.equals( "effects" ) ? KoLCharacter.getEffects() : desiredData.equals( "skills" ) ? KoLCharacter.getAvailableSkills() :
+				desiredData.equals( "closet" ) ? KoLCharacter.getCloset() : KoLCharacter.getInventory();
 
 			String currentItem;
 			List resultList = new ArrayList();
@@ -2421,13 +2473,13 @@ public class KoLmafiaCLI extends KoLmafia
 	private static String getStatString( int base, int adjusted, int tnp )
 	{
 		StringBuffer statString = new StringBuffer();
-		statString.append( df.format( adjusted ) );
+		statString.append( COMMA_FORMAT.format( adjusted ) );
 
 		if ( base != adjusted )
-			statString.append( " (" + df.format( base ) + ")" );
+			statString.append( " (" + COMMA_FORMAT.format( base ) + ")" );
 
 		statString.append( ", tnp = " );
-		statString.append( df.format( tnp ) );
+		statString.append( COMMA_FORMAT.format( tnp ) );
 
 		return statString.toString();
 	}
@@ -2469,7 +2521,7 @@ public class KoLmafiaCLI extends KoLmafia
 			try
 			{
 				effectName = (String) matchingNames.get(0);
-				duration = durationString.equals( "*" ) ? 0 : df.parse( durationString ).intValue();
+				duration = durationString.equals( "*" ) ? 0 : COMMA_FORMAT.parse( durationString ).intValue();
 			}
 			catch ( Exception e )
 			{
@@ -2487,7 +2539,7 @@ public class KoLmafiaCLI extends KoLmafia
 		return new AdventureResult( effectName, duration, true );
 	}
 
-	public static int getFirstMatchingItemID( List nameList, int matchType )
+	public static int getFirstMatchingItemID( List nameList )
 	{
 		if ( nameList.isEmpty() )
 			return -1;
@@ -2496,34 +2548,11 @@ public class KoLmafiaCLI extends KoLmafia
 		String [] nameArray = new String[ nameList.size() ];
 		nameList.toArray( nameArray );
 
-		switch ( matchType )
-		{
-			case NOWHERE:
-				for ( int i = 0; i < nameArray.length; ++i )
-					if ( NPCStoreDatabase.contains( nameArray[i] ) )
-						return TradeableItemDatabase.getItemID( nameArray[i] );
-
-			case CREATION:
-				return TradeableItemDatabase.getItemID( nameArray[0] );
-
-			case INVENTORY:
-				source = KoLCharacter.getInventory();
-				break;
-
-			case CLOSET:
-				source = KoLCharacter.getCloset();
-				break;
-		}
-
-		AdventureResult currentItem = null;
 		for ( int i = 0; i < nameArray.length; ++i )
-		{
-			currentItem = new AdventureResult( nameArray[i], 0, false );
-			if ( source.contains( currentItem ) )
-				return currentItem.getItemID();
-		}
+			if ( NPCStoreDatabase.contains( nameArray[i] ) )
+				return TradeableItemDatabase.getItemID( nameArray[i] );
 
-		return currentItem.getItemID();
+		return TradeableItemDatabase.getItemID( nameArray[0] );
 	}
 
 	/**
@@ -2541,13 +2570,16 @@ public class KoLmafiaCLI extends KoLmafia
 		// the amount, if the amount is 1.
 
 		List matchingNames = TradeableItemDatabase.getMatchingNames( parameters );
+		if ( matchingNames.isEmpty() )
+			matchingNames = TradeableItemDatabase.getMatchingAbbreviations( parameters );
+
 
 		// Next, check to see if any of the items matching appear
 		// in an NPC store.  If so, automatically default to it.
 
-		if ( matchingNames.size() != 0 )
+		if ( !matchingNames.isEmpty() )
 		{
-			itemID = getFirstMatchingItemID( matchingNames, matchType );
+			itemID = getFirstMatchingItemID( matchingNames );
 			itemCount = defaultCount;
 		}
 		else if ( parameters.indexOf( " " ) == -1 )
@@ -2561,14 +2593,16 @@ public class KoLmafiaCLI extends KoLmafia
 			String itemNameString = parameters.substring( itemCountString.length() ).trim();
 
 			matchingNames = TradeableItemDatabase.getMatchingNames( itemNameString );
+			if ( matchingNames.isEmpty() )
+				matchingNames = TradeableItemDatabase.getMatchingAbbreviations( itemNameString );
 
-			if ( matchingNames.size() == 0 )
+			if ( matchingNames.isEmpty() )
 			{
 				updateDisplay( ERROR_STATE, "[" + parameters + "] does not match anything in the item database." );
 				return null;
 			}
 
-			itemID = getFirstMatchingItemID( matchingNames, matchType );
+			itemID = getFirstMatchingItemID( matchingNames );
 
 			// Make sure what you're attempting to parse is a
 			// number -- if it's not, then the person was trying
@@ -2592,7 +2626,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 				try
 				{
-					itemCount = df.parse( itemCountString ).intValue();
+					itemCount = COMMA_FORMAT.parse( itemCountString ).intValue();
 				}
 				catch ( Exception e )
 				{
@@ -2617,7 +2651,6 @@ public class KoLmafiaCLI extends KoLmafia
 
 		if ( matchType == CREATION )
 		{
-			ConcoctionsDatabase.refreshConcoctions();
 			ItemCreationRequest request = ItemCreationRequest.getInstance( StaticEntity.getClient(), firstMatch );
 			matchCount = request == null ? 0 : request.getCount( ConcoctionsDatabase.getConcoctions() );
 		}
@@ -2637,23 +2670,9 @@ public class KoLmafiaCLI extends KoLmafia
 			firstMatch = firstMatch.getInstance( itemCount );
 		}
 
-		// Allow for attempts to purchase missing items as well as
-		// attempts to create missing items, if the desired location
-		// is the player's inventory.
-
-		if ( matchType == INVENTORY )
+		if ( isExecutingCheckOnlyCommand && firstMatch != null )
 		{
-			AdventureDatabase.retrieveItem( firstMatch );
-			if ( !permitsContinue() )
-				return null;
-		}
-
-		// If the number matching is less than the quantity desired,
-		// then be sure to create an error state.
-
-		else if ( matchType == CLOSET && matchCount < itemCount )
-		{
-			updateDisplay( ERROR_STATE, "Insufficient " + TradeableItemDatabase.getItemName( itemID ) + " to continue." );
+			printLine( firstMatch.toString() );
 			return null;
 		}
 
@@ -2730,7 +2749,7 @@ public class KoLmafiaCLI extends KoLmafia
 		{
 			String [] command = previousLine.split( " " );
 
-			int setting = df.parse( command[1] ).intValue();
+			int setting = COMMA_FORMAT.parse( command[1] ).intValue();
 			StaticEntity.getClient().makeRequest( new MindControlRequest( StaticEntity.getClient(), setting ) );
 		}
 		catch ( Exception e )
@@ -2799,7 +2818,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			try
 			{
-				square = df.parse( squareString ).intValue();
+				square = COMMA_FORMAT.parse( squareString ).intValue();
 			}
 			catch  ( Exception e )
 			{
@@ -2833,7 +2852,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			try
 			{
-				int square = df.parse( squareString ).intValue();
+				int square = COMMA_FORMAT.parse( squareString ).intValue();
 				MushroomPlot.pickMushroom( square, true );
 			}
 			catch  ( Exception e )
@@ -2872,7 +2891,7 @@ public class KoLmafiaCLI extends KoLmafia
 				if ( itemNames[i].endsWith( "meat" ) )
 				{
 					String amountString = itemNames[i].split( " " )[0];
-					int amount = amountString.equals( "*" ) ? 0 : df.parse( amountString ).intValue();
+					int amount = amountString.equals( "*" ) ? 0 : COMMA_FORMAT.parse( amountString ).intValue();
 					firstMatch = new AdventureResult( AdventureResult.MEAT, amount > 0 ? amount : KoLCharacter.getAvailableMeat() + amount );
 
 				}
@@ -2952,7 +2971,7 @@ public class KoLmafiaCLI extends KoLmafia
 		try
 		{
 			StaticEntity.getClient().makeRequest( new AutoSellRequest( StaticEntity.getClient(), firstMatch,
-				df.parse( tokens[ tokens.length - 2 ] ).intValue(), df.parse( tokens[ tokens.length - 1 ] ).intValue() ) );
+				COMMA_FORMAT.parse( tokens[ tokens.length - 2 ] ).intValue(), COMMA_FORMAT.parse( tokens[ tokens.length - 1 ] ).intValue() ) );
 		}
 		catch ( Exception e )
 		{
@@ -3027,6 +3046,7 @@ public class KoLmafiaCLI extends KoLmafia
 			{
 				case ItemCreationRequest.COOK:
 				case ItemCreationRequest.COOK_REAGENT:
+				case ItemCreationRequest.SUPER_REAGENT:
 				case ItemCreationRequest.COOK_PASTA:
 
 					if ( needServant )
@@ -3038,6 +3058,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 				case ItemCreationRequest.MIX:
 				case ItemCreationRequest.MIX_SPECIAL:
+				case ItemCreationRequest.MIX_SUPER:
 
 					if ( needServant )
 						updateDisplay( ERROR_STATE, "You cannot mix without a bartender-in-the-box." );
@@ -3121,7 +3142,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			try
 			{
-				adventureCount = adventureCountString.equals( "*" ) ? 0 : df.parse( adventureCountString ).intValue();
+				adventureCount = adventureCountString.equals( "*" ) ? 0 : COMMA_FORMAT.parse( adventureCountString ).intValue();
 
 				if ( adventureCount <= 0 && adventure.getFormSource().equals( "shore.php" ) )
 					adventureCount += (int) Math.floor( KoLCharacter.getAdventuresLeft() / 3 );
@@ -3138,7 +3159,12 @@ public class KoLmafiaCLI extends KoLmafia
 			}
 		}
 
-		updateDisplay( "Beginning " + adventureCount + " turnips to " + adventure.toString() + "..." );
+		if ( isExecutingCheckOnlyCommand )
+		{
+			printLine( adventure.toString() );
+			return;
+		}
+
 		StaticEntity.getClient().makeRequest( adventure, adventureCount );
 	}
 
@@ -3187,7 +3213,7 @@ public class KoLmafiaCLI extends KoLmafia
 		try
 		{
 			BuffBotHome.setBuffBotActive( true );
-			BuffBotManager.runBuffBot( df.parse( parameters ).intValue() );
+			BuffBotManager.runBuffBot( COMMA_FORMAT.parse( parameters ).intValue() );
 			updateDisplay( "Buffbot execution complete." );
 		}
 		catch ( Exception e )
@@ -3249,6 +3275,34 @@ public class KoLmafiaCLI extends KoLmafia
 	}
 
 	/**
+	 * Attempts to smash the specified item
+	 */
+
+	public void makePulverizeRequest()
+	{
+		String command = previousLine.split( " " )[0];
+		String parameters = previousLine.substring( command.length() ).trim();
+		if ( parameters.length() == 0 )
+		{
+			updateDisplay( ERROR_STATE, "Smash what?" );
+			return;
+		}
+
+		AdventureResult item = getFirstMatchingItem( parameters, INVENTORY );
+		if ( item == null )
+			return;
+
+		if ( !TradeableItemDatabase.isTradeable( item.getItemID() ) )
+		{
+			// Force him to confirm this, somehow? That doesn't
+			// work in a script...
+			return;
+		}
+
+		(new PulverizeRequest( StaticEntity.getClient(), item )).run();
+	}
+
+	/**
 	 * Retrieves the items specified in the most recent command.  If there
 	 * are no clovers available, the request will abort.
 	 */
@@ -3288,7 +3342,7 @@ public class KoLmafiaCLI extends KoLmafia
 
 			try
 			{
-				tradeCount = df.parse( itemCountString ).intValue();
+				tradeCount = COMMA_FORMAT.parse( itemCountString ).intValue();
 			}
 			catch ( Exception e )
 			{
@@ -3462,13 +3516,13 @@ public class KoLmafiaCLI extends KoLmafia
 	{	printLine( " " );
 	}
 
-	public void printLine( String line )
+	public static void printLine( String line )
 	{
 		outputStream.println( line );
 		mirrorStream.println( line );
 
-		KoLmafia.getDebugStream().println( line );
-		KoLmafia.getSessionStream().println( line );
+		getDebugStream().println( line );
+		getSessionStream().println( line );
 
 		StringBuffer colorBuffer = new StringBuffer();
 		colorBuffer.append( "<font color=black>" );

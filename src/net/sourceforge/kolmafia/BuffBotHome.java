@@ -115,7 +115,7 @@ public class BuffBotHome extends StaticEntity
 
 	private static final File getFile( String extension )
 	{
-		String dayOfYear = sdf.format(new Date());
+		String dayOfYear = DATED_FILENAME_FORMAT.format(new Date());
 		String characterName = client == null ? "" : KoLCharacter.getUsername();
 		String noExtensionName = characterName.replaceAll( "\\p{Punct}", "" ).replaceAll( " ", "_" ).toLowerCase();
 
@@ -140,7 +140,7 @@ public class BuffBotHome extends StaticEntity
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e, "Failed to open <" + output.getAbsolutePath() + "> for output" );
 			return null;
 		}
@@ -172,7 +172,7 @@ public class BuffBotHome extends StaticEntity
 			{
 				// This should not happen.  Therefore, print
 				// a stack trace for debug purposes.
-				
+
 				StaticEntity.printStackTrace( e );
 			}
 		}
@@ -243,7 +243,7 @@ public class BuffBotHome extends StaticEntity
 			hypertextLogStream.println( "<br><font color=" + DataUtilities.toHexString( c ) + ">" + entry + "</font>" );
 			hypertextLogStream.flush();
 
-			DEFAULT_SHELL.printLine( entry );
+			KoLmafiaCLI.printLine( entry );
 			if ( messages.size() > 100 )
 				messages.remove( 100 );
 		}

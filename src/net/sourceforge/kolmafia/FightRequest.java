@@ -52,8 +52,10 @@ public class FightRequest extends KoLRequest
 	private int roundCount;
 	private int turnsUsed = 0;
 	private String action1, action2;
+	private MonsterDatabase.Monster monsterData;
 
 	private static String encounter = "";
+	private static String encounterLookup = "";
 	private static final String [] RARE_MONSTERS =
 	{
 		// Ultra-rare monsters
@@ -81,12 +83,19 @@ public class FightRequest extends KoLRequest
 	 */
 
 	public FightRequest( KoLmafia client )
+	{	this( client, true );
+	}
+
+	public FightRequest( KoLmafia client, boolean isFirstRound )
 	{
 		super( client, "fight.php" );
-		this.roundCount = 0;
+		this.roundCount = isFirstRound ? 0 : -100;
 
 		FightRequest.encounter = "";
+		FightRequest.encounterLookup = "";
+
 		this.turnsUsed = 0;
+		this.monsterData = null;
 	}
 
 	public void nextRound()
@@ -99,27 +108,12 @@ public class FightRequest extends KoLRequest
 
 		int haltTolerance = (int)( Double.parseDouble( getProperty( "battleStop" ) ) * (double) KoLCharacter.getMaximumHP() );
 
-		action1 = getProperty( "battleAction" );
+		action1 = CombatSettings.getShortCombatOptionName( getProperty( "battleAction" ) );
 		action2 = null;
 
 		for ( int i = 0; i < RARE_MONSTERS.length; ++i )
-			if ( encounter.indexOf( RARE_MONSTERS[i] ) != -1 )
+			if ( encounterLookup.indexOf( RARE_MONSTERS[i] ) != -1 )
 				client.updateDisplay( ABORT_STATE, "You have encountered the " + encounter );
-
-		if ( roundCount > 1 && action1.equals( "custom" ) )
-		{
-			action1 = CombatSettings.getSetting( encounter, roundCount - 2 );
-			if ( action1.startsWith( "item" ) )
-			{
-				String name = (String) TradeableItemDatabase.getMatchingNames( action1.substring(4).trim() ).get(0);
-				action1 = name == null ? "attack" : "item" + TradeableItemDatabase.getItemID( name );
-			}
-			else if ( action1.startsWith( "skill" ) )
-			{
-				String name = KoLmafiaCLI.getCombatSkillName( action1.substring(5).trim() );
-				action1 = name == null ? "attack" : String.valueOf( ClassSkillsDatabase.getSkillID( name ) );
-			}
-		}
 
 		if ( roundCount == 1 )
 		{
@@ -128,6 +122,10 @@ public class FightRequest extends KoLRequest
 			// extra data.
 
 			action1 = "attack";
+		}
+		else if ( action1.equals( "custom" ) )
+		{
+			action1 = CombatSettings.getSetting( encounterLookup, roundCount - 2 );
 		}
 		else if ( action1.equals( "abort" ) || !KoLmafia.permitsContinue() )
 		{
@@ -228,12 +226,32 @@ public class FightRequest extends KoLRequest
 			if ( !KoLmafia.refusesContinue() )
 				nextRound();
 
-			super.run();
+			if ( action1 != null && action1.equals( "attack" ) && monsterData != null && monsterData.willAlwaysMiss() &&
+				!KoLCharacter.hasSkill( "Disco Eye-Poke" ) && !KoLCharacter.hasSkill( "Disco Dance of Doom" ) &&
+				!KoLCharacter.hasSkill( "Disco Dance II: Electric Boogaloo" ) && !KoLCharacter.hasSkill( "Disco Face Stab" ) )
+			{
+				action1 = null;
+				action2 = null;
+			}
+			else
+			{
+				super.run();
+			}
 
 			if ( KoLmafia.refusesContinue() || action1 == null )
 			{
 				if ( turnsUsed == 0 )
-					showInBrowser( true );
+				{
+					if ( client.getPasswordHash() != null )
+					{
+						showInBrowser( true );
+						KoLmafia.updateDisplay( ABORT_STATE, "You're on your own, partner." );
+					}
+					else
+					{
+						KoLmafia.updateDisplay( ABORT_STATE, "Please finish your battle in-browser first." );
+					}
+				}
 
 				return;
 			}
@@ -250,7 +268,19 @@ public class FightRequest extends KoLRequest
 		// you are fighting against.
 
 		if ( roundCount == 1 )
-			FightRequest.encounter = AdventureRequest.registerEncounter( this );
+		{
+			encounter = AdventureRequest.registerEncounter( this );
+
+			if ( encounter.startsWith( "a " ) )
+				encounter = encounter.substring( 2 );
+			else if ( encounter.startsWith( "an " ) )
+				encounter = encounter.substring( 3 );
+			else if ( encounter.startsWith( "the " ) )
+				encounter = encounter.substring( 4 );
+
+			encounterLookup = encounter.toLowerCase();
+			monsterData = MonsterDatabase.findMonster( encounter );
+		}
 
 		if ( responseText.indexOf( "fight.php" ) == -1 )
 		{

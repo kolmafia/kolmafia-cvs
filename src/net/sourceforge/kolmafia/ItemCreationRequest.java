@@ -51,7 +51,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 	public static final int MEAT_STACK = 88;
 	public static final int DENSE_STACK = 258;
 
-	public static final int METHOD_COUNT = 19;
+	public static final int METHOD_COUNT = 24;
 	public static final int SUBCLASS = Integer.MAX_VALUE;
 
 	public static final int NOCREATE = 0;
@@ -78,6 +78,12 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 	public static final int STILL_BOOZE = 17;
 	public static final int STILL_MIXER = 18;
+	public static final int MIX_SUPER = 19;
+
+	public static final int CATALYST = 20;
+	public static final int SUPER_REAGENT = 21;
+	public static final int WOK = 22;
+	public static final int MALUS = 23;
 
 	private static final AdventureResult OVEN = new AdventureResult( 157, 1 );
 	private static final AdventureResult KIT = new AdventureResult( 236, 1 );
@@ -141,12 +147,12 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 		this.mixingMethod = mixingMethod;
 		this.quantityNeeded = quantityNeeded;
 
-        addFormField( "pwd" );
+		addFormField( "pwd" );
 
 		if ( KoLCharacter.inMuscleSign() && mixingMethod == SMITH )
 			addFormField( "action", "smith" );
 
-		else if ( mixingMethod == CLOVER )
+		else if ( mixingMethod == CLOVER || mixingMethod == CATALYST )
 			addFormField( "action", "useitem" );
 
 		else if ( mixingMethod == STILL_BOOZE )
@@ -154,6 +160,12 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 		else if ( mixingMethod == STILL_MIXER )
 			addFormField( "action", "stillfruit" );
+
+		else if ( mixingMethod == WOK )
+			addFormField( "action", "wokcook" );
+
+		else if ( mixingMethod == MALUS )
+			addFormField( "action", "malussmash" );
 
 		else if ( mixingMethod != SUBCLASS )
 			addFormField( "action", "combine" );
@@ -210,10 +222,12 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 			case MIX:
 			case MIX_SPECIAL:
+			case MIX_SUPER:
 				return new ItemCreationRequest( client, "cocktail.php", itemID, mixingMethod, quantityNeeded );
 
 			case COOK:
 			case COOK_REAGENT:
+			case SUPER_REAGENT:
 			case COOK_PASTA:
 				return new ItemCreationRequest( client, "cook.php", itemID, mixingMethod, quantityNeeded );
 
@@ -243,9 +257,12 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 			case TOY:
 				return new ToyRequest( client, itemID, quantityNeeded );
 
+			case CATALYST:
 			case CLOVER:
 				return new ItemCreationRequest( client, "multiuse.php", itemID, mixingMethod, quantityNeeded );
 
+			case WOK:
+			case MALUS:
 			case STILL_MIXER:
 			case STILL_BOOZE:
 				return new ItemCreationRequest( client, "guild.php", itemID, mixingMethod, quantityNeeded );
@@ -291,8 +308,6 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 				combineItems();
 				break;
 		}
-
-		KoLCharacter.refreshCalculatedLists();
 	}
 
 	protected void makeDough()
@@ -371,7 +386,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 		makeIngredients();
 		AdventureResult [] ingredients = ConcoctionsDatabase.getIngredients( itemID );
 
-		if ( ingredients.length == 1 )
+		if ( ingredients.length == 1 || mixingMethod == CATALYST || mixingMethod == WOK )
 		{
 			// If there is only one ingredient, then it probably
 			// only needs a "whichitem" field added to the request.
@@ -460,6 +475,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 			{
 				case COOK:
 				case COOK_REAGENT:
+				case SUPER_REAGENT:
 				case COOK_PASTA:
 					KoLCharacter.setChef( false );
 					leftOver.run();
@@ -467,6 +483,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 				case MIX:
 				case MIX_SPECIAL:
+				case MIX_SUPER:
 					KoLCharacter.setBartender( false );
 					leftOver.run();
 					break;
@@ -490,6 +507,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 		{
 			case COOK:
 			case COOK_REAGENT:
+			case SUPER_REAGENT:
 			case COOK_PASTA:
 
 				if ( KoLCharacter.hasChef() )
@@ -498,6 +516,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 			case MIX:
 			case MIX_SPECIAL:
+			case MIX_SUPER:
 
 				if ( KoLCharacter.hasBartender() )
 					return true;
@@ -516,12 +535,14 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 		{
 			case COOK:
 			case COOK_REAGENT:
+			case SUPER_REAGENT:
 			case COOK_PASTA:
 				autoRepairSuccessful = useBoxServant( CHEF, CLOCKWORK_CHEF, OVEN, CHEF_SKULL, CHEF_SKULL_BOX );
 				break;
 
 			case MIX:
 			case MIX_SPECIAL:
+			case MIX_SUPER:
 				autoRepairSuccessful = useBoxServant( BARTENDER, CLOCKWORK_BARTENDER, KIT, BARTENDER_SKULL, BARTENDER_SKULL_BOX );
 				break;
 		}
@@ -720,6 +741,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 			case COOK:
 			case COOK_REAGENT:
+			case SUPER_REAGENT:
 			case COOK_PASTA:
 				if ( !KoLCharacter.hasChef() )
 					return quantityNeeded;
@@ -727,6 +749,7 @@ public class ItemCreationRequest extends KoLRequest implements Comparable
 
 			case MIX:
 			case MIX_SPECIAL:
+			case MIX_SUPER:
 				if ( !KoLCharacter.hasBartender() )
 					return quantityNeeded;
 				break;

@@ -43,6 +43,7 @@ import edu.stanford.ejalbert.BrowserLauncher;
 
 public abstract class StaticEntity implements KoLConstants
 {
+	private static KoLSettings settings = new KoLSettings( "" );
 	private static final String [] EMPTY_STRING_ARRAY = new String[0];
 
 	protected static KoLmafia client;
@@ -61,7 +62,7 @@ public abstract class StaticEntity implements KoLConstants
 	{
 		if ( usesSystemTray == 0 )
 			usesSystemTray = System.getProperty( "os.name" ).startsWith( "Windows" ) &&
-				GLOBAL_SETTINGS.getProperty( "useSystemTrayIcon" ).equals( "true" ) ? 1 : 2;
+				StaticEntity.getProperty( "useSystemTrayIcon" ).equals( "true" ) ? 1 : 2;
 
 		return usesSystemTray == 1;
 	}
@@ -69,7 +70,7 @@ public abstract class StaticEntity implements KoLConstants
 	public static boolean usesRelayWindows()
 	{
 		if ( usesRelayWindows == 0 )
-			usesRelayWindows = GLOBAL_SETTINGS.getProperty( "useRelayWindows" ).equals( "true" ) ? 1 : 2;
+			usesRelayWindows = StaticEntity.getProperty( "useRelayWindows" ).equals( "true" ) ? 1 : 2;
 
 		return usesRelayWindows == 1;
 	}
@@ -89,20 +90,19 @@ public abstract class StaticEntity implements KoLConstants
 		client.closeMacroStream();
 
 		KoLCharacter.reset( "" );
-		(new RequestThread( new LogoutRequest( client ) )).start();
+		(new Thread( new LogoutRequest( client ) )).start();
 	}
 
-	public static final KoLSettings getSettings()
-	{	return client == null ? GLOBAL_SETTINGS : client.getSettings();
+	public static void reloadSettings()
+	{	settings = new KoLSettings( KoLCharacter.getUsername() );
 	}
 
 	public static final void setProperty( String name, String value )
-	{
-		getSettings().setProperty( name, value );
+	{	settings.setProperty( name, value );
 	}
 
 	public static final String getProperty( String name )
-	{	return getSettings().getProperty( name );
+	{	return settings.getProperty( name );
 	}
 
 	public static void openSystemBrowser( String location )
@@ -169,13 +169,13 @@ public abstract class StaticEntity implements KoLConstants
 		// Keep the client updated of your current equipment and
 		// familiars, if you visit the appropriate pages.
 
-		if ( location.startsWith( "inventory.php?which=2" ) )
+		if ( location.startsWith( "inventory.php" ) && location.indexOf( "which=2" ) != -1 )
 			EquipmentRequest.parseEquipment( responseText );
 
-		if ( location.startsWith( "familiar.php" ) )
+		if ( location.indexOf( "familiar.php" ) != -1 )
 			FamiliarData.registerFamiliarData( client, responseText );
 
-		if ( location.startsWith( "charsheet.php" ) )
+		if ( location.indexOf( "charsheet.php" ) != -1 )
 			CharsheetRequest.parseStatus( responseText );
 
 		// See if the person learned a new skill from using a
@@ -186,6 +186,7 @@ public abstract class StaticEntity implements KoLConstants
 		{
 			KoLCharacter.addAvailableSkill( new UseSkillRequest( client, learnedMatcher.group(1), "", 1 ) );
 			KoLCharacter.addDerivedSkills();
+			KoLCharacter.refreshCalculatedLists();
 		}
 
 		learnedMatcher = Pattern.compile( "You emerge with a (.*?) of Steel" ).matcher( responseText );
@@ -198,9 +199,7 @@ public abstract class StaticEntity implements KoLConstants
 		// It simply says: "You leargn a new skill. Whee!"
 
 		if ( responseText.indexOf( "You leargn a new skill." ) != -1 )
-		     (new CharsheetRequest( client )).run();
-
-		KoLCharacter.refreshCalculatedLists();
+			(new CharsheetRequest( client )).run();
 	}
 
 	public static final void executeCountdown( String message, int seconds )
@@ -228,7 +227,7 @@ public abstract class StaticEntity implements KoLConstants
 		if ( shouldOpenStream )
 			KoLmafia.openDebugStream();
 
-		KoLmafia.updateDisplay( ABORT_STATE, message + ".  Debug log printed." );
+		KoLmafia.updateDisplay( message + ".  Debug log printed." );
 		for ( int i = 0; i < logAssistMessages.length; ++i )
 		{
 			if ( logAssistMessages[i] != null )

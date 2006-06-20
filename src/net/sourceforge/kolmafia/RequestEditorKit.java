@@ -720,8 +720,12 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 
 		// The first of these is the familiar page, where the
 		// first "Take this one with you" link does not work.
+		// On a related note, the sewer page suffers from an
+		// odd problem as well, where you must remove cells in
+		// the table before it works.
 
 		displayHTML = displayHTML.replaceFirst( "<input class=button type=submit value=\"Take this one with you\">", "" );
+		displayHTML = displayHTML.replaceFirst( "</td></tr><tr><td align=center>(<input class=button type=submit value='Take Items'>)", "$1" );
 
 		// The second of these is the betting page.  Here, the
 		// problem is an "onClick" in the input field, if the
@@ -826,7 +830,25 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		if ( StaticEntity.getProperty( "relayMovesManeuver" ).equals( "true" ) )
 			text = moveManeuverButton( text );
 
+		if ( StaticEntity.getProperty( "relayAddsPlinking" ).equals( "true" ) )
+			text = addPlinking( text );
+
+		text = addChoiceSpoilers( text );
 		return text;
+	}
+
+	private static String addPlinking( String text )
+	{
+		if ( text.indexOf( "fight.php" ) == -1 )
+			return text;
+
+		StringBuffer fightText = new StringBuffer( text );
+		int firstFormIndex = text.indexOf( "</form>" ) + 7;
+
+		fightText.insert( firstFormIndex,
+			"<tr><td align=center><form action=fight.php method=post><input type=hidden name=\"action\" value=\"plink\"><input type=\"submit\" value=\"Repeatedly\"></form></td></tr>" );
+
+		return fightText.toString();
 	}
 
 	private static String addUseLinks( String text )
@@ -929,6 +951,60 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		return textBuffer.toString();
 	}
 
+	private static String addChoiceSpoilers( String text )
+	{
+		Matcher choiceMatcher = Pattern.compile( "whichchoice value=(\\d+)" ).matcher( text );
+		if ( !choiceMatcher.find() )
+			return text;
+
+		String choice = choiceMatcher.group(1);
+		String option = "choiceAdventure" + choice;
+
+		// Find the options for the choice we've encountered
+		String [][] possibleDecisions = null;
+		for ( int i = 0; i < AdventureDatabase.CHOICE_ADVS.length; ++i )
+		{
+			if ( AdventureDatabase.CHOICE_ADVS[i][0][0].equals( option ) )
+			{
+				possibleDecisions = AdventureDatabase.CHOICE_ADVS[i];
+				break;
+			}
+		}
+
+		if ( possibleDecisions == null )
+			return text;
+
+		String item, itemID;
+		int index1 = 0, index2 = 0;
+
+		StringBuffer newText = new StringBuffer();
+
+		for ( int i = 0; i < possibleDecisions[3].length; ++i )
+		{
+			item = possibleDecisions[2][i];
+			itemID = possibleDecisions[3][i];
+
+			index2 = text.indexOf( "</form>", index1 );
+			newText.append( text.substring( index1, index2 ) );
+			newText.append( "<br><font size=-1>(" );
+			newText.append( item );
+
+			if ( itemID != null )
+			{
+				newText.append( " - " );
+				AdventureResult result = new AdventureResult( Integer.parseInt( itemID ), 1 );
+				newText.append( result.getCount( KoLCharacter.getInventory() ) );
+				newText.append( " in inventory" );
+			}
+
+			newText.append( ")</font></form>" );
+			index1 = index2 + 7;
+		}
+
+		newText.append( text.substring( index1 ) );
+		return newText.toString();
+	}
+
 	private static String sortItemList( String select, String displayHTML )
 	{
 		Matcher selectMatcher = Pattern.compile( "<select name=" + select + ">.*?</select>" ).matcher( displayHTML );
@@ -946,7 +1022,7 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 					if ( id == 0 )
 						continue;
 
-					int count = df.parse( itemMatcher.group(2) ).intValue();
+					int count = COMMA_FORMAT.parse( itemMatcher.group(2) ).intValue();
 					AdventureResult currentItem = new AdventureResult( id, count );
 					if ( itemMatcher.group().indexOf( "selected" ) != -1 )
 						selectedItem = id;

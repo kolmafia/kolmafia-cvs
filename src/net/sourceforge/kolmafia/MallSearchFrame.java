@@ -152,6 +152,8 @@ public class MallSearchFrame extends KoLPanelFrame
 				return;
 
 			currentlyBuying = true;
+
+			KoLmafia.forceContinue();
 			StaticEntity.getClient().makePurchases( results, purchases, count );
 			currentlyBuying = false;
 
@@ -186,7 +188,7 @@ public class MallSearchFrame extends KoLPanelFrame
 			totalPrice += ((long)currentPurchase.getLimit()) * ((long)currentPurchase.getPrice());
 		}
 
-		return df.format( totalPurchases ) + " " + currentPurchase.getItemName() + " for " + df.format( totalPrice ) + " meat";
+		return COMMA_FORMAT.format( totalPurchases ) + " " + currentPurchase.getItemName() + " for " + COMMA_FORMAT.format( totalPrice ) + " meat";
 	}
 
 	/**

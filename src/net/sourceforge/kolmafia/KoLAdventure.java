@@ -51,9 +51,10 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 	private static final AdventureResult WAND = new AdventureResult( 626, 1 );
 	public static final AdventureResult BEATEN_UP = new AdventureResult( "Beaten Up", 1, true );
 
-	protected KoLmafia client;
+	private KoLmafia client;
 	private String zone, adventureID, formSource, adventureName;
 	private KoLRequest request;
+	private AreaCombatData areaSummary;
 
 	/**
 	 * Constructs a new <code>KoLAdventure</code> with the given
@@ -80,9 +81,11 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 		else if ( formSource.equals( "campground.php" ) )
 			this.request = new CampgroundRequest( client, adventureID );
 		else if ( formSource.equals( "clan_gym.php" ) )
-			this.request = null;
+			this.request = new ClanGymRequest( client, Integer.parseInt( adventureID ) );
 		else
 			this.request = new AdventureRequest( client, adventureName, formSource, adventureID );
+
+		this.areaSummary = AdventureDatabase.getAreaCombatData( adventureName );
 	}
 
 	/**
@@ -128,7 +131,7 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 
 	public String toString()
 	{
-		boolean includeZoneName = client.getSettings().getProperty( "showAdventureZone" ).equals( "true" );
+		boolean includeZoneName = StaticEntity.getProperty( "showAdventureZone" ).equals( "true" );
 		return includeZoneName ? zone + ": " + adventureName : adventureName;
 	}
 
@@ -189,12 +192,28 @@ public class KoLAdventure implements Runnable, KoLConstants, Comparable
 			return;
 		}
 
+		// If the person doesn't stand a chance of surviving,
+		// automatically quit and tell them so.
+
+		if ( action.equals( "attack" ) && areaSummary != null && !areaSummary.willHitSomething() )
+		{
+			KoLmafia.updateDisplay( ABORT_STATE, "You don't stand a chance." );
+			return;
+		}
+
 		// If the test is successful, then it is safe to run the
 		// request (without spamming the server).
 
+		recordToSession();
 		request.run();
-		client.registerAdventure( this );
 		client.runBetweenBattleChecks();
+	}
+
+	public void recordToSession()
+	{
+		KoLmafia.getSessionStream().println();
+		KoLmafia.getSessionStream().println( "[" + (KoLCharacter.getTotalTurnsUsed() + 1) + "] " + getAdventureName() );
+		client.registerAdventure( this );
 	}
 
 	public int compareTo( Object o )

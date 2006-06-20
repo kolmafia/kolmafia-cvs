@@ -99,7 +99,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 		try
 		{
-			selectedDate = sdf.parse( sdf.format( new Date() ) );
+			selectedDate = DATED_FILENAME_FORMAT.parse( DATED_FILENAME_FORMAT.format( new Date() ) );
 		}
 		catch ( Exception e )
 		{
@@ -111,8 +111,8 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 		calculatePhases( selectedDate );
 
-		dailyBuffer = new LimitedSizeChatBuffer( "KoLmafia: Calendar", false );
-		predictBuffer = new LimitedSizeChatBuffer( "KoLmafia: Next Event", false );
+		dailyBuffer = new LimitedSizeChatBuffer( "KoLmafia: Calendar", false, false );
+		predictBuffer = new LimitedSizeChatBuffer( "KoLmafia: Next Event", false, false );
 
 		JEditorPane dailyDisplay = new JEditorPane();
 		JComponentUtilities.setComponentSize( dailyDisplay, 400, 300 );
@@ -167,7 +167,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 				if ( selectedDateString.equals( "" ) )
 					return;
 
-				selectedDate = sdf.parse( selectedDateString );
+				selectedDate = DATED_FILENAME_FORMAT.parse( selectedDateString );
 
 				calculatePhases( selectedDate );
 				(new UpdateTabsThread()).start();
@@ -242,7 +242,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 	private static void updateDailyPage()
 	{
-		if ( sdf.format( selectedDate ).equals( "20051027" ) )
+		if ( DATED_FILENAME_FORMAT.format( selectedDate ).equals( "20051027" ) )
 		{
 			dailyBuffer.clearBuffer();
 			dailyBuffer.append( "<center><h1>White Wednesday</h1></center>" );
@@ -336,7 +336,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 		displayHTML.append( MoonPhaseDatabase.getPhaseName( grimacePhase ) );
 		displayHTML.append( "</td></tr>" );
 		displayHTML.append( "<tr><td align=right><b>Stats</b>:&nbsp;</td><td>" );
-		displayHTML.append( MoonPhaseDatabase.getMoonEffect( selectedDate ) );
+		displayHTML.append( MoonPhaseDatabase.getMoonEffect( ronaldPhase, grimacePhase ) );
 		displayHTML.append( "</td></tr><td align=right><b>Grue</b>:&nbsp;</td><td>" );
 		displayHTML.append( MoonPhaseDatabase.getGrueEffect( ronaldPhase, grimacePhase, hamburglarPosition ) ? "bloodlusty" : "pacifistic" );
 		displayHTML.append( "</td></tr><td align=right><b>Blood</b>:&nbsp;</td><td>" );
@@ -386,17 +386,17 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 
 		displayHTML.append( "<b>Muscle Day</b>:&nbsp;" );
 		displayHTML.append( MoonPhaseDatabase.getDayCountAsString(
-			MoonPhaseDatabase.getDaysUntilMuscle( calendarDay, hamburglarPosition, selectedDate ) ) );
+			Math.min( (24 - phaseStep) % 16, (25 - phaseStep) % 16 ) ) );
 		displayHTML.append( "<br>" );
 
 		displayHTML.append( "<b>Mysticality Day</b>:&nbsp;" );
 		displayHTML.append( MoonPhaseDatabase.getDayCountAsString(
-			MoonPhaseDatabase.getDaysUntilMysticality( calendarDay, hamburglarPosition, selectedDate ) ) );
+			Math.min( (20 - phaseStep) % 16, (28 - phaseStep) % 16 ) ) );
 		displayHTML.append( "<br>" );
 
 		displayHTML.append( "<b>Moxie Day</b>:&nbsp;" );
 		displayHTML.append( MoonPhaseDatabase.getDayCountAsString(
-			MoonPhaseDatabase.getDaysUntilMoxie( calendarDay, hamburglarPosition, selectedDate ) ) );
+			Math.min( (16 - phaseStep) % 16, (31 - phaseStep) % 16 ) ) );
 		displayHTML.append( "<br>&nbsp;<br>" );
 
 		// Next display the upcoming holidays.  This is done
@@ -497,7 +497,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 				// First, if the date today is equal to the
 				// date selected, highlight it.
 
-				String todayDateString = sdf.format( new Date() );
+				String todayDateString = DATED_FILENAME_FORMAT.format( new Date() );
 				String cellDateString = constructDateString( model, row, column );
 
 				if ( cellDateString.equals( "" ) )
@@ -516,7 +516,7 @@ public class CalendarFrame extends KoLFrame implements ListSelectionListener
 				// Otherwise, if the date selected is equal
 				// to a special day, then highlight it.
 
-				Date cellDate = sdf.parse( cellDateString );
+				Date cellDate = DATED_FILENAME_FORMAT.parse( cellDateString );
 
 				if ( MoonPhaseDatabase.isHoliday( cellDate ) )
 					return holidayRenderer;

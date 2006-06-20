@@ -570,18 +570,18 @@ public class KoLmafiaASH extends StaticEntity
 
 			if ( !KoLmafia.permitsContinue() || result == null || result.getType() == null )
 			{
-				DEFAULT_SHELL.printLine( "Script aborted!" );
+				KoLmafiaCLI.printLine( "Script aborted!" );
 				return;
 			}
 
 			if ( result.getType().equals( TYPE_VOID ) )
-				DEFAULT_SHELL.printLine( !KoLmafia.permitsContinue() ? "Script failed!" : "Script succeeded!" );
+				KoLmafiaCLI.printLine( !KoLmafia.permitsContinue() ? "Script failed!" : "Script succeeded!" );
 			else if ( result.getType().equals( TYPE_BOOLEAN ) )
-				DEFAULT_SHELL.printLine( result.intValue() == 0 ? "Script failed!" : "Script succeeded!" );
+				KoLmafiaCLI.printLine( result.intValue() == 0 ? "Script failed!" : "Script succeeded!" );
 			else if ( result.getType().equals( TYPE_STRING ) )
-				DEFAULT_SHELL.printLine( result.toString() );
+				KoLmafiaCLI.printLine( result.toString() );
 			else
-				DEFAULT_SHELL.printLine(  "Script returned value " + result );
+				KoLmafiaCLI.printLine(  "Script returned value " + result );
 
 		}
 		catch ( AdvancedScriptException e )
@@ -2095,8 +2095,12 @@ public class KoLmafiaASH extends StaticEntity
 
 		// Even if an error occurred, since we captured the result,
 		// permit further execution.
-		currentState = STATE_NORMAL;
-		client.forceContinue();
+
+		if ( !KoLmafia.refusesContinue() )
+		{
+			currentState = STATE_NORMAL;
+			KoLmafia.forceContinue();
+		}
 	}
 
 	private ScriptValue executeGlobalScope( ScriptScope globalScope ) throws AdvancedScriptException

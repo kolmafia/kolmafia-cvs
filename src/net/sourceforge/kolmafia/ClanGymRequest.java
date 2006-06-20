@@ -55,13 +55,10 @@ public class ClanGymRequest extends KoLRequest
 	 * @param	turnCount	The number of turns you're spending on the equipment
 	 */
 
-	public ClanGymRequest( KoLmafia client, int equipmentID, int turnCount )
+	public ClanGymRequest( KoLmafia client, int equipmentID )
 	{
-		super( client, chooseGym( client, equipmentID) );
-		addFormField( "action", chooseAction( client, equipmentID) );
-		addFormField( "numturns", String.valueOf( turnCount ) );
-
-		this.turnCount = turnCount;
+		super( client, chooseGym( client, equipmentID ) );
+		addFormField( "action", chooseAction( client, equipmentID ) );
 	}
 
 	private static String chooseGym( KoLmafia client, int equipmentID )
@@ -86,8 +83,7 @@ public class ClanGymRequest extends KoLRequest
 
 		case MOXIE:
 			// If we are in a Moxie sign, the Gnomish Gnomads has a gym.
-			if ( KoLCharacter.inMoxieSign() &&
-			     KoLCharacter.getInventory().contains( ConcoctionsDatabase.CAR )  )
+			if ( KoLCharacter.inMoxieSign() )
 				return "gnomes.php";
 
 			// Otherwise, use the one in our clan - if we're in one.
@@ -112,8 +108,7 @@ public class ClanGymRequest extends KoLRequest
 
 		case MOXIE:
 			// If we are in a Moxie sign, the Gnomish Gnomads has a gym.
-			return ( KoLCharacter.inMoxieSign() &&
-				 KoLCharacter.getInventory().contains( ConcoctionsDatabase.CAR )  ) ? "train" : "tanningbed";
+			return KoLCharacter.inMoxieSign() ? "train" : "tanningbed";
 		}
 
 		return null;
@@ -124,8 +119,14 @@ public class ClanGymRequest extends KoLRequest
 	 * it merely parses the results to see if any gains were made.
 	 */
 
+	public void setTurnCount( int turnCount )
+	{	this.turnCount = turnCount;
+	}
+
 	public void run()
 	{
+		addFormField( "numturns", String.valueOf( turnCount ) );
+
 		if ( KoLCharacter.getAdventuresLeft() < turnCount )
 		{
 			KoLmafia.updateDisplay( ERROR_STATE, "Insufficient adventures." );

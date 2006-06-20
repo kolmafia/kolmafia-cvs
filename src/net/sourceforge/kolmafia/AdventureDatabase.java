@@ -56,11 +56,14 @@ public class AdventureDatabase extends KoLDatabase
 	private static final AdventureResult SOCK = new AdventureResult( 609, 1 );
 	private static final AdventureResult ROWBOAT = new AdventureResult( 653, 1 );
 	private static final AdventureResult BEAN = new AdventureResult( 186, 1 );
+	private static final AdventureResult ASTRAL = new AdventureResult( "Half-Astral", 0 );
 
 	public static final Map ZONE_NAMES = new TreeMap();
 	public static final Map ZONE_DESCRIPTIONS = new TreeMap();
+
 	private static StringArray [] adventureTable = new StringArray[4];
 	private static final Map areaCombatData = new TreeMap();
+	private static final Map adventureLookup = new TreeMap();
 
 	static
 	{
@@ -116,8 +119,9 @@ public class AdventureDatabase extends KoLDatabase
 		  { "Trade for a denim axe", "Keep your rubber axe" } },
 
 		// The Oracle Will See You Now
-		{ { "choiceAdventure3" }, { "Teleportitis" },
-		  { "Leave the oracle", "Pay for a minor consultation", "Pay for a major consultation" } },
+		// (This adventure cannot be customized)
+		// { { "choiceAdventure3" }, { "Teleportitis" },
+		//  { "Leave the oracle", "Pay for a minor consultation", "Pay for a major consultation" } },
 
 		// Finger-Lickin'... Death.
 		{ { "choiceAdventure4" }, { "South of the Border" },
@@ -290,7 +294,7 @@ public class AdventureDatabase extends KoLDatabase
 		{ "choiceAdventure25", "2", "5000" }
 	};
 
-	// Some adventures don't actually cost a tuen
+	// Some adventures don't actually cost a turn
 	public static final String [] FREE_ADVENTURES =
 	{
 		"Rock-a-bye larva",
@@ -360,6 +364,7 @@ public class AdventureDatabase extends KoLDatabase
 		String zoneName;
 
 		adventures.clear();
+		adventureLookup.clear();
 
 		for ( int i = 0; i < adventureTable[1].size(); ++i )
 		{
@@ -370,12 +375,19 @@ public class AdventureDatabase extends KoLDatabase
 				if ( zoneName.equals( zones[j] ) )
 					shouldAdd = false;
 
+			KoLAdventure adventure = getAdventure(i);
 			if ( shouldAdd )
-				adventures.add( getAdventure(i) );
+				adventures.add( adventure );
+
+			adventureLookup.put( adventure.getRequest().getURLString(), adventure );
 		}
 
 		if ( getProperty( "sortAdventures" ).equals( "true" ) )
 			adventures.sort();
+	}
+
+	public static KoLAdventure getAdventureByURL( String adventureURL )
+	{	return (KoLAdventure) adventureLookup.get( adventureURL );
 	}
 
 	/**
@@ -441,9 +453,6 @@ public class AdventureDatabase extends KoLDatabase
 
 		if ( formSource.equals( "shore.php" ) || adventureID.equals( "45" ) )
 		{
-			// Make sure the car is in the inventory
-			retrieveItem( ConcoctionsDatabase.CAR );
-
 			if ( !KoLmafia.permitsContinue() )
 				return;
 
@@ -464,6 +473,7 @@ public class AdventureDatabase extends KoLDatabase
 				KoLmafia.updateDisplay( ERROR_STATE, "Beach is not yet unlocked." );
 				return;
 			}
+
 			return;
 		}
 
@@ -487,6 +497,68 @@ public class AdventureDatabase extends KoLDatabase
 
 			// See if we can now get to the location
 			request = new KoLRequest( client, "mclargehuge.php" );
+		}
+
+		else if ( adventureID.equals( "96" ) || adventureID.equals( "97" ) || adventureID.equals( "98" ) )
+		{
+			// You must be Half-Astral to go on a trip
+			int astral = ASTRAL.getCount( ( KoLCharacter.getEffects() ) );
+			if ( astral == 0 )
+			{
+				KoLmafia.updateDisplay( ERROR_STATE, "Eat an astral mushroom to take a trip." );
+				return;
+			}
+
+			// If we haven't selected a trip yet, do so now
+			if ( astral == 5)
+			{
+				String nextAdventure = getProperty( "nextAdventure" );
+				if ( nextAdventure.indexOf( "An Incredibly Strange Place") == -1 )
+				{
+					String choice = "1";
+					if ( adventureID.equals( "96" ) )
+					{
+						choice = "1";
+						adventure = getAdventure( "Bad Trip" );
+					}
+					else if ( adventureID.equals( "98" ) )
+					{
+						choice = "2";
+						adventure = getAdventure( "Mediocre Trip" );
+					}
+					else
+					{
+						choice = "3";
+						adventure = getAdventure( "Great Trip" );
+					}
+
+					// Choose the trip
+					String name = adventure.getAdventureName();
+					StaticEntity.setProperty( "chosenTrip", name );
+
+					StaticEntity.setProperty( "choiceAdventure71", choice );
+
+					// Avoid infinite recursion
+					StaticEntity.setProperty( "nextAdventure", name );
+
+					// Arm the adventure by running it once to get
+					// the "Journey to the Center of your Mind" choice.
+					client.makeRequest( adventure, 1 );
+
+					return;
+				}
+			}
+
+			String chosenTrip = getProperty( "chosenTrip" );
+
+			// If we've already selected a trip, we can't switch
+			if ( !chosenTrip.equals( adventure.getAdventureName() ) )
+			{
+				KoLmafia.updateDisplay( ERROR_STATE, "You're already taking a different trip." );
+				return;
+			}
+
+			return;
 		}
 
 		// The casino is unlocked provided the player
@@ -561,7 +633,7 @@ public class AdventureDatabase extends KoLDatabase
 					client.getConditions().clear();
 					client.getConditions().add( BEAN );
 
-					KoLAdventure beanbat = AdventureDatabase.getAdventure( "beanbat" );
+					KoLAdventure beanbat = getAdventure( "beanbat" );
 					client.makeRequest( beanbat, KoLCharacter.getAdventuresLeft() );
 
 					if ( !client.getConditions().isEmpty() )
@@ -581,11 +653,14 @@ public class AdventureDatabase extends KoLDatabase
 				// advantage of item consumption automatically doing
 				// what's needed in grabbing the item.
 
+				(new KoLRequest( client, "council.php" )).run();
 				(new ConsumeItemRequest( client, BEAN )).run();
 			}
 
 			request = new KoLRequest( client, "beanstalk.php" );
-			KoLCharacter.armBeanstalk();
+
+			if ( KoLCharacter.getLevel() >= 10 )
+				KoLCharacter.armBeanstalk();
 		}
 
 		// If you do not need to arm anything, then
@@ -735,9 +810,11 @@ public class AdventureDatabase extends KoLDatabase
 			{
 				case ItemCreationRequest.COOK:
 				case ItemCreationRequest.COOK_REAGENT:
+				case ItemCreationRequest.SUPER_REAGENT:
 				case ItemCreationRequest.COOK_PASTA:
 				case ItemCreationRequest.MIX:
 				case ItemCreationRequest.MIX_SPECIAL:
+				case ItemCreationRequest.MIX_SUPER:
 				case ItemCreationRequest.PIXEL:
 
 					shouldAutoSatisfyEarly = true;

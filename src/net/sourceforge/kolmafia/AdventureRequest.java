@@ -194,6 +194,14 @@ public class AdventureRequest extends KoLRequest
 			return;
 		}
 
+		if ( responseText.indexOf( "in the regular dimension now" ) != -1 )
+		{
+			// "You're in the regular dimension now, and don't
+			// remember how to get back there."
+			KoLmafia.updateDisplay( PENDING_STATE, "You are no longer Half-Astral." );
+			return;
+		}
+
 		if ( responseText.indexOf( "into the spectral mists" ) != -1 )
 		{
 			KoLmafia.updateDisplay( ERROR_STATE, "No one may know of its coming or going." );
@@ -389,8 +397,8 @@ public class AdventureRequest extends KoLRequest
 			Matcher encounterMatcher = Pattern.compile( "<span id='monname'>(.*?)</span>" ).matcher( request.responseText );
 			if ( encounterMatcher.find() )
 			{
-				String encounter = encounterMatcher.group(1).toLowerCase();
-				DEFAULT_SHELL.printLine( "Encounter: " + encounter );
+				String encounter = encounterMatcher.group(1);
+				KoLmafiaCLI.printLine( "Encounter: " + encounter );
 				StaticEntity.getClient().registerEncounter( encounter );
 				return encounter;
 			}
@@ -400,8 +408,8 @@ public class AdventureRequest extends KoLRequest
 			Matcher encounterMatcher = Pattern.compile( "<center><b>(.*?)</b>" ).matcher( request.responseText );
 			if ( encounterMatcher.find() )
 			{
-				String encounter = encounterMatcher.group(1).toLowerCase();
-				DEFAULT_SHELL.printLine( "Encounter: " + encounter );
+				String encounter = encounterMatcher.group(1);
+				KoLmafiaCLI.printLine( "Encounter: " + encounter );
 				StaticEntity.getClient().registerEncounter( encounter );
 				return encounter;
 			}

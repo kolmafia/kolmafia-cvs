@@ -69,7 +69,7 @@ public class EquipmentRequest extends PasswordHashRequest
 	// Perhaps this should be in that module, except this is closely tied
 	// to the PHP files that are manipulated by THIS module.
 
-    // These are the public names
+	// These are the public names
 	public static final String [] slotNames =
 	{
 		"hat", "weapon", "off-hand", "shirt", "pants",
@@ -204,12 +204,19 @@ public class EquipmentRequest extends PasswordHashRequest
 		case KoLCharacter.WEAPON:
 			if ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON )
 			{
-				if ( KoLCharacter.dualWielding() &&
-				     EquipmentDatabase.isRanged( itemID ) &&
-				     EquipmentDatabase.getHands( itemID ) == 1 )
+				String offhand = KoLCharacter.getCurrentEquipmentName( KoLCharacter.OFFHAND );
+				if ( KoLCharacter.dualWielding() )
 				{
-					error = "You can't equip a ranged weapon with a melee weapon in your off-hand.";
-					return null;
+					if ( EquipmentDatabase.isRanged( itemID ) && !EquipmentDatabase.isRanged( offhand ) )
+					{
+						error = "You can't equip a ranged weapon in your main hand with a melee weapon in your off-hand.";
+						return null;
+					}
+					if ( !EquipmentDatabase.isRanged( itemID ) && EquipmentDatabase.isRanged( offhand ) )
+					{
+						error = "You can't equip a melee weapon in your main hand with a ranged weapon in your off-hand.";
+						return null;
+					}
 				}
 				return "equip";
 			}
@@ -221,19 +228,24 @@ public class EquipmentRequest extends PasswordHashRequest
 
 			if ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON )
 			{
-				if ( KoLCharacter.weaponHandedness() != 1 || KoLCharacter.rangedWeapon() )
+				if ( KoLCharacter.weaponHandedness() != 1 )
 				{
-					error = "You must have a 1-handed melee weapon equipped first.";
+					error = "You must have a 1-handed weapon equipped first.";
+					return null;
+				}
+				if ( KoLCharacter.rangedWeapon() && !EquipmentDatabase.isRanged( itemID ) )
+				{
+					error = "You can't equip a melee weapon in your off-hand with a ranged weapon in your main hand.";
+					return null;
+				}
+				if ( !KoLCharacter.rangedWeapon() && EquipmentDatabase.isRanged( itemID ) )
+				{
+					error = "You can't equip a ranged weapon in your off-hand with a melee weapon in your main hand.";
 					return null;
 				}
 				if ( EquipmentDatabase.getHands( itemID ) > 1 )
 				{
 					error = "That weapon is too big to wield in your off-hand.";
-					return null;
-				}
-				if ( EquipmentDatabase.isRanged( itemID ) )
-				{
-					error = "You can't wield a ranged weapon in your off-hand.";
 					return null;
 				}
 				if ( !KoLCharacter.hasSkill( "Double-Fisted Skull Smashing" ) )
@@ -493,16 +505,19 @@ public class EquipmentRequest extends PasswordHashRequest
 				(new EquipmentRequest( client, EquipmentRequest.QUESTS )).run();
 				(new EquipmentRequest( client, EquipmentRequest.EQUIPMENT )).run();
 				(new EquipmentRequest( client, EquipmentRequest.CONSUMABLES )).run();
+
+				KoLCharacter.setAvailableSkills( KoLCharacter.getAvailableSkills() );
 			}
 			else if ( requestType == QUESTS || requestType == CONSUMABLES )
 			{
-				parseQuestItems();
+				parseQuestItems( responseText );
 				super.processResults();
-				KoLmafia.updateDisplay( "Quest item list retrieved." );
 			}
 			else
 			{
-				parseQuestItems();
+				// Skip past equipped gear
+				parseQuestItems( responseText.substring( responseText.indexOf( "Save as Custom Outfit" ) ) );
+
 				String [] oldEquipment = new String[9];
 				int oldFakeHands = KoLCharacter.getFakeHands();
 
@@ -536,11 +551,6 @@ public class EquipmentRequest extends PasswordHashRequest
 				else
 					KoLmafia.updateDisplay( "Gear changed." );
 			}
-
-			// After all the items have been switched,
-			// update lists.
-
-			KoLCharacter.refreshCalculatedLists();
 		}
 		catch ( RuntimeException e )
 		{
@@ -592,7 +602,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			try
 			{
 				String meatInCloset = meatInClosetMatcher.group();
-				KoLCharacter.setClosetMeat( df.parse( meatInCloset ).intValue() );
+				KoLCharacter.setClosetMeat( COMMA_FORMAT.parse( meatInCloset ).intValue() );
 			}
 			catch ( Exception e )
 			{
@@ -630,12 +640,12 @@ public class EquipmentRequest extends PasswordHashRequest
 			try
 			{
 				lastFindIndex = optionMatcher.end();
-				int itemID = df.parse( optionMatcher.group(1) ).intValue();
+				int itemID = COMMA_FORMAT.parse( optionMatcher.group(1) ).intValue();
 
 				if ( TradeableItemDatabase.getItemName( itemID ) == null )
 					TradeableItemDatabase.registerItem( itemID, optionMatcher.group(2).trim() );
 
-				AdventureResult result = new AdventureResult( itemID, df.parse( optionMatcher.group(3) ).intValue() );
+				AdventureResult result = new AdventureResult( itemID, COMMA_FORMAT.parse( optionMatcher.group(3) ).intValue() );
 				AdventureResult.addResultToList( resultList, result );
 			}
 			catch ( Exception e )
@@ -648,16 +658,16 @@ public class EquipmentRequest extends PasswordHashRequest
 		}
 	}
 
-	private void parseQuestItems()
+	private void parseQuestItems( String text)
 	{
-		Matcher itemMatcher = Pattern.compile( "<b>(<a.*?>)?([^<]+)(</a>)?</b>([^<]*?)<font size=1>" ).matcher( responseText );
+		Matcher itemMatcher = Pattern.compile( "<b>(<a.*?>)?([^<]+)(</a>)?</b>([^<]*?)<font size=1>" ).matcher( text );
 		while ( itemMatcher.find() )
 		{
 			String quantity = itemMatcher.group(4).trim();
 			AdventureResult item = new AdventureResult( itemMatcher.group(2),
 				quantity.length() == 0 ? 1 : Integer.parseInt( quantity.substring( 1, quantity.length() - 1 ) ) );
 
-			if ( !KoLCharacter.getInventory().contains( item ) )
+			if ( item.getItemID() != -1 && !KoLCharacter.getInventory().contains( item ) )
 				AdventureResult.addResultToList( KoLCharacter.getInventory(), item );
 		}
 	}

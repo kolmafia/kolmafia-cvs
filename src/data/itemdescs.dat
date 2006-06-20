@@ -423,14 +423,14 @@
 415	984941146	leotarrrd
 416	915759234	safarrri hat
 417	743257699	henna tattoo
-418	874426340	arse-a'fire elixir
-419	868319444	orangish aphrodisiac
-420	811452475	grapefruit juice of powerful power
-421	424855998	wrath serum
-422	310425984	drab potion
-423	733027305	tomato smoothie
-424	751589445	cosmic lemonade
-425	536224886	equilibrium juice
+418	874426340	Ferrigno's Elixir of Power
+419	868319444	serum of sarcasm
+420	811452475	tomato juice of powerful power
+421	424855998	philter of phorce
+422	310425984	potion of potency
+423	733027305	cordial of concentration
+424	751589445	ointment of the occult
+425	536224886	oil of expertise
 426	202508725	potion of temporary gr8tness
 427	670936993	box
 428	736598885	nothing-in-the-box
@@ -772,7 +772,7 @@
 764	705671285	spectral pickle
 765	818792452	briny vinegar
 766	945074985	ghost pickle on a stick
-767	270965643	dill potion
+767	270965643	cologne of contempt
 768	676574854	spork
 769	347432348	voodoo doll
 770	626433571	basic meat fez
@@ -790,7 +790,7 @@
 782	23525325	Mr. Exploiter
 783	1261246	'Villa' document
 784	35798378	Acqua Del Piatto Merlot
-785	488779797	Mystery Raffle Ticket #5
+785	488779797	raffle ticket
 786	521666	strawberry
 787	124295227	bottle of rum
 788	400889977	strawberry daiquiri
@@ -798,8 +798,8 @@
 790	33846846	grog
 791	13555353	Mafia bow tie
 792	125353	Golden Mr. Accessory
-793	1231231234	potion of chalky equality
-794	123123333	alarming strawberry juice
+793	1231231234	oil of stability
+794	123123333	oil of slipperiness
 795	155798378	Acque Luride Grezze Cabernet
 796	18847473	cement shoes
 797	152547062	rockin' wagon
@@ -931,7 +931,7 @@
 923	59731414	broken cellular phone
 924	963205814	crimbo elfling
 925	271993695	dental pliers
-926	666579678	papotion of papower
+926	666579678	Hawking's Elixir of Brilliance
 927	62698889	Ferita Del Petto Zinfandel
 928	867530969	fuzzy bracelets
 929	24291169	arse-shooting crossbow
@@ -1043,7 +1043,7 @@
 1035	824708143	penguin skin buckler
 1036	743401701	yak skin buckler
 1037	540193269	gnauga hide buckler
-1038	126579678	maraschino moxiosity potion
+1038	126579678	Connery's Elixir of Audacity
 1039	
 1040	352270676	lucky Tam O'Shanter
 1041	964503920	green beer
@@ -1442,25 +1442,25 @@
 1434	593246625	fruit basket
 1435	398407608	hot pink lipstick
 1436	203741164	hot stuffing
-1437
-1438
-1439
-1440
-1441
-1442
-1443
-1444
-1445
-1446
-1447
-1448
-1449
-1450
-1451
-1452
-1453
-1454
-1455
+1437	262479555	useless powder
+1438	118084156	twinkly powder
+1439	283451957	hot powder
+1440	568651176	cold powder
+1441	958687925	spooky powder
+1442	689907634	stench powder
+1443	134170686	sleaze powder
+1444	640354330	twinkly nuggets
+1445	211393758	hot nuggets
+1446	602336846	cold nuggets
+1447	341612749	spooky nuggets
+1448	582403510	stench nuggets
+1449	487343916	sleaze nuggets
+1450	503220568	twinkly wad
+1451	802361695	hot wad
+1452	787406705	cold wad
+1453	346006884	spooky wad
+1454	546916092	stench wad
+1455	273925143	sleaze wad
 1456	465944073	double daisy
 1457	703683283	miniature stuffed Goth Giant
 1458	980784871	Valentine's Day cake
@@ -1539,22 +1539,22 @@
 1531	761419701	grass skirt
 1532	173784115	grass hat
 1533	562599473	grass blade
-1534	
+1534	588738049	raffle prize box
 1535	
 1536	228156172	homeless hobo spirit
 1537	659845184	weegee sqouija
 1538	241990328	sparkly engagement ring
 1539	371800199	lucky Tam O'Shatner
-1540	
-1541	
-1542	
-1543	
-1544	
-1545	
-1546	
+1540	910029669	Grimacite goggles
+1541	884738489	Grimacite glaive
+1542	606374079	Grimacite greaves
+1543	306546400	Grimacite garter
+1544	943696283	Grimacite galoshes
+1545	427165547	Grimacite gorget
+1546	136632175	Grimacite guayabera
 1547	255393659	Codex of Capsaicin Conjuration
 1548	947111850	Gazpacho's Glacial Grimoire
-1549	
+1549	768404561	MSG
 1550	948184900	second-hand knockoff engagement ring
 1551	174093721	bottle of Domesticated Turkey
 1552	990285202	bottle of Definit
@@ -1592,16 +1592,16 @@
 1584	934455536	Mae West
 1585	275197081	Mon Tiki
 1586	569727989	teqiwila slammer
-1587	
-1588	
-1589	
-1590	
-1591	
-1592	
-1593	
-1594	
-1595	
-1596	
+1587	250168460	Knob lo mein
+1588	785261814	asparagus lo mein
+1589	147855943	Knoll lo mein
+1590	833636863	spooky lo mein
+1591	504475834	olive lo mein
+1592	621831967	hot hi mein
+1593	732413017	cold hi mein
+1594	793246154	spooky hi mein
+1595	594413308	stinky hi mein
+1596	263373458	sleazy hi mein
 1597	914015743	Junior LAAAAME merit badge
 1598	382823864	Senior LAAAAME merit badge
 1599	224353604	jazz soap
@@ -1610,14 +1610,14 @@
 1602	978043304	prussian cathouse with a fly in it
 1603	637723210	Mae West with a fly in it
 1604	695048778	astronaut ice-cream
-1605	
-1606	
-1607	
-1608	
-1609	
-1610	
-1611	
-1612	
+1605	513832221	delectable catalyst
+1606	873886262	ultimate wad
+1607	144480035	libation of liveliness
+1608	454119392	eyedrops of the ermine
+1609	405137518	perfume of prejudice
+1610	732972916	eyedrops of the ocelot
+1611	844921127	potent potion of potency
+1612	342091891	concentrated cordial of concentration
 1613	395533477	coffin lid
 1614	860285539	white satin shield
 1615	845589896	Cerebral Cloche
@@ -1640,3 +1640,21 @@
 1632	409720298	Spanish fly trap
 1633	170818028	Spanish fly
 1634	268463703	around the world
+1635	945960359	scrumdiddlyumptious solution
+1636	924040526	Toddler-sized Dragon Costume
+1637	737312329	phial of hotness
+1638	617090691	phial of coldness
+1639	304127983	phial of spookiness
+1640	644303640	phial of stench
+1641	361592233	phial of sleaziness
+1642	259609992	Grimacite Bock
+1643	647526971	wedge of gray cheese
+1644	290239268	hot and sour sauce
+1645	539187695	cold and sour sauce
+1646	185117899	spooky and sour sauce
+1647	196207579	stench and sour sauce
+1648	651557405	sleazy and sour sauce
+1649	456411411	brick
+1650	802819764	milk of magnesium
+1651	731952928	foie gras
+1652	936651516	candy brain

@@ -65,10 +65,9 @@ public class ConcoctionsDatabase extends KoLDatabase
 	private static final int BARTENDER = 440;
 	private static final int CLOCKWORK_BARTENDER = 1111;
 
-	public static final AdventureResult CAR = new AdventureResult( 134, 1 );
 	private static final AdventureResult OVEN = new AdventureResult( 157, 1 );
 	private static final AdventureResult KIT = new AdventureResult( 236, 1 );
-	private static final AdventureResult HAMMER = new AdventureResult( 338, 1 );
+	public static final AdventureResult HAMMER = new AdventureResult( 338, 1 );
 	private static final AdventureResult PLIERS = new AdventureResult( 709, 1 );
 
 	private static final AdventureResult PASTE = new AdventureResult( ItemCreationRequest.MEAT_PASTE, 1 );
@@ -453,10 +452,13 @@ public class ConcoctionsDatabase extends KoLDatabase
 		PERMIT_METHOD[ ItemCreationRequest.CLOVER ] = true;
 		ADVENTURE_USAGE[ ItemCreationRequest.CLOVER ] = 0;
 
+		PERMIT_METHOD[ ItemCreationRequest.CATALYST ] = true;
+		ADVENTURE_USAGE[ ItemCreationRequest.CATALYST ] = 0;
+
 		// The gnomish tinkerer is available if the person is in a
 		// moxie sign and they have a bitchin' meat car.
 
-		PERMIT_METHOD[ ItemCreationRequest.TINKER ] = KoLCharacter.inMoxieSign() && KoLCharacter.getInventory().contains( CAR );
+		PERMIT_METHOD[ ItemCreationRequest.TINKER ] = KoLCharacter.inMoxieSign();
 		ADVENTURE_USAGE[ ItemCreationRequest.TINKER ] = 0;
 
 		// Smithing of items is possible whenever the person
@@ -540,6 +542,10 @@ public class ConcoctionsDatabase extends KoLDatabase
 		PERMIT_METHOD[ ItemCreationRequest.COOK_REAGENT ] = PERMIT_METHOD[ ItemCreationRequest.COOK ] && KoLCharacter.canSummonReagent();
 		ADVENTURE_USAGE[ ItemCreationRequest.COOK_REAGENT ] = ADVENTURE_USAGE[ ItemCreationRequest.COOK ];
 
+		PERMIT_METHOD[ ItemCreationRequest.SUPER_REAGENT ] = PERMIT_METHOD[ ItemCreationRequest.COOK ] && KoLCharacter.hasSkill( "The Way of Sauce" );
+;
+		ADVENTURE_USAGE[ ItemCreationRequest.SUPER_REAGENT ] = ADVENTURE_USAGE[ ItemCreationRequest.COOK ];
+
 		PERMIT_METHOD[ ItemCreationRequest.COOK_PASTA ] = PERMIT_METHOD[ ItemCreationRequest.COOK ] && KoLCharacter.canSummonNoodles();
 		ADVENTURE_USAGE[ ItemCreationRequest.COOK_PASTA ] = ADVENTURE_USAGE[ ItemCreationRequest.COOK ];
 
@@ -562,10 +568,14 @@ public class ConcoctionsDatabase extends KoLDatabase
 		PERMIT_METHOD[ ItemCreationRequest.MIX_SPECIAL ] = PERMIT_METHOD[ ItemCreationRequest.MIX ] && KoLCharacter.canSummonShore();
 		ADVENTURE_USAGE[ ItemCreationRequest.MIX_SPECIAL ] = ADVENTURE_USAGE[ ItemCreationRequest.MIX ];
 
+		// Mixing of super-special drinks is possible whenever the
+		// person can mix drinks and has the appropriate skill.
+
+		PERMIT_METHOD[ ItemCreationRequest.MIX_SUPER ] = PERMIT_METHOD[ ItemCreationRequest.MIX ] && KoLCharacter.hasSkill( "Superhuman Cocktailcrafting" );
+		ADVENTURE_USAGE[ ItemCreationRequest.MIX_SUPER ] = ADVENTURE_USAGE[ ItemCreationRequest.MIX ];
+
 		// Using Crosby Nash's Still is possible if the person has
-		// Superhuman Cocktailcrafting and is a Moxie class
-		// character. However, until we learn how to operate the still,
-		// we'll mark it unavailable
+		// Superhuman Cocktailcrafting and is a Moxie class character.
 
 		boolean hasStillsAvailable = KoLCharacter.getStillsAvailable() > 0;
 		PERMIT_METHOD[ ItemCreationRequest.STILL_MIXER ] = hasStillsAvailable;
@@ -573,6 +583,19 @@ public class ConcoctionsDatabase extends KoLDatabase
 
 		PERMIT_METHOD[ ItemCreationRequest.STILL_BOOZE ] = hasStillsAvailable;
 		ADVENTURE_USAGE[ ItemCreationRequest.STILL_BOOZE ] = 0;
+
+		// Using the Wok of Ages is possible if the person has
+		// Transcendental Noodlecraft and is a Mysticality class
+		// character.
+
+		PERMIT_METHOD[ ItemCreationRequest.WOK ] = KoLCharacter.canUseWok();
+		ADVENTURE_USAGE[ ItemCreationRequest.WOK ] = 1;
+
+		// Using the Malus of Forethought is possible if the person has
+		// Pulverize and is a Muscle class character.
+
+		PERMIT_METHOD[ ItemCreationRequest.MALUS ] = KoLCharacter.canUseMalus();
+		ADVENTURE_USAGE[ ItemCreationRequest.MALUS ] = 0;
 	}
 
 	private static boolean isAvailable( int servantID, int clockworkID )

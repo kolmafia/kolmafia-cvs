@@ -457,7 +457,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 					// Nag dialog
 					int turns = trials * 12;
 					if ( JOptionPane.NO_OPTION == JOptionPane.showConfirmDialog( null,
-						"This will take up to " + turns + " adventures and cost up to " + df.format( turns * 100 ) + " meat. Are you sure?",
+						"This will take up to " + turns + " adventures and cost up to " + COMMA_FORMAT.format( turns * 100 ) + " meat. Are you sure?",
 						"Familiar strength learner nag screen", JOptionPane.YES_NO_OPTION ) )
 						return;
 
@@ -696,7 +696,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		}
 
 		statusMessage( CONTINUE_STATE, "Training session completed." );
-		return true;
+		return buffs ? buffFamiliar( goal ) : true;
 	}
 
 	/**
@@ -734,7 +734,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 		// Make sure you have enough meat to pay for the contests
 		if ( KoLCharacter.getAvailableMeat() < ( 100 * events ) )
 		{
-			statusMessage( ERROR_STATE, "You need to have at least " + df.format( 100 * events ) + " meat available." );
+			statusMessage( ERROR_STATE, "You need to have at least " + COMMA_FORMAT.format( 100 * events ) + " meat available." );
 			return null;
 		}
 
@@ -1067,7 +1067,7 @@ public class FamiliarTrainingFrame extends KoLFrame
 				if ( !empathyAvailable && empathyActive == 0 )
 				{
 					stop = true;
-					statusMessage( ERROR_STATE, "Ask a buffbot for empathy?" );
+					statusMessage( ABORT_STATE, "Ask a buffbot for empathy?" );
 					return false;
 				}
 

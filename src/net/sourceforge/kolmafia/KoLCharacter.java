@@ -266,6 +266,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static double fixedXPAdjustment = 0.0;
 	private static double meatDropPercentAdjustment = 0.0;
 	private static double itemDropPercentAdjustment = 0.0;
+	private static boolean rigatoniActive = false;
 
 	// Travel information
 
@@ -287,7 +288,6 @@ public abstract class KoLCharacter extends StaticEntity
 
 	private static int arenaWins = 0;
 	private static int stillsAvailable = 0;
-	private static boolean refreshEnabled = false;
 
 	// Listener-driven container items
 
@@ -336,6 +336,7 @@ public abstract class KoLCharacter extends StaticEntity
 		fixedXPAdjustment = 0.0;
 		meatDropPercentAdjustment = 0.0;
 		itemDropPercentAdjustment = 0.0;
+		rigatoniActive = false;
 
 		equipment.clear();
 		for ( int i = 0; i < 8; ++i )
@@ -373,8 +374,6 @@ public abstract class KoLCharacter extends StaticEntity
 		arenaWins = 0;
 
 		stillsAvailable = -1;
-		refreshEnabled = false;
-
 		beanstalkArmed = false;
 
 		ascensions = 0;
@@ -534,6 +533,18 @@ public abstract class KoLCharacter extends StaticEntity
 			SAUCEROR.contains( classname ) ? "Sauceror" :
 			DISCO_BANDIT.contains( classname ) ? "Disco Bandit" :
 			ACCORDION_THIEF.contains( classname ) ? "Accordion Thief" : "Sauceror";
+	}
+
+	public static boolean isMuscleClass()
+	{	return SEAL_CLUBBER.contains( classname ) || TURTLE_TAMER.contains( classname );
+	}
+
+	public static boolean isMysticalityClass()
+	{	return PASTAMANCER.contains( classname ) || SAUCEROR.contains( classname );
+	}
+
+	public static boolean isMoxieClass()
+	{	return DISCO_BANDIT.contains( classname ) || ACCORDION_THIEF.contains( classname );
 	}
 
 	/**
@@ -1044,15 +1055,32 @@ public abstract class KoLCharacter extends StaticEntity
 				continue;
 
 			if ( equipment[i] == null || equipment[i].equals( "none" ) || equipment[i].equals( EquipmentRequest.UNEQUIP ) )
+			{
 				KoLCharacter.equipment.set( i, EquipmentRequest.UNEQUIP );
-			else if ( TradeableItemDatabase.getConsumptionType( equipment[i] ) == ConsumeItemRequest.EQUIP_ACCESSORY )
-				KoLCharacter.equipment.set( i, equipment[i] );
+				equipmentLists[i].setSelectedItem( EquipmentRequest.UNEQUIP );
+			}
 			else
-				KoLCharacter.equipment.set( i, equipment[i] + " (+" + EquipmentDatabase.getPower( equipment[i] ) + ")" );
+			{
+				if ( TradeableItemDatabase.getConsumptionType( equipment[i] ) == ConsumeItemRequest.EQUIP_ACCESSORY )
+					KoLCharacter.equipment.set( i, equipment[i] );
+				else
+					KoLCharacter.equipment.set( i, equipment[i] + " (+" + EquipmentDatabase.getPower( equipment[i] ) + ")" );
+
+				for ( int j = 0; j < equipmentLists[i].size(); ++j )
+				{
+					if ( equipmentLists[i].get(j).toString().startsWith( equipment[i] ) )
+					{
+						equipmentLists[i].setSelectedIndex(j);
+						break;
+					}
+				}
+			}
 		}
 
 		if ( equipment.length > FAMILIAR && currentFamiliar != FamiliarData.NO_FAMILIAR )
+		{
 			currentFamiliar.setItem( equipment[FAMILIAR] );
+		}
 
 		// Rebuild outfits if given a new list
 		if ( customOutfits != null )
@@ -1085,7 +1113,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static String getEquipment( int type )
 	{
 		if ( type >= HAT && type < FAMILIAR )
-			return (String) equipment.get( type );
+			return (String)equipment.get( type );
 
 		if ( type == FAMILIAR )
 			return getFamiliarItem();
@@ -1153,7 +1181,7 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static int weaponHandedness()
 	{
-		String name = getEquipmentName( (String) equipmentLists[ WEAPON ].getSelectedItem() );
+		String name = getCurrentEquipmentName( WEAPON );
 		return ( name == null) ? 0 : EquipmentDatabase.getHands( name );
 	}
 
@@ -1164,8 +1192,17 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static boolean rangedWeapon()
 	{
-		String name = getEquipmentName( (String) equipmentLists[ WEAPON ].getSelectedItem() );
+		String name = getCurrentEquipmentName( WEAPON );
 		return name != null && EquipmentDatabase.isRanged( name );
+	}
+
+	/**
+	 * Accessor method to determine if character is using Spirit of Rigatoni
+	 * @return	boolean	true if wielding a staff and has skill
+	 */
+
+	public static boolean rigatoniActive()
+	{	return rigatoniActive;
 	}
 
 	/**
@@ -1175,7 +1212,7 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static boolean dualWielding()
 	{
-		String name = getEquipmentName( (String) equipmentLists[ OFFHAND ].getSelectedItem() );
+		String name = getCurrentEquipmentName( OFFHAND );
 		return name != null && EquipmentDatabase.getHands( name ) == 1;
 	}
 
@@ -1822,6 +1859,12 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static void setAvailableSkills( List availableSkills )
 	{
+		if ( availableSkills == KoLCharacter.availableSkills )
+		{
+			addDictionary();
+			return;
+		}
+
 		KoLCharacter.availableSkills.clear();
 		KoLCharacter.usableSkills.clear();
 		KoLCharacter.combatSkills.clear();
@@ -1854,7 +1897,7 @@ public abstract class KoLCharacter extends StaticEntity
 		// Add in moxious maneuver if the player
 		// is of the appropriate class.
 
-		if ( KoLCharacter.getClassType().startsWith( "Ac" ) || KoLCharacter.getClassType().startsWith( "Di" ) )
+		if ( isMoxieClass() )
 		{
 			battleSkillIDs.add( "moxman" );
 			battleSkillNames.add( "Special: Moxious Maneuver" );
@@ -1874,6 +1917,16 @@ public abstract class KoLCharacter extends StaticEntity
 		if ( hasSkill( "Superhuman Cocktailcrafting" ) )
 			client.setBreakfastSummonings( KoLmafia.COCKTAILCRAFTING, 5 );
 
+		// Transcendental Noodlecraft affects # of summons for
+		// Pastamastery
+		if ( hasSkill( "Transcendental Noodlecraft" ) )
+			client.setBreakfastSummonings( KoLmafia.PASTAMASTERY, 5 );
+
+		// The Way of Sauce affects # of summons for
+		// Advanced Saucecrafting
+		if ( hasSkill( "The Way of Sauce" ) )
+			client.setBreakfastSummonings( KoLmafia.SAUCECRAFTING, 5 );
+
 		// Add derived skills based on base skills
 		addDerivedSkills();
 
@@ -1883,7 +1936,7 @@ public abstract class KoLCharacter extends StaticEntity
 		KoLCharacter.battleSkillIDs.add( "custom" );
 		KoLCharacter.battleSkillNames.add( "Custom: Use Combat Script" );
 
-		battleSkillIDs.setSelectedItem( getProperty( "battleAction" ) );
+		battleSkillIDs.setSelectedItem( CombatSettings.getShortCombatOptionName( getProperty( "battleAction" ) ) );
 		if ( battleSkillIDs.getSelectedIndex() != -1 )
 			battleSkillNames.setSelectedIndex( battleSkillIDs.getSelectedIndex() );
 	}
@@ -1929,7 +1982,7 @@ public abstract class KoLCharacter extends StaticEntity
 				if ( dictionary.getCount() > 0 )
 				{
 					battleSkillIDs.add( 1, "item1316" );
-					battleSkillNames.add( 1, "Item: Use a Dictionary" );
+					battleSkillNames.add( 1, "Item: Use a Facsimile Dictionary" );
 					return;
 				}
 				else if ( dictionary.getCount() == -1 )
@@ -2199,7 +2252,7 @@ public abstract class KoLCharacter extends StaticEntity
 	{
 		if ( stillsAvailable == -1 )
 		{
-			boolean canStill = hasSkill( "Superhuman Cocktailcrafting" ) && (getClassType().startsWith( "Di" ) || getClassType().startsWith( "Ac" ));
+			boolean canStill = hasSkill( "Superhuman Cocktailcrafting" ) && isMoxieClass();
 			if ( !canStill )
 			{
 				stillsAvailable = 0;
@@ -2224,6 +2277,14 @@ public abstract class KoLCharacter extends StaticEntity
 			stillsAvailable = Integer.parseInt( stillMatcher.group(1) );
 		else
 			stillsAvailable = 0;
+	}
+
+	public static boolean canUseWok()
+	{	return hasSkill( "Transcendental Noodlecraft" ) && isMysticalityClass();
+	}
+
+	public static boolean canUseMalus()
+	{	return hasSkill( "Pulverize" ) && isMuscleClass();
 	}
 
 	/**
@@ -2328,7 +2389,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static String getAdvancement()
 	{
 		int level = getLevel();
-		return df.format( level * level + 4 - calculateBasePoints( getTotalPrime() ) ) + " " + AdventureResult.STAT_NAMES[ getPrimeIndex() ] +
+		return COMMA_FORMAT.format( level * level + 4 - calculateBasePoints( getTotalPrime() ) ) + " " + AdventureResult.STAT_NAMES[ getPrimeIndex() ] +
 			" until level " + (level + 1);
 	}
 
@@ -2362,17 +2423,8 @@ public abstract class KoLCharacter extends StaticEntity
 	 * the processing of results.
 	 */
 
-	public static void refreshCalculatedLists( boolean enabled )
-	{
-		refreshEnabled = enabled;
-		refreshCalculatedLists();
-	}
-
 	public static void refreshCalculatedLists()
 	{
-		if ( !refreshEnabled )
-			return;
-
 		if ( username.equals( "" ) )
 			return;
 
@@ -2425,7 +2477,10 @@ public abstract class KoLCharacter extends StaticEntity
 		String resultName = result.getName();
 
 		if ( result.isItem() )
+		{
 			AdventureResult.addResultToList( inventory, result );
+			refreshCalculatedLists();
+		}
 		else if ( resultName.equals( AdventureResult.HP ) )
 			setHP( getCurrentHP() + result.getCount(), getMaximumHP(), getBaseMaxHP() );
 		else if ( resultName.equals( AdventureResult.MP ) )
@@ -2750,6 +2805,10 @@ public abstract class KoLCharacter extends StaticEntity
 	private static final int DEMON = 41;
 	private static final int CRIMBO_ELF = 26;
 
+	// Items and skills that make Mysticality the To-Hit stat
+	private static final int SAUCE_GLOVE = 531;
+	private static final String SPIRIT_OF_RIGATONI = "Spirit of Rigatoni";
+
 	public static boolean recalculateAdjustments( boolean update )
 	{
 		int newMonsterLevelAdjustment = 0;
@@ -2761,6 +2820,10 @@ public abstract class KoLCharacter extends StaticEntity
 		double newFixedXPAdjustment = 0.0;
 		double newMeatDropPercentAdjustment = 0.0;
 		double newItemDropPercentAdjustment = 0.0;
+
+		boolean rigatoniSkill = false;
+		boolean hasStaff = false;
+		boolean newRigatoniActive = false;
 
 		int familiarID = currentFamiliar.getID();
 
@@ -2841,13 +2904,19 @@ public abstract class KoLCharacter extends StaticEntity
 			case SK8BOARD:
 				newInitiativeAdjustment += 15;
 				break;
-			case CLOCKWORK_PANTS:
 			case CROWBARRR:
+				hasStaff = true;
+				newInitiativeAdjustment += 10;
+				break;
+			case CLOCKWORK_PANTS:
 			case GNATWING_EARRING:
 			case INFERNAL_INSOLES:
 				newInitiativeAdjustment += 10;
 				break;
 			case PLASTIC_FORK:
+				hasStaff = true;
+				newInitiativeAdjustment -= 10;
+				break;
 			case SHOVEL:
 				newInitiativeAdjustment -= 10;
 				break;
@@ -2922,6 +2991,26 @@ public abstract class KoLCharacter extends StaticEntity
 			case GNAUGA_WHIP:
 				newItemDropPercentAdjustment += 3;
 				break;
+			case SAUCE_GLOVE:
+				if ( classtype.startsWith( "Sa" ) )
+					rigatoniSkill = true;
+				break;
+			case 77:	// spooky stick
+			case 103:	// spooky staff
+			case 108:	// big stick
+			case 110:	// basic meat staff
+			case 114:	// dripping meat staff
+			case 148:	// eXtreme meat staff
+			case 228:	// Kentucky-fried meat staff
+			case 379:	// linoleum staff
+			case 382:	// asbestos staff
+			case 385:	// chrome staff
+			case 659:	// star staff
+			case 943:	// bow staff
+			case 1246:	// rib of the Bonerdagon
+			case 1467:	// 25-meat staff
+				hasStaff = true;
+				break;
 			}
 		}
 
@@ -2940,9 +3029,6 @@ public abstract class KoLCharacter extends StaticEntity
 		// Therefore, we'll simply call "hasSkill" on each skill of
 		// interest.
 
-		UseSkillRequest [] skills = new UseSkillRequest[ availableSkills.size() ];
-		availableSkills.toArray( skills );
-
 		if ( hasSkill( SYMPATHY ) )
                 {
 			newFamiliarWeightAdjustment += 5;
@@ -2955,7 +3041,10 @@ public abstract class KoLCharacter extends StaticEntity
 		if ( hasSkill( NIMBLE_FINGERS ) )
 			newMeatDropPercentAdjustment += 20;
 
-		if ( hasSkill( PANHANDLING ) || hasSkill( PICKPOCKETING ) )
+		if ( hasSkill( PANHANDLING ) )
+			newMeatDropPercentAdjustment += 10;
+
+		if ( hasSkill( PICKPOCKETING ) )
 			newMeatDropPercentAdjustment += 10;
 
 		if ( hasSkill( MAD_LOOTING_SKILLZ ) )
@@ -2963,6 +3052,9 @@ public abstract class KoLCharacter extends StaticEntity
 
 		if ( hasSkill( OBSERVATIOGN ) )
 			newItemDropPercentAdjustment += 10;
+
+		if ( hasSkill( SPIRIT_OF_RIGATONI ) )
+			rigatoniSkill = true;
 
 		// Look at status effects
 
@@ -3052,7 +3144,6 @@ public abstract class KoLCharacter extends StaticEntity
 			newMeatDropPercentAdjustment += 30;
 
 		// Only one cupcake effect can be active at a time
-		// Assumption: same as snowcone effects.
 
 		if ( BLUE_CUPCAKE.getCount( activeEffects ) > 0 )
 			newItemDropPercentAdjustment += 30;
@@ -3077,7 +3168,7 @@ public abstract class KoLCharacter extends StaticEntity
 
 		if ( PEELED.getCount( activeEffects ) > 0 )
 		{
-			newItemDropPercentAdjustment += 40;
+			newItemDropPercentAdjustment += 15;
 			newMeatDropPercentAdjustment -= 16;
 			newFixedXPAdjustment -= 1;
 		}
@@ -3154,6 +3245,9 @@ public abstract class KoLCharacter extends StaticEntity
 			break;
 		}
 
+		// Determine if Mysticality is the current To-hit stat
+		newRigatoniActive = rigatoniSkill && hasStaff;
+
 		boolean changed = false;
 		if ( monsterLevelAdjustment != newMonsterLevelAdjustment )
 		{
@@ -3201,6 +3295,12 @@ public abstract class KoLCharacter extends StaticEntity
 		if ( itemDropPercentAdjustment != newItemDropPercentAdjustment )
 		{
 			itemDropPercentAdjustment = newItemDropPercentAdjustment;
+			changed = true;
+		}
+
+		if ( rigatoniActive != newRigatoniActive )
+		{
+			rigatoniActive = newRigatoniActive;
 			changed = true;
 		}
 

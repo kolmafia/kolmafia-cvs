@@ -57,6 +57,7 @@ public class TradeableItemDatabase extends KoLDatabase
 
 	private static Map nameByItemID = new TreeMap();
 	private static Map itemIDByName = new TreeMap();
+	private static Map itemIDByPlural = new TreeMap();
 
 	static
 	{
@@ -127,6 +128,37 @@ public class TradeableItemDatabase extends KoLDatabase
 
 			StaticEntity.printStackTrace( e );
 		}
+
+		// Next, retrieve the table of weird pluralizations
+
+		reader = getReader( "plurals.dat" );
+
+		while ( (data = readData( reader )) != null )
+		{
+			if ( data.length == 2 )
+			{
+				Object itemID = itemIDByName.get( data[0] );
+				if ( itemID == null )
+				{
+					System.out.println( "Bad item name in plurals file: " + data[0] );
+					continue;
+				}
+
+				itemIDByPlural.put( data[1] , itemID );
+			}
+		}
+
+		try
+		{
+			reader.close();
+		}
+		catch ( Exception e )
+		{
+			// This should not happen.  Therefore, print
+			// a stack trace for debug purposes.
+
+			StaticEntity.printStackTrace( e );
+		}
 	}
 
 	/**
@@ -137,7 +169,7 @@ public class TradeableItemDatabase extends KoLDatabase
 
 	public static void registerItem( int itemID, String itemName )
 	{
-		KoLmafia.getDebugStream().println( "New item: <" + itemName + "> (#" + itemID + ")" );
+		KoLmafia.getDebugStream().println( "New item: <" + itemName + "> (#" + itemID + " )" );
 
 		useTypeByID.set( itemID, 0 );
 		priceByID.set( itemID, 0 );
@@ -187,80 +219,17 @@ public class TradeableItemDatabase extends KoLDatabase
 		if ( count < 2 )
 			return -1;
 
+		// See if it's a weird pluralization with a pattern we can't
+		// guess.
+
+		itemID = itemIDByPlural.get( canonicalName );
+
+		if ( itemID != null )
+			return ((Integer)itemID).intValue();
+
 		// If it's a snowcone, then reverse the word order
 		if ( canonicalName.startsWith( "snowcones" ) )
 			return getItemID( canonicalName.split( " " )[1] + " snowcone", count );
-
-		// If this is the pluralized version of chewing
-		// gum, then return the ID for chewing gum.
-
-		if ( canonicalName.equals( "chewing gums on strings" ) )
-			return SewerRequest.GUM.getItemID();
-
-		// If it's the plural form of boxed wine, which
-		// looks nothing like boxed wine, then return
-		// the ID for boxed wine.
-
-		if ( canonicalName.equals( "boxes of wine" ) )
-			return 1005;
-
-		// Black Lotuses are KoL-pluralized as Black Loti
-		// Not that you are likely to have lots of them.
-
-		if ( canonicalName.equals( "black loti" ) )
-			return 1188;
-
-		// Yo-yos are pluralized in a very strange way as
-		// well, and require special handling.
-
-		if ( canonicalName.equals( "yo-yo-yo" ) )
-			return 1389;
-
-		// Mr. Accessory Jrs. are also pluralized in an
-		// unconventional manner (slightly, anyway)
-
-		if ( canonicalName.equals( "mr. accessory jrs." ) )
-			return 896;
-
-		// One zombie pineal gland, Two zombie glands pineal.
-		// For some reason.
-
-		if ( canonicalName.equals( "zombie glands pineal" ) )
-			return 1343;
-
-		// Fedoras are pluralized 1337-style, so make sure
-		// they are recognized as well.
-
-		if ( canonicalName.equals( "f3d0r45" ) )
-			return 538;
-
-		// The dead guy's watch has a double plural -- so
-		// it's not just as easy as doing a possessive.
-
-		if ( canonicalName.equals( "dead guys' watches" ) )
-			return 230;
-
-		// A little sump'm sump'm loses the "a" and pluralizes
-		// itself -- therefore, it also must be handled in a
-		// different way.
-
-		if ( canonicalName.equals( "little sump'm sump'ms" ) )
-			return 682;
-
-		// redrum pluralizes into redsrum
-
-		if ( canonicalName.equals( "redsrum" ) )
-			return 1352;
-
-		// kiwi pluralizes into kiwus
-
-		if ( canonicalName.equals( "kiwus" ) )
-			return 1562;
-
-		// gibson pluralizes into carlisles
-
-		if ( canonicalName.equals( "carlisles" ) )
-			return 1570;
 
 		// The word right before the dash may also be pluralized,
 		// so make sure the dashed words are recognized.
@@ -410,7 +379,7 @@ public class TradeableItemDatabase extends KoLDatabase
 	 * @return	true if item is tradeable
 	 */
 
-	public static final boolean tradeable( int itemID )
+	public static final boolean isTradeable( int itemID )
 	{
 		int price = priceByID.get( itemID );
 		return price == -1 || price > 0;
@@ -434,6 +403,16 @@ public class TradeableItemDatabase extends KoLDatabase
 
 	public static final List getMatchingNames( String substring )
 	{	return getMatchingNames( itemIDByName, substring );
+	}
+
+	/**
+	 * Returns a list of all items which can be abbreviated
+	 * using the given substring.  This is really useful when
+	 * you don't feel like figuring out what letters match.
+	 */
+
+	public static final List getMatchingAbbreviations( String substring )
+	{	return getMatchingAbbreviations( itemIDByName, substring );
 	}
 
 	/**

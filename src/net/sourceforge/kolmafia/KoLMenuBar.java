@@ -87,8 +87,12 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 	protected LockableListModel scripts = new LockableListModel();
 	protected SortedListModel bookmarks = new SortedListModel( String.class );
 
-	private static final String [] LICENSE_FILENAME = { "kolmafia-license.gif", "spellcast-license.gif", "browserlauncher-license.htm", "sungraphics-license.txt", "systray-license.txt" };
-	private static final String [] LICENSE_NAME = { "KoLmafia BSD", "Spellcast BSD", "BrowserLauncher", "Sun Graphics", "System Tray" };
+	private static final String [] LICENSE_FILENAME = {
+		"kolmafia-license.gif", "spellcast-license.gif", "browserlauncher-license.htm",
+		"sungraphics-license.txt", "systray-license.txt", "jline-license.txt" };
+	private static final String [] LICENSE_NAME = {
+		"KoLmafia", "Spellcast", "BrowserLauncher",
+		"Sun Graphics", "System Tray", "JLine" };
 
 	protected KoLMenuBar()
 	{	this( null );
@@ -107,7 +111,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 	protected void compileBookmarks()
 	{
-		String [] bookmarkData = GLOBAL_SETTINGS.getProperty( "browserBookmarks" ).split( "\\|" );
+		String [] bookmarkData = StaticEntity.getProperty( "browserBookmarks" ).split( "\\|" );
 		String name, location, pwdhash;
 
 		if ( bookmarkData.length > 1 )
@@ -205,6 +209,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 		travelMenu.add( new InvocationMenuItem( "Doc Galaktik", StaticEntity.getClient(), "makeGalaktikRequest" ) );
 		travelMenu.add( new InvocationMenuItem( "Mind Control", StaticEntity.getClient(), "makeMindControlRequest" ) );
+		travelMenu.add( new InvocationMenuItem( "Pulverize", StaticEntity.getClient(), "makePulverizeRequest" ) );
 
 		travelMenu.add( new JSeparator() );
 
@@ -233,7 +238,8 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 		questsMenu.add( new JSeparator() );
 
-		questsMenu.add( new InvocationMenuItem( "Lair Entryway", SorceressLair.class, "completeEntryway" ) );
+		questsMenu.add( new InvocationMenuItem( "Lucky Entryway", SorceressLair.class, "completeCloveredEntryway" ) );
+		questsMenu.add( new InvocationMenuItem( "Unlucky Entryway", SorceressLair.class, "completeCloverlessEntryway" ) );
 		questsMenu.add( new InvocationMenuItem( "Hedge Rotation", SorceressLair.class, "completeHedgeMaze" ) );
 		questsMenu.add( new InvocationMenuItem( "Tower Guardians", SorceressLair.class, "fightTowerGuardians" ) );
 		questsMenu.add( new InvocationMenuItem( "Final Chamber", SorceressLair.class, "completeSorceressChamber" ) );
@@ -282,6 +288,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 		helperMenu.add( new DisplayPageMenuItem( "Subjunctive KoL", "http://www.subjunctive.net/kol/FrontPage.html" ) );
 		helperMenu.add( new DisplayPageMenuItem( "KoL Visual Wiki", "http://kol.coldfront.net/thekolwiki/index.php/Main_Page" ) );
+		helperMenu.add( new InvocationMenuItem( "Violet Fog Mapper", VioletFog.class, "showGemelliMap" ) );
 
 		if ( !(container instanceof JMenuBar) )
 			container.add( new InvocationMenuItem( "End Session", SystemTrayFrame.class, "removeTrayIcon" ) );
@@ -347,7 +354,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 					KoLFrame [] frames = new KoLFrame[ existingFrames.size() ];
 					existingFrames.toArray( frames );
 
-					String interfaceSetting = GLOBAL_SETTINGS.getProperty( "initialDesktop" );
+					String interfaceSetting = StaticEntity.getProperty( "initialDesktop" );
 
 					for ( int i = 0; i < frames.length; ++i )
 						if ( interfaceSetting.indexOf( frames[i].getFrameName() ) == -1 )
@@ -362,7 +369,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 				KoLFrame frame = (KoLFrame) frameReference.get();
 				if ( frame != null )
 				{
-					boolean appearsInTab = GLOBAL_SETTINGS.getProperty( "initialDesktop" ).indexOf(
+					boolean appearsInTab = StaticEntity.getProperty( "initialDesktop" ).indexOf(
 						frame instanceof ChatFrame ? "KoLMessenger" : frame.getFrameName() ) != -1;
 
 					if ( !appearsInTab )
@@ -570,7 +577,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			bookmarkData.append( (String)bookmarks.get(i) );
 		}
 
-		GLOBAL_SETTINGS.setProperty( "browserBookmarks", bookmarkData.toString() );
+		StaticEntity.setProperty( "browserBookmarks", bookmarkData.toString() );
 	}
 
 	private class ToggleDebugMenuItem extends JMenuItem implements ActionListener
@@ -700,7 +707,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 			if ( frameClass == LicenseDisplay.class )
 			{
 				parameters = new Object[4];
-				parameters[0] = "KoLmafia: Copyright Notice";
+				parameters[0] = "KoLmafia: Copyright Notices";
 				parameters[1] = new VersionDataPanel();
 				parameters[2] = LICENSE_FILENAME;
 				parameters[3] = LICENSE_NAME;
