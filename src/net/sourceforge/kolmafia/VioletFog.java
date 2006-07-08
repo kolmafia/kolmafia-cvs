@@ -306,11 +306,11 @@ public class VioletFog
 
 	public static String handleChoice( String choice )
 	{
-		int source = Integer.parseInt( choice );
+		int source = StaticEntity.parseInt( choice );
 
 		// We only handle Violet Fog choices
 		if ( source < FIRST_CHOICE || source > LAST_CHOICE )
-			return null;
+			return "";
 
 		// Were we mapping?
 		if ( lastChoice != 0 )
@@ -322,7 +322,7 @@ public class VioletFog
 		}
 
 		// Get the user specified goal
-		int goal = Integer.parseInt( StaticEntity.getProperty( "violetFogGoal" ) );
+		int goal = StaticEntity.parseInt( StaticEntity.getProperty( "violetFogGoal" ) );
 
 		// If no goal, return "4".
 		// - If we are not at a "goal" location, this will exit the fog
@@ -333,7 +333,7 @@ public class VioletFog
 		// Find the location we must get to to achieve the goal
 		int destination = FIRST_GOAL_LOCATION + goal - 1;
 		if ( destination < FIRST_CHOICE || destination > LAST_CHOICE )
-			return null;
+			return "";
 
 		// Are we there yet?
 		if ( source == destination )
@@ -364,13 +364,13 @@ public class VioletFog
 		}
 
 		// This shouldn't happen
-		return null;
+		return "";
 	}
 
 	public static boolean freeAdventure( String choice, String decision )
 	{
 		// "choiceAdventureX"
-		int source = Integer.parseInt( choice.substring( 15 ) );
+		int source = StaticEntity.parseInt( choice.substring( 15 ) );
 
 		// Journey to the Center of your Mind
 		if ( source == 71 )

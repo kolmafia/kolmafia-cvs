@@ -64,8 +64,6 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 	private boolean canPurchase;
 	public static final int MAX_QUANTITY = 10000000;
 
-	private boolean attireChanged = false;
-
 	/**
 	 * Constructs a new <code>MallPurchaseRequest</code> which retrieves
 	 * things from NPC stores.
@@ -276,6 +274,10 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 	{	this.canPurchase = canPurchase;
 	}
 
+	public boolean canPurchase()
+	{	return canPurchase;
+	}
+
 	/**
 	 * Executes the purchase request.  This calculates the number
 	 * of items which will be purchased and adds it to the list.
@@ -302,7 +304,9 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		// Check to make sure that the person is wearing the appropriate
 		// outfit for making the purchase.
 
-		ensureProperAttire();
+		boolean attireChanged = ensureProperAttire();
+		if ( !canPurchase )
+			return;
 
 		// Now that everything's ensured, go ahead and execute the
 		// actual purchase request.
@@ -310,7 +314,7 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		KoLmafia.updateDisplay( "Purchasing " + TradeableItemDatabase.getItemName( itemID ) + " (" + COMMA_FORMAT.format( limit ) + " @ " + COMMA_FORMAT.format( price ) + ")..." );
 		super.run();
 
-		if ( attireChanged )
+		if ( attireChanged && !KoLmafia.isRunningBetweenBattleChecks() )
 			SpecialOutfit.restoreCheckpoint();
 	}
 
@@ -324,10 +328,10 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 	{	return price - mpr.price;
 	}
 
-	private void ensureProperAttire()
+	public boolean ensureProperAttire()
 	{
 		if ( !isNPCStore )
-			return;
+			return false;
 
 		int neededOutfit = 0;
 
@@ -341,17 +345,27 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 			neededOutfit = 2;
 
 		if ( neededOutfit == 0 )
-			return;
+			return false;
 
 		// Only switch outfits if the person is not
 		// currently wearing the outfit.
 
-		if ( !EquipmentDatabase.isWearingOutfit( neededOutfit ) )
+		if ( EquipmentDatabase.isWearingOutfit( neededOutfit ) )
+			return false;
+
+		if ( !EquipmentDatabase.hasOutfit( neededOutfit ) )
 		{
-			SpecialOutfit.createCheckpoint();
-			(new EquipmentRequest( client, EquipmentDatabase.getOutfit( neededOutfit ) )).run();
-			attireChanged = true;
+			canPurchase = false;
+			return false;
 		}
+
+		if ( StaticEntity.getProperty( "autoCheckpoint" ).equals( "true" ) )
+			SpecialOutfit.createCheckpoint();
+
+		(new EquipmentRequest( client, EquipmentDatabase.getOutfit( neededOutfit ) )).run();
+
+		MoodSettings.hasChangedOutfit = true;
+		return StaticEntity.getProperty( "autoCheckpoint" ).equals( "true" );
 	}
 
 	protected void processResults()
@@ -388,45 +402,35 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 			Matcher itemChangedMatcher = Pattern.compile(
 				"<td valign=center><b>" + itemName + "</b> \\(([\\d,]+)\\) </td><td>([\\d,]+) Meat" ).matcher( result );
 
-			try
+			if ( itemChangedMatcher.find() )
 			{
-				if ( itemChangedMatcher.find() )
+				int limit = StaticEntity.parseInt( itemChangedMatcher.group(1) );
+				int newPrice = StaticEntity.parseInt( itemChangedMatcher.group(2) );
+
+				// If the item exists at a lower or equivalent
+				// price, then you should re-attempt the purchase
+				// of the item.
+
+				if ( price >= newPrice )
 				{
-					int limit = COMMA_FORMAT.parse( itemChangedMatcher.group(1) ).intValue();
-					int newPrice = COMMA_FORMAT.parse( itemChangedMatcher.group(2) ).intValue();
-
-					// If the item exists at a lower or equivalent
-					// price, then you should re-attempt the purchase
-					// of the item.
-
-					if ( price >= newPrice )
-					{
-						KoLmafia.updateDisplay( "Failed to yield.  Attempting repurchase..." );
-						(new MallPurchaseRequest( client, itemName, itemID, Math.min( limit, quantity ), shopID, shopName, newPrice, Math.min( limit, quantity ), true )).run();
-					}
-					else
-					{
-						// In the event of a price switch, give the
-						// player the option to report it.
-
-						KoLmafia.updateDisplay( "Price switch detected (#" + shopID + ").  Skipping..." );
-					}
+					KoLmafia.updateDisplay( "Failed to yield.  Attempting repurchase..." );
+					(new MallPurchaseRequest( client, itemName, itemID, Math.min( limit, quantity ), shopID, shopName, newPrice, Math.min( limit, quantity ), true )).run();
 				}
 				else
 				{
-					// If the item was not found, just make sure to
-					// notify the user temporarily that the store
-					// failed to yield the item.
+					// In the event of a price switch, give the
+					// player the option to report it.
 
-					KoLmafia.updateDisplay( "Failed to yield.  Skipping..." );
+					KoLmafia.updateDisplay( "Price switch detected (#" + shopID + ").  Skipping..." );
 				}
 			}
-			catch ( Exception e )
+			else
 			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
+				// If the item was not found, just make sure to
+				// notify the user temporarily that the store
+				// failed to yield the item.
 
-				StaticEntity.printStackTrace( e );
+				KoLmafia.updateDisplay( "Failed to yield.  Skipping..." );
 			}
 
 			return;
@@ -441,26 +445,15 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 		Matcher quantityMatcher = Pattern.compile(
 			"You may only buy ([\\d,]+) of this item per day from this store\\.You have already purchased ([\\d,]+)" ).matcher( result );
 
-		try
+		if ( quantityMatcher.find() )
 		{
-			if ( quantityMatcher.find() )
-			{
-				int limit = COMMA_FORMAT.parse( quantityMatcher.group(1) ).intValue();
-				int alreadyPurchased = COMMA_FORMAT.parse( quantityMatcher.group(2) ).intValue();
+			int limit = StaticEntity.parseInt( quantityMatcher.group(1) );
+			int alreadyPurchased = StaticEntity.parseInt( quantityMatcher.group(2) );
 
-				if ( limit != alreadyPurchased )
-					(new MallPurchaseRequest( client, itemName, itemID, limit - alreadyPurchased, shopID, shopName, price, limit, true )).run();
+			if ( limit != alreadyPurchased )
+				(new MallPurchaseRequest( client, itemName, itemID, limit - alreadyPurchased, shopID, shopName, price, limit, true )).run();
 
-				canPurchase = false;
-				return;
-			}
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
+			canPurchase = false;
 			return;
 		}
 
@@ -477,6 +470,12 @@ public class MallPurchaseRequest extends KoLRequest implements Comparable
 
 		KoLCharacter.updateStatus();
 		RequestFrame.refreshStatus();
+	}
+
+	public boolean equals( Object o )
+	{
+		return o == null || !(o instanceof MallPurchaseRequest) ? false :
+			shopName.equals( ((MallPurchaseRequest)o).shopName ) && itemID == ((MallPurchaseRequest)o).itemID;
 	}
 
 	public String getCommandForm( int iterations )

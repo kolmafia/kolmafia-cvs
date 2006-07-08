@@ -174,7 +174,6 @@ public class ItemStorageRequest extends SendMessageRequest
 					AdventureResult.addResultToList( KoLCharacter.getInventory(), item );
 					AdventureResult.addResultToList( StaticEntity.getClient().getSessionTally(), item );
 
-					KoLCharacter.refreshCalculatedLists();
 				}
 
 				break;
@@ -193,6 +192,7 @@ public class ItemStorageRequest extends SendMessageRequest
 		}
 
 		super.processResults();
+		KoLCharacter.refreshCalculatedLists();
 		KoLCharacter.updateStatus();
 	}
 
@@ -250,19 +250,7 @@ public class ItemStorageRequest extends SendMessageRequest
 		Matcher meatInClosetMatcher = Pattern.compile( "<b>Your closet contains ([\\d,]+) meat\\.</b>" ).matcher( responseText );
 
 		if ( meatInClosetMatcher.find() )
-		{
-			try
-			{
-				afterMeatInCloset = COMMA_FORMAT.parse( meatInClosetMatcher.group(1) ).intValue();
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
-		}
+			afterMeatInCloset = StaticEntity.parseInt( meatInClosetMatcher.group(1) );
 
 		KoLCharacter.setClosetMeat( afterMeatInCloset );
 		client.processResult( new AdventureResult( AdventureResult.MEAT, beforeMeatInCloset - afterMeatInCloset ) );
@@ -280,16 +268,11 @@ public class ItemStorageRequest extends SendMessageRequest
 		{
 			storageMatcher = Pattern.compile( "(\\d+) more" ).matcher( responseText );
 			if ( storageMatcher.find() )
-			{
-				if ( storageMatcher.group().startsWith( "1 " ) )
-					HagnkStorageFrame.setPullsRemaining( storageMatcher.group() + " pull remaining" );
-				else
-					HagnkStorageFrame.setPullsRemaining( storageMatcher.group() + " pulls remaining" );
-			}
+				HagnkStorageFrame.setPullsRemaining( StaticEntity.parseInt( storageMatcher.group(1) ) );
 			else if ( KoLCharacter.isHardcore() || !KoLCharacter.canInteract() )
-				HagnkStorageFrame.setPullsRemaining( "No more pulls remaining" );
+				HagnkStorageFrame.setPullsRemaining( 0 );
 			else
-				HagnkStorageFrame.setPullsRemaining( "Unlimited pulls remaining" );
+				HagnkStorageFrame.setPullsRemaining( -1 );
 		}
 
 		// Start with an empty list
@@ -300,7 +283,7 @@ public class ItemStorageRequest extends SendMessageRequest
 		// If there's nothing inside storage, return
 		// because there's nothing to parse.
 
-		storageMatcher = Pattern.compile( "name=\"whichitem1\".*?</select>" ).matcher( responseText );
+		storageMatcher = Pattern.compile( "name=\"whichitem1\".*?</select>", Pattern.DOTALL ).matcher( responseText );
 		if ( !storageMatcher.find() )
 			return;
 
@@ -308,24 +291,14 @@ public class ItemStorageRequest extends SendMessageRequest
 		Matcher optionMatcher = Pattern.compile( "<option[^>]* value='([\\d]+)'>(.*?)\\(([\\d,]+)\\)" ).matcher( storageMatcher.group() );
 		while ( optionMatcher.find( lastFindIndex ) )
 		{
-			try
-			{
-				lastFindIndex = optionMatcher.end();
-				int itemID = COMMA_FORMAT.parse( optionMatcher.group(1) ).intValue();
+			lastFindIndex = optionMatcher.end();
+			int itemID = StaticEntity.parseInt( optionMatcher.group(1) );
 
-				if ( TradeableItemDatabase.getItemName( itemID ) == null )
-					TradeableItemDatabase.registerItem( itemID, optionMatcher.group(2).trim() );
+			if ( TradeableItemDatabase.getItemName( itemID ) == null )
+				TradeableItemDatabase.registerItem( itemID, optionMatcher.group(2).trim() );
 
-				AdventureResult result = new AdventureResult( itemID, COMMA_FORMAT.parse( optionMatcher.group(3) ).intValue() );
-				AdventureResult.addResultToList( storageContents, result );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
+			AdventureResult result = new AdventureResult( itemID, StaticEntity.parseInt( optionMatcher.group(3) ) );
+			AdventureResult.addResultToList( storageContents, result );
 		}
 	}
 

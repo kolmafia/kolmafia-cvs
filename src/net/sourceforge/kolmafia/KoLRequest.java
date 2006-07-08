@@ -45,6 +45,7 @@ import java.net.MalformedURLException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
@@ -73,6 +74,9 @@ import net.java.dev.spellcast.utilities.LockableListModel;
 
 public class KoLRequest implements Runnable, KoLConstants
 {
+	protected static String sessionID = null;
+	protected static String passwordHash = null;
+
 	private static final AdventureResult [] WOODS_ITEMS = new AdventureResult[12];
 	static
 	{
@@ -101,12 +105,15 @@ public class KoLRequest implements Runnable, KoLConstants
 	private boolean followRedirects;
 	protected String formURLString;
 
-	private String sessionID;
 	private List data;
 
 	protected KoLmafia client;
+	protected boolean needsRefresh;
 	protected boolean statusChanged;
 	protected boolean processedResults;
+
+	private int readInputLength;
+	private int totalInputLength;
 
 	protected int responseCode;
 	protected String responseText;
@@ -173,7 +180,7 @@ public class KoLRequest implements Runnable, KoLConstants
 
 			// Determine the login server that will be used.
 
-			int setting = Integer.parseInt( StaticEntity.getProperty( "loginServer" ) );
+			int setting = StaticEntity.parseInt( StaticEntity.getProperty( "loginServer" ) );
 			int server = ( setting < 1 || setting > SERVER_COUNT ) ? RNG.nextInt( SERVER_COUNT ) : setting - 1;
 			setLoginServer( SERVERS[server][0] );
 		}
@@ -383,8 +390,8 @@ public class KoLRequest implements Runnable, KoLConstants
 			// make sure you discover the password hash
 			// in some other way.
 
-			if ( (client.getPasswordHash() == null || client.getPasswordHash().equals( "" )) && value.length() != 0 )
-				client.setPasswordHash( value );
+			if ( (passwordHash == null || passwordHash.equals( "" )) && value.length() != 0 )
+				passwordHash = value;
 
 			addFormField( name, "", false );
 		}
@@ -486,7 +493,7 @@ public class KoLRequest implements Runnable, KoLConstants
 				if ( includeHash )
 				{
 					dataBuffer.append( "=" );
-					dataBuffer.append( client.getPasswordHash() );
+					dataBuffer.append( passwordHash );
 				}
 			}
 			else
@@ -511,13 +518,17 @@ public class KoLRequest implements Runnable, KoLConstants
 		isServerFriendly = StaticEntity.getProperty( "serverFriendly" ).equals( "true" ) ||
 			StaticEntity.getProperty( "showAllRequests" ).equals( "true" );
 
+		needsRefresh = false;
 		processedResults = false;
 
 		if ( getURLString().indexOf( "fight.php?action=plink" ) != -1 )
 		{
+			String oldAction = StaticEntity.getProperty( "battleAction" );
 			StaticEntity.setProperty( "battleAction", "attack" );
 			FightRequest request = new FightRequest( client, false );
 			request.run();
+
+			StaticEntity.setProperty( "battleAction", oldAction );
 
 			this.responseCode = request.responseCode;
 			this.responseText = request.responseText;
@@ -537,6 +548,9 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	public void execute()
 	{
+		readInputLength = 0;
+		totalInputLength = 0;
+
 		client.setCurrentRequest( this );
 
 		String commandForm = getCommandForm();
@@ -560,10 +574,10 @@ public class KoLRequest implements Runnable, KoLConstants
 				else if ( urlString.indexOf( "whichitem" ) != -1 && ConsumeItemRequest.processRequest( client, urlString ) )
 					;
 				else if ( urlString.indexOf( "inventory" ) == -1 && urlString.indexOf( "fight" ) == -1 && urlString.indexOf( "chat" ) == -1 )
-					client.getSessionStream().println( urlString );
+					KoLmafia.getSessionStream().println( urlString );
 			}
 			else if ( !isDelayExempt() && !commandForm.equals( "" ) )
-				client.getSessionStream().println( commandForm );
+				KoLmafia.getSessionStream().println( commandForm );
 		}
 
 		// If you're about to fight the Naughty Sorceress,
@@ -582,7 +596,7 @@ public class KoLRequest implements Runnable, KoLConstants
 		}
 		while ( !prepareConnection() || !postClientData() || !retrieveServerReply() );
 
-		if ( responseCode == 200 )
+		if ( responseCode == 200 && responseText != null )
 		{
 			if ( !(this instanceof FightRequest) )
 				AdventureRequest.registerEncounter( this );
@@ -665,8 +679,6 @@ public class KoLRequest implements Runnable, KoLConstants
 	{
 		if ( !(this instanceof ChatRequest) )
 			KoLmafia.getDebugStream().println( "Connecting to " + formURLString + "..." );
-
-		this.sessionID = client.getSessionID();
 
 		// Make sure that all variables are reset before you reopen
 		// the connection.  Invoke the garbage collector to minimize
@@ -761,8 +773,8 @@ public class KoLRequest implements Runnable, KoLConstants
 		{
 			String dataString = getDataString( true );
 
-			if ( client.getPasswordHash() != null && !(this instanceof ChatRequest) )
-				KoLmafia.getDebugStream().println( dataString.replaceAll( client.getPasswordHash(), "" ) );
+			if ( passwordHash != null && !(this instanceof ChatRequest) )
+				KoLmafia.getDebugStream().println( dataString.replaceAll( passwordHash, "" ) );
 
 			formConnection.setRequestMethod( "POST" );
 			BufferedWriter ostream = new BufferedWriter( new OutputStreamWriter( formConnection.getOutputStream() ) );
@@ -801,7 +813,8 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	private boolean retrieveServerReply()
 	{
-		BufferedReader istream;
+		InputStream istream = null;
+		BufferedReader reader = null;
 
 		try
 		{
@@ -820,9 +833,14 @@ public class KoLRequest implements Runnable, KoLConstants
 			// reply - there really is only one cookie to worry about, so
 			// it will be stored here.
 
-			istream = new BufferedReader( new InputStreamReader( formConnection.getInputStream() ) );
+			istream = formConnection.getInputStream();
+
+			if ( StaticEntity.getProperty( "useNonBlockingReader" ).equals( "false" ) )
+				reader = new BufferedReader( new InputStreamReader( istream ) );
+
 			responseCode = formConnection.getResponseCode();
 			redirectLocation = formConnection.getHeaderField( "Location" );
+			totalInputLength = StaticEntity.parseInt( formConnection.getHeaderField( "Content-Length" ) );
 		}
 		catch ( Exception e )
 		{
@@ -908,7 +926,7 @@ public class KoLRequest implements Runnable, KoLConstants
 			}
 			else if ( redirectLocation.startsWith( "valhalla.php" ) )
 			{
-				client.setPasswordHash( "" );
+				passwordHash = "";
 				shouldStop = true;
 			}
 			else if ( redirectLocation.equals( "fight.php" ) && !(this instanceof LocalRelayRequest) )
@@ -932,11 +950,10 @@ public class KoLRequest implements Runnable, KoLConstants
 		{
 			String line = null;
 			StringBuffer replyBuffer = new StringBuffer();
-			StringBuffer rawBuffer = new StringBuffer();
 
 			try
 			{
-				line = istream.readLine();
+				line = reader == null ? read( istream ) : reader.readLine();
 
 				// There's a chance that there was no content in the reply
 				// (header-only reply) - if that's the case, the line will
@@ -944,20 +961,20 @@ public class KoLRequest implements Runnable, KoLConstants
 
 				if ( line == null )
 				{
-					KoLmafia.getDebugStream().println( "No reply content.  Retrying..." );
+					responseText = null;
+					return true;
 				}
 
 				// Check for MySQL errors, since those have been getting more
 				// frequent, and would cause an IOException to be thrown
 				// unnecessarily, when a re-request would do.  I'm not sure
 				// how they work right now (which line the MySQL error is
-				// printed to), but for now, assume
-				// that it's the first line.
+				// printed to), but for now, assume that it's the first line.
 
 				else if ( line.indexOf( "error" ) != -1 )
 				{
-					if ( !(this instanceof ChatRequest) )
-						KoLmafia.getDebugStream().println( "Encountered MySQL error.  Retrying..." );
+					responseText = null;
+					return true;
 				}
 
 				// The remaining lines form the rest of the content.  In order
@@ -972,23 +989,13 @@ public class KoLRequest implements Runnable, KoLConstants
 					// Line breaks bloat the log, but they are important
 					// inside <textarea> input fields.
 
-					boolean insideTextArea = false;
-
 					do
 					{
 						replyBuffer.append( line );
-						rawBuffer.append( line );
-						rawBuffer.append( LINE_BREAK );
-
-						if ( line.indexOf( "</textarea" ) != -1 )
-							insideTextArea = false;
-						else if ( line.indexOf( "<textarea" ) != -1 )
-							insideTextArea = true;
-
-						if ( insideTextArea )
+						if ( reader != null )
 							replyBuffer.append( LINE_BREAK );
 					}
-					while ( (line = istream.readLine()) != null );
+					while ( (line = reader == null ? read( istream ) : reader.readLine()) != null );
 				}
 			}
 			catch ( Exception e )
@@ -1005,14 +1012,14 @@ public class KoLRequest implements Runnable, KoLConstants
 			if ( !(this instanceof ChatRequest) )
 			{
 				// Remove password hash before logging
-				String response = ( client.getPasswordHash() != null ) ?
-					responseText.replaceAll( client.getPasswordHash(), "" ) :
+				String response = ( passwordHash != null ) ?
+					responseText.replaceAll( passwordHash, "" ) :
 					responseText.replaceAll( "name=pwd value=\"?[^>]*>", "" ).replaceAll( "pwd=[0-9a-f]+", "" );
 				KoLmafia.getDebugStream().println( response );
 			}
 
 			checkForNewEvents();
-			processRawResponse( rawBuffer.toString() );
+			processRawResponse( replyBuffer.toString() );
 		}
 
 		try
@@ -1033,6 +1040,36 @@ public class KoLRequest implements Runnable, KoLConstants
 
 		istream = null;
 		return shouldStop;
+	}
+
+	private String read( InputStream istream )
+	{
+		if ( totalInputLength != 0 && readInputLength >= totalInputLength )
+			return null;
+
+		try
+		{
+			int available = istream.available();
+			for ( int i = 0; available == 0 && i < 10; ++i )
+			{
+				available = istream.available();
+				KoLRequest.delay( 100 );
+			}
+
+			if ( available == 0 )
+				return null;
+
+			byte [] array = new byte[ available ];
+			istream.read( array );
+
+			readInputLength += available;
+			return new String( array );
+		}
+		catch ( Exception e )
+		{
+			StaticEntity.printStackTrace( e );
+			return null;
+		}
 	}
 
 	/**
@@ -1094,19 +1131,8 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	protected static final int intToken( StringTokenizer st, int fromStart )
 	{
-		try
-		{
-			String token = st.nextToken().substring( fromStart );
-			return (token.indexOf(",") == -1) ? Integer.parseInt( token ) : COMMA_FORMAT.parse( token ).intValue();
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
-			return 0;
-		}
+		String token = st.nextToken().substring( fromStart );
+		return StaticEntity.parseInt( token );
 	}
 
 	/**
@@ -1125,20 +1151,9 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	protected static final int intToken( StringTokenizer st, int fromStart, int fromEnd )
 	{
-		try
-		{
-			String token = st.nextToken();
-			token = token.substring( fromStart, token.length() - fromEnd );
-			return (token.indexOf(",") == -1) ? Integer.parseInt( token ) : COMMA_FORMAT.parse( token ).intValue();
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
-			return 0;
-		}
+		String token = st.nextToken();
+		token = token.substring( fromStart, token.length() - fromEnd );
+		return StaticEntity.parseInt( token );
 	}
 
 	/**
@@ -1166,7 +1181,7 @@ public class KoLRequest implements Runnable, KoLConstants
 	protected void processResults()
 	{
 		int previousHP = KoLCharacter.getCurrentHP();
-		boolean needsRefresh = client.processResults( responseText );
+		needsRefresh |= client.processResults( responseText );
 
 		if ( getAdventuresUsed() > 0 )
 		{
@@ -1199,6 +1214,7 @@ public class KoLRequest implements Runnable, KoLConstants
 			KoLCharacter.recalculateAdjustments( false );
 		}
 
+		client.applyRecentEffects();
 		KoLCharacter.updateStatus();
 	}
 
@@ -1232,6 +1248,8 @@ public class KoLRequest implements Runnable, KoLConstants
 
 	private void handleChoiceResponse( KoLRequest request )
 	{
+		client.processResult( new AdventureResult( AdventureResult.CHOICE, 1 ) );
+
 		String text = request.responseText;
 		Matcher encounterMatcher = Pattern.compile( "<b>(.*?)</b>" ).matcher( text );
 		if ( encounterMatcher.find() )
@@ -1266,13 +1284,13 @@ public class KoLRequest implements Runnable, KoLConstants
 		// If there is no setting which determines the
 		// decision, see if it's in the violet fog
 
-		if ( decision == null )
+		if ( decision.equals( "" ) )
 			decision = VioletFog.handleChoice( choice );
 
 		// If there is currently no setting which determines the
 		// decision, give an error and bail.
 
-		if ( decision == null )
+		if ( decision.equals( "" ) )
 		{
 			KoLmafia.updateDisplay( ABORT_STATE, "Unsupported choice adventure #" + choice );
 			request.showInBrowser( true );
@@ -1314,7 +1332,7 @@ public class KoLRequest implements Runnable, KoLConstants
 			{
 				KoLmafiaCLI.printLine( "Choice: " +
 					AdventureDatabase.CHOICE_ADVS[i][1][0] + " => " +
-					AdventureDatabase.CHOICE_ADVS[i][2][ Integer.parseInt( decision ) - 1 ] );
+					AdventureDatabase.CHOICE_ADVS[i][2][ StaticEntity.parseInt( decision ) - 1 ] );
 			}
 		}
 
@@ -1379,7 +1397,7 @@ public class KoLRequest implements Runnable, KoLConstants
 		{
 			if ( possibleDecisions[i] != null )
 			{
-				AdventureResult item = new AdventureResult( Integer.parseInt( possibleDecisions[i] ), 1 );
+				AdventureResult item = new AdventureResult( StaticEntity.parseInt( possibleDecisions[i] ), 1 );
 				if ( !KoLCharacter.hasItem( item, false ) || client.getConditions().contains( item ) )
 					return String.valueOf( i + 1 );
 			}

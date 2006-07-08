@@ -34,7 +34,6 @@
 
 package net.sourceforge.kolmafia;
 
-import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -45,7 +44,6 @@ import java.util.TreeMap;
 import java.util.Arrays;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 import net.java.dev.spellcast.utilities.LockableListModel;
@@ -59,6 +57,8 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 {
 	public static final int SAVEBOX = 0;
 	public static final int DISPOSE = 1;
+
+	private static final int REFUND_THRESHOLD = 5;
 
 	private static ArrayList saveList = new ArrayList();
 	private static ArrayList deleteList = new ArrayList();
@@ -98,13 +98,13 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 				String [] currentBuff = soldBuffs[i].split( ":" );
 				if ( currentBuff.length == 4 )
 				{
-					addBuff( ClassSkillsDatabase.getSkillName( Integer.parseInt( currentBuff[0] ) ), Integer.parseInt( currentBuff[1] ),
-						Integer.parseInt( currentBuff[2] ), currentBuff[3].equals( "true" ), false );
+					addBuff( ClassSkillsDatabase.getSkillName( StaticEntity.parseInt( currentBuff[0] ) ), StaticEntity.parseInt( currentBuff[1] ),
+						StaticEntity.parseInt( currentBuff[2] ), currentBuff[3].equals( "true" ), false );
 				}
 				else if ( currentBuff.length == 5 )
 				{
-					addBuff( ClassSkillsDatabase.getSkillName( Integer.parseInt( currentBuff[0] ) ), Integer.parseInt( currentBuff[1] ),
-						Integer.parseInt( currentBuff[2] ), currentBuff[3].equals( "true" ), currentBuff[4].equals( "true" ) );
+					addBuff( ClassSkillsDatabase.getSkillName( StaticEntity.parseInt( currentBuff[0] ) ), StaticEntity.parseInt( currentBuff[1] ),
+						StaticEntity.parseInt( currentBuff[2] ), currentBuff[3].equals( "true" ), currentBuff[4].equals( "true" ) );
 				}
 			}
 		}
@@ -212,7 +212,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 
 		if ( document != null )
 		{
-			document.println( "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" );
+			document.println( "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" );
 			document.println( "<?xml-stylesheet type=\"text/xsl\" href=\"http://kolmafia.sourceforge.net/buffbot.xsl\"?>" );
 			document.println();
 
@@ -250,8 +250,8 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 				document.println( "\t<buffdata>" );
 				document.println( "\t\t<name>" + casters[i].getBuffName() + "</name>" );
 				document.println( "\t\t<skillid>" + casters[i].getBuffID() + "</skillid>" );
-				document.println( "\t\t<price>" + casters[i].getPrice() + "</price>" );
-				document.println( "\t\t<turns>" + casters[i].getTurnCount() + "</turns>" );
+				document.println( "\t\t<price>" + COMMA_FORMAT.format( casters[i].getPrice() ) + "</price>" );
+				document.println( "\t\t<turns>" + COMMA_FORMAT.format( casters[i].getTurnCount() ) + "</turns>" );
 				document.println( "\t\t<philanthropic>" + casters[i].philanthropic + "</philanthropic>" );
 				document.println( "\t</buffdata>" );
 			}
@@ -315,8 +315,8 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 
 					document.println( "\t\t\t\t<name>" + casters[i].getBuffName() + "</name>" );
 					document.println( "\t\t\t\t<skillid>" + casters[i].getBuffID() + "</skillid>" );
-					document.println( "\t\t\t\t<price>" + casters[i].getPrice() + "</price>" );
-					document.println( "\t\t\t\t<turns>" + casters[i].getTurnCount() + "</turns>" );
+					document.println( "\t\t\t\t<price>" + COMMA_FORMAT.format( casters[i].getPrice() ) + "</price>" );
+					document.println( "\t\t\t\t<turns>" + COMMA_FORMAT.format( casters[i].getTurnCount() ) + "</turns>" );
 					document.println( "\t\t\t\t<philanthropic>" + casters[i].philanthropic + "</philanthropic>" );
 
 					document.println( "\t\t\t</buffdata>" );
@@ -342,10 +342,15 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 
 	public static void runBuffBot( int iterations )
 	{
+		// Make sure that the buffbot is wearing the best
+		// equipment they have available.
+
+		UseSkillRequest.optimizeEquipment( 6003 );
+
 		BuffBotHome.setBuffBotActive( true );
 		KoLmafia.updateDisplay( "Buffbot started." );
 		BuffBotHome.timeStampedLogEntry( BuffBotHome.NOCOLOR, "Starting new session" );
-		messageDisposalSetting = Integer.parseInt( getProperty( "buffBotMessageDisposal" ) );
+		messageDisposalSetting = StaticEntity.parseInt( getProperty( "buffBotMessageDisposal" ) );
 
 		String whiteListString = getProperty( "whiteList" ).toLowerCase();
 		if ( whiteListString.indexOf( "$clan" ) != -1 )
@@ -366,7 +371,6 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 
 			BuffBotHome.timeStampedLogEntry( BuffBotHome.NOCOLOR, "Message processing complete.  Buffbot is sleeping." );
 			BuffBotHome.timeStampedLogEntry( BuffBotHome.NOCOLOR, "(" + client.getRestoreCount() + " mana restores remaining)" );
-			KoLmafia.updateDisplay( "Buffbot is sleeping." );
 
 			// Sleep for a while and then try again (don't go
 			// away for more than 1 second at a time to avoid
@@ -381,7 +385,6 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		// to reset the continue state.
 
 		BuffBotHome.timeStampedLogEntry( BuffBotHome.NOCOLOR, "Buffbot stopped." );
-		KoLmafia.updateDisplay( "Buffbot stopped." );
 		BuffBotHome.setBuffBotActive( false );
 	}
 
@@ -473,7 +476,6 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 
 		if ( client.getRestoreCount() == 0 )
 		{
-			KoLmafia.updateDisplay( ERROR_STATE, "Unable to continue BuffBot!" );
 			BuffBotHome.setBuffBotActive( false );
 			BuffBotHome.update( BuffBotHome.ERRORCOLOR, "Unable to process a buff message." );
 		}
@@ -563,7 +565,7 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		}
 
 		Matcher meatMatcher = Pattern.compile( MEAT_REGEX ).matcher( message.getMessageHTML() );
-		int meatSent = meatMatcher.find() ? COMMA_FORMAT.parse( meatMatcher.group(1) ).intValue() : 0;
+		int meatSent = meatMatcher.find() ? StaticEntity.parseInt( meatMatcher.group(1) ) : 0;
 		List castList = (List) buffCostMap.get( new Integer( meatSent ) );
 
 		// If what is sent does not match anything in the buff table,
@@ -627,40 +629,53 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 		boolean receivedBuffs = false;
 		boolean gavePhilanthropicBuff = false;
 
-		for ( int i = 0; KoLmafia.permitsContinue() && i < castList.size(); ++i )
+		int failureCount = BuffBotHome.getInstanceCount( 0, message.getSenderName() );
+
+		if ( failureCount < REFUND_THRESHOLD )
 		{
-			currentBuff = (BuffBotCaster) castList.get(i);
-			receivedBuffs |= executeBuff( currentBuff, message, meatSent );
-			gavePhilanthropicBuff |= currentBuff.philanthropic;
-		}
+			boolean lastBuffSuccessful = false;
 
-		if ( receivedBuffs && gavePhilanthropicBuff )
-			BuffBotHome.addToRecipientList( meatSent, message.getSenderName() );
-
-		if ( !receivedBuffs )
-		{
-			// Record the inability to buff inside of a separate
-			// file which stores how many refunds were sent that day.
-
-			BuffBotHome.addToRecipientList( 0, message.getSenderName() );
-			int failureCount = BuffBotHome.getInstanceCount( 0, message.getSenderName() );
-
-			if ( failureCount == 9 )
+			for ( int i = 0; KoLmafia.permitsContinue() && i < castList.size(); ++i )
 			{
-				// Nine refunds in a single day is pretty bad.  So,
-				// send a notification that they will no longer be
-				// refunded for buffs cast today.
+				if ( !lastBuffSuccessful && receivedBuffs )
+					break;
 
-				sendRefund( message.getSenderName(), "This is a message to notify you that you have sent 9 requests which were refunded.  " +
-					"To prevent the possibility of intentional sabatoge, this will be the last refund you will receive today.  Thanks for understanding.", meatSent );
+				currentBuff = (BuffBotCaster) castList.get(i);
+				lastBuffSuccessful = executeBuff( currentBuff, message, meatSent );
+
+				receivedBuffs |= lastBuffSuccessful;
+				gavePhilanthropicBuff |= currentBuff.philanthropic;
 			}
-			else if ( failureCount < 9 )
-			{
-				// If the person sent something and received no buffs,
-				// then make sure they're refunded.
 
-				sendRefund( message.getSenderName(), "This buffbot was unable to process your request.  " + UseSkillRequest.lastUpdate +
-					"  Please try again later." + LINE_BREAK + LINE_BREAK + refundMessage, meatSent );
+			if ( receivedBuffs && gavePhilanthropicBuff )
+				BuffBotHome.addToRecipientList( meatSent, message.getSenderName() );
+
+			if ( !receivedBuffs )
+			{
+				++failureCount;
+				BuffBotHome.addToRecipientList( 0, message.getSenderName() );
+
+				// Record the inability to buff inside of a separate
+				// file which stores how many refunds were sent that day.
+
+				if ( failureCount == REFUND_THRESHOLD )
+				{
+					// Nine refunds in a single day is pretty bad.  So,
+					// send a notification that they will no longer be
+					// refunded for buffs cast today.
+
+					sendRefund( message.getSenderName(), "This is a message to notify you that you have sent " + REFUND_THRESHOLD + " requests which were refunded.  " +
+						"To prevent the possibility of intentional sabatoge, any buff requests received over the next 24 hours will be treated as donations.  " +
+						"Thanks for understanding.", meatSent );
+				}
+				else if ( failureCount < REFUND_THRESHOLD )
+				{
+					// If the person sent something and received no buffs,
+					// then make sure they're refunded.
+
+					sendRefund( message.getSenderName(), "This buffbot was unable to process your request.  " + UseSkillRequest.lastUpdate +
+						"  Please try again later." + LINE_BREAK + LINE_BREAK + refundMessage, meatSent );
+				}
 			}
 		}
 	}
@@ -723,8 +738,16 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 			this.buffName = buffName;
 			this.price = price;
 			this.castCount = castCount;
-			this.turnCount = buffID > 6000 ? castCount * 15 : buffID < 1000 ? castCount * 5 : castCount * 10;
 
+			int multiplier = 10;
+			if ( buffID > 6000 && buffID < 7000 )
+				multiplier += 5;
+			if ( KoLCharacter.hasItem( UseSkillRequest.WIZARD_HAT, false ) )
+				multiplier += 5;
+			if ( buffID == 3 )
+				multiplier = 40;
+
+			this.turnCount = castCount * multiplier;
 			this.restricted = restricted;
 			this.philanthropic = philanthropic;
 
@@ -732,16 +755,16 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 			stringForm.append( "Cast " );
 			stringForm.append( this.buffName );
 			stringForm.append( ' ' );
-			stringForm.append( castCount );
+			stringForm.append( COMMA_FORMAT.format( castCount ) );
 			stringForm.append( " time" );
 
 			if ( castCount != 1 )
 				stringForm.append( "s" );
 
 			stringForm.append( " (" );
-			stringForm.append( turnCount );
+			stringForm.append( COMMA_FORMAT.format( turnCount ) );
 			stringForm.append( " turns) for " );
-			stringForm.append( price );
+			stringForm.append( COMMA_FORMAT.format( price ) );
 			stringForm.append( " meat" );
 
 			if ( restricted )
@@ -750,7 +773,8 @@ public abstract class BuffBotManager extends KoLMailManager implements KoLConsta
 				stringForm.append( " (philanthropic)" );
 
 			this.stringForm = stringForm.toString();
-			this.settingString = buffID + ":" + price + ":" + castCount + ":" + restricted + ":" + philanthropic;
+			this.settingString = buffID + ":" + COMMA_FORMAT.format( price ) + ":" +
+				COMMA_FORMAT.format( castCount ) + ":" + restricted + ":" + philanthropic;
 		}
 
 		public boolean equals( Object o )

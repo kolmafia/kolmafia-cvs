@@ -150,17 +150,17 @@ public class AdventureDatabase extends KoLDatabase
 
 		// Yeti Nother Hippy
 		{ { "choiceAdventure15" }, { "eXtreme Slope 1" },
-		  { "eXtreme mittens", "eXtreme scarf", "75 meat", "Complete the outfit" },
+		  { "eXtreme mittens", "eXtreme scarf", "200 meat", "Complete the outfit" },
 		  { "399", "355", null } },
 
 		// Saint Beernard
 		{ { "choiceAdventure16" }, { "eXtreme Slope 2" },
-		  { "snowboarder pants", "eXtreme scarf", "75 meat", "Complete the outfit" },
+		  { "snowboarder pants", "eXtreme scarf", "200 meat", "Complete the outfit" },
 		  { "356", "355", null } },
 
 		// Generic Teen Comedy
 		{ { "choiceAdventure17" }, { "eXtreme Slope 3" },
-		  { "eXtreme mittens", "snowboarder pants", "75 meat", "Complete the outfit" },
+		  { "eXtreme mittens", "snowboarder pants", "200 meat", "Complete the outfit" },
 		  { "399", "356", null } },
 
 		// A Flat Miner
@@ -233,10 +233,22 @@ public class AdventureDatabase extends KoLDatabase
 		  { "Trade for used blood", "Keep your hearts" } },
 
 		// Choices 48 - 70 are violet fog adventures
+		// Choice 71 is a special adventure
 
-		// A Journey to the Center of Your Mind
-		{ { "choiceAdventure71" }, { "Half-Astral" },
-		  { "Take the Bad Trip", "Take the Mediocre Trip", "Take the Great Trip" } },
+		// Don't Fence Me In
+		{ { "choiceAdventure73" }, { "Whitey's Grove 1" },
+		  { "Muscle", "white picket fence", "piece of wedding cake" },
+		  { null, "270", "262" } },
+
+		// The Only Thing About Him is the Way That He Walks
+		{ { "choiceAdventure74" }, { "Whitey's Grove 2" },
+		  { "Moxie", "boxed wine", "mullet wig" },
+		  { null, "1005", "267" } },
+
+		// Rapido!
+		{ { "choiceAdventure75" }, { "Whitey's Grove 3" },
+		  { "Mysticality", "white lightning", "white collar" },
+		  { null, "266", "1655" } }
 	};
 
 	// Some choice adventures have a choice that behaves as an "ignore"
@@ -314,6 +326,9 @@ public class AdventureDatabase extends KoLDatabase
 		{
 			if ( data.length == 4 )
 			{
+				if ( data[1].indexOf( "send" ) != -1 )
+					continue;
+
 				String zone = (String) ZONE_NAMES.get( data[0] );
 
 				// Be defensive: user can supply a broken data file
@@ -736,6 +751,9 @@ public class AdventureDatabase extends KoLDatabase
 
 			if ( KoLCharacter.hasEquipped( item ) )
 			{
+				if ( missingCount == 1 )
+					return;
+
 				while ( KoLCharacter.hasEquipped( item ) )
 					DEFAULT_SHELL.executeLine( "unequip " + item.getName() );
 
@@ -908,7 +926,7 @@ public class AdventureDatabase extends KoLDatabase
 		for ( int i = 0; i < CHOICE_MEAT_COST.length; ++i )
 			if ( choice.equals( CHOICE_MEAT_COST[i][0] ) &&
 			     decision.equals( CHOICE_MEAT_COST[i][1] ) )
-				return Integer.parseInt( CHOICE_MEAT_COST[i][2] );
+				return StaticEntity.parseInt( CHOICE_MEAT_COST[i][2] );
 		return 0;
 	}
 
@@ -939,7 +957,7 @@ public class AdventureDatabase extends KoLDatabase
 					continue;
 				}
 
-				int combats = Integer.parseInt( data[1] );
+				int combats = StaticEntity.parseInt( data[1] );
 				AreaCombatData combat = new AreaCombatData( combats );
 
 				for ( int i = 2; i < data.length; ++i )

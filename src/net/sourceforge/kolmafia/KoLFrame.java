@@ -57,6 +57,7 @@ import javax.swing.JComboBox;
 import javax.swing.JTabbedPane;
 
 // layout
+import java.awt.Component;
 import java.awt.Point;
 import java.awt.Color;
 import java.awt.FlowLayout;
@@ -65,12 +66,20 @@ import java.awt.CardLayout;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
 import javax.swing.BoxLayout;
+import javax.swing.event.ListDataEvent;
+import javax.swing.event.ListDataListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumnModel;
 
 // event listeners
 import javax.swing.ImageIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowAdapter;
@@ -84,6 +93,7 @@ import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.StringTokenizer;
+import java.util.Vector;
 
 // other stuff
 import javax.swing.SwingUtilities;
@@ -168,7 +178,7 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 	{
 		JToolBar toolbarPanel = null;
 
-		switch ( Integer.parseInt( StaticEntity.getProperty( "toolbarPosition" ) ) )
+		switch ( StaticEntity.parseInt( StaticEntity.getProperty( "toolbarPosition" ) ) )
 		{
 			case 1:
 				toolbarPanel = new JToolBar( "KoLmafia Toolbar" );
@@ -919,26 +929,15 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 
 	protected static final int getValue( JTextField field, int defaultValue )
 	{
-		try
-		{
-			String currentValue = field.getText();
+		String currentValue = field.getText();
 
-			if ( currentValue == null || currentValue.length() == 0 )
-				return defaultValue;
+		if ( currentValue == null || currentValue.length() == 0 )
+			return defaultValue;
 
-			if ( currentValue.equals( "*" ) )
-				return defaultValue;
+		if ( currentValue.equals( "*" ) )
+			return defaultValue;
 
-			return COMMA_FORMAT.parse( field.getText().trim() ).intValue();
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
-			return 0;
-		}
+		return StaticEntity.parseInt( field.getText().trim() );
 	}
 
 	protected static final int getQuantity( String title, int maximumValue, int defaultValue )
@@ -950,26 +949,15 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		if ( maximumValue == 1 && maximumValue == defaultValue )
 			return 1;
 
-		try
-		{
-			String currentValue = JOptionPane.showInputDialog( title, COMMA_FORMAT.format( defaultValue ) );
-			if ( currentValue == null )
-				return 0;
-
-			if ( currentValue.equals( "*" ) )
-				return maximumValue;
-
-			int desiredValue = COMMA_FORMAT.parse( currentValue ).intValue();
-			return Math.max( 0, Math.min( desiredValue, maximumValue ) );
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
+		String currentValue = JOptionPane.showInputDialog( title, COMMA_FORMAT.format( defaultValue ) );
+		if ( currentValue == null )
 			return 0;
-		}
+
+		if ( currentValue.equals( "*" ) )
+			return maximumValue;
+
+		int desiredValue = StaticEntity.parseInt( currentValue );
+		return desiredValue <= 0 ? maximumValue - desiredValue : Math.min( desiredValue, maximumValue );
 	}
 
 	protected static final int getQuantity( String title, int maximumValue )
@@ -1165,8 +1153,8 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		if ( position != null && position.indexOf( "," ) != -1 )
 		{
 			String [] location = position.split( "," );
-			xLocation = Integer.parseInt( location[0] );
-			yLocation = Integer.parseInt( location[1] );
+			xLocation = StaticEntity.parseInt( location[0] );
+			yLocation = StaticEntity.parseInt( location[1] );
 		}
 		if ( xLocation > 0 && yLocation > 0 && xLocation < screenSize.getWidth() && yLocation < screenSize.getHeight() )
 			setLocation( xLocation, yLocation );
@@ -1210,6 +1198,10 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		protected void actionConfirmed()
 		{
 		}
+
+		public void setEnabled( boolean isEnabled )
+		{
+		}
 	}
 
 	protected class LoadScriptButton extends JButton implements Runnable, ActionListener
@@ -1234,5 +1226,202 @@ public abstract class KoLFrame extends JFrame implements KoLConstants
 		public void run()
 		{	DEFAULT_SHELL.executeLine( scriptPath );
 		}
+	}
+
+	/**
+	 * Utility class used to forward events to JButtons enclosed inside
+	 * of a JTable object.
+	 */
+
+	protected class ButtonEventListener extends MouseAdapter
+	{
+		private JTable table;
+
+		public ButtonEventListener( JTable table )
+		{	this.table = table;
+		}
+
+		public void mouseReleased( MouseEvent e )
+		{
+			TableColumnModel columnModel = table.getColumnModel();
+
+		    int row = e.getY() / table.getRowHeight();
+		    int column = columnModel.getColumnIndexAtX( e.getX() );
+
+			if ( row >= 0 && row < table.getRowCount() && column >= 0 && column < table.getColumnCount() )
+			{
+				Object value = table.getValueAt( row, column );
+
+				if ( value instanceof JButton )
+				{
+					((JButton) value).dispatchEvent( SwingUtilities.convertMouseEvent( table, e, (JButton) value ) );
+					table.repaint();
+				}
+			}
+		}
+	}
+
+	protected abstract class NestedInsideTableButton extends JButton implements MouseListener
+	{
+		public NestedInsideTableButton( ImageIcon icon )
+		{
+			super( icon );
+			addMouseListener( this );
+		}
+
+		public abstract void mouseReleased( MouseEvent e );
+
+		public void mouseClicked( MouseEvent e )
+		{
+		}
+
+		public void mouseEntered( MouseEvent e )
+		{
+		}
+
+		public void mouseExited( MouseEvent e )
+		{
+		}
+
+		public void mousePressed( MouseEvent e )
+		{
+		}
+	}
+
+	protected abstract class ListWrapperTableModel extends DefaultTableModel implements ListDataListener
+	{
+		private String [] headers;
+		private Class [] types;
+		private boolean [] editable;
+
+		public ListWrapperTableModel( String [] headers, Class [] types, boolean [] editable, LockableListModel list )
+		{
+			super( 0, headers.length );
+
+			this.headers = headers;
+			this.types = types;
+			this.editable = editable;
+
+			synchronized ( list )
+			{
+				for ( int i = 0; i < list.size(); ++i )
+					insertRow( i, constructVector( list.get(i) ) );
+
+				list.addListDataListener( this );
+			}
+		}
+
+		public String getColumnName( int index )
+		{	return index < 0 || index >= headers.length ? "" : headers[ index ];
+		}
+
+		public Class getColumnClass( int column )
+		{	return column < 0 || column >= types.length ? Object.class : types[ column ];
+		}
+
+		protected abstract Vector constructVector( Object o );
+
+		public boolean isCellEditable( int row, int column )
+		{	return column < 0 || column >= editable.length ? false : editable[ column ];
+		}
+
+		/**
+		 * Called whenever contents have been added to the original list; a
+		 * function required by every <code>ListDataListener</code>.
+		 *
+		 * @param	e	the <code>ListDataEvent</code> that triggered this function call
+		 */
+
+		public void intervalAdded( ListDataEvent e )
+		{
+			LockableListModel source = (LockableListModel) e.getSource();
+			int index0 = e.getIndex0();  int index1 = e.getIndex1();
+
+			if ( index1 >= source.size() || source.size() == getRowCount() )
+				return;
+
+			for ( int i = index0; i <= index1; ++i )
+				insertRow( i, constructVector( source.get(i) ) );
+		}
+
+		/**
+		 * Called whenever contents have been removed from the original list;
+		 * a function required by every <code>ListDataListener</code>.
+		 *
+		 * @param	e	the <code>ListDataEvent</code> that triggered this function call
+		 */
+
+		public void intervalRemoved( ListDataEvent e )
+		{
+			LockableListModel source = (LockableListModel) e.getSource();
+			int index0 = e.getIndex0();  int index1 = e.getIndex1();
+
+			if ( index1 >= getRowCount() || source.size() == getRowCount() )
+				return;
+
+			for ( int i = index1; i >= index0; --i )
+				removeRow(i);
+		}
+
+		/**
+		 * Called whenever contents in the original list have changed; a
+		 * function required by every <code>ListDataListener</code>.
+		 *
+		 * @param	e	the <code>ListDataEvent</code> that triggered this function call
+		 */
+
+		public void contentsChanged( ListDataEvent e )
+		{
+			LockableListModel source = (LockableListModel) e.getSource();
+			int index0 = e.getIndex0();  int index1 = e.getIndex1();
+
+			if ( index1 >= getRowCount() )
+				return;
+
+			for ( int i = index1; i >= index0; --i )
+			{
+				removeRow(i);
+				insertRow( i, constructVector( source.get(i) ) );
+			}
+		}
+	}
+
+	protected class IntegerRenderer extends DefaultTableCellRenderer
+	{
+		public Component getTableCellRendererComponent( JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column )
+		{
+			Component c = super.getTableCellRendererComponent( table, value, isSelected, hasFocus, row, column );
+			if ( !(value instanceof Integer) )
+				return c;
+
+			((JLabel)c).setHorizontalAlignment( JLabel.RIGHT );
+			((JLabel)c).setText( COMMA_FORMAT.format( ((Integer)value).intValue() ) );
+			return c;
+		}
+	}
+
+	protected class ButtonRenderer implements TableCellRenderer
+	{
+		public Component getTableCellRendererComponent( JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column )
+		{	return (JButton) value;
+		}
+	}
+
+	protected boolean finalizeTable( JTable table )
+	{
+		if ( table.isEditing() )
+		{
+			int row = table.getEditingRow();
+			int col = table.getEditingColumn();
+			table.getCellEditor( row, col ).stopCellEditing();
+
+			if ( table.isEditing() )
+			{
+				JOptionPane.showMessageDialog( null, "One or more fields contain invalid values.\n(Note: they are currently outlined in red)" );
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

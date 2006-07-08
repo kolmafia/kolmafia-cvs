@@ -92,7 +92,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		"sungraphics-license.txt", "systray-license.txt", "jline-license.txt" };
 	private static final String [] LICENSE_NAME = {
 		"KoLmafia", "Spellcast", "BrowserLauncher",
-		"Sun Graphics", "System Tray", "JLine" };
+		"Sun Graphics", "System Tray", "JLine Terminal" };
 
 	protected KoLMenuBar()
 	{	this( null );
@@ -138,13 +138,12 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		statusMenu.add( new DisplayFrameMenuItem( "Adventure", AdventureFrame.class ) );
 		statusMenu.add( new DisplayFrameMenuItem( "Purchases", MallSearchFrame.class ) );
 		statusMenu.add( new DisplayFrameMenuItem( "Graphical CLI", CommandDisplayFrame.class ) );
-		statusMenu.add( new DisplayFrameMenuItem( "Preferences", OptionsFrame.class ) );
 
 		statusMenu.add( new JSeparator() );
 
+		statusMenu.add( new DisplayFrameMenuItem( "Preferences", OptionsFrame.class ) );
 		statusMenu.add( new DisplayFrameMenuItem( "Mini-Browser", RequestFrame.class ) );
 		statusMenu.add( new InvocationMenuItem( "Relay Browser", StaticEntity.getClient(), "startRelayServer" ) );
-		statusMenu.add( new InvocationMenuItem( "KoL Simulator", StaticEntity.getClient(), "launchSimulator" ) );
 
 		statusMenu.add( new JSeparator() );
 
@@ -166,12 +165,11 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		toolsMenu.add( new InvocationMenuItem( "Clear Results", StaticEntity.getClient(), "resetSession" ) );
 		toolsMenu.add( new StopEverythingItem() );
 		toolsMenu.add( new InvocationMenuItem( "Refresh All", StaticEntity.getClient(), "refreshSession" ) );
-		toolsMenu.add( new InvocationMenuItem( "Session Time-In", StaticEntity.getClient(), "executeTimeInRequest" ) );
+		toolsMenu.add( new InvocationMenuItem( "Session Time-In", LoginRequest.class, "executeTimeInRequest" ) );
 
 		toolsMenu.add( new JSeparator() );
 
 		toolsMenu.add( new DisplayFrameMenuItem( "Skill Casting", SkillBuffFrame.class ) );
-		toolsMenu.add( new DisplayFrameMenuItem( "Auto Restore", RestoreOptionsFrame.class ) );
 		toolsMenu.add( new DisplayFrameMenuItem( "Run a Buffbot", BuffBotFrame.class ) );
 		toolsMenu.add( new DisplayFrameMenuItem( "Purchase Buffs", BuffRequestFrame.class ) );
 
@@ -274,6 +272,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 		container.add( helperMenu );
 
 		helperMenu.add( new DisplayFrameMenuItem( "Copyright Notice", LicenseDisplay.class ) );
+		helperMenu.add( new DisplayPageMenuItem( "Donate to KoLmafia", "http://kolmafia.sourceforge.net/credits.html" ) );
 		helperMenu.add( new DisplayFrameMenuItem( "Farmer's Almanac", CalendarFrame.class ) );
 		helperMenu.add( new DisplayFrameMenuItem( "KoL Encyclopedia", ExamineItemsFrame.class ) );
 
@@ -863,7 +862,7 @@ public class KoLMenuBar extends JMenuBar implements KoLConstants
 
 			JButton donateButton = new JButton( JComponentUtilities.getImage( "paypal.gif" ) );
 			JComponentUtilities.setComponentSize( donateButton, 74, 31 );
-			donateButton.addActionListener( new DisplayPageMenuItem( "", "http://sourceforge.net/donate/index.php?user_id=813949" ) );
+			donateButton.addActionListener( new DisplayPageMenuItem( "", "http://sourceforge.net/project/project_donations.php?group_id=126572" ) );
 
 			JPanel donatePanel = new JPanel();
 			donatePanel.add( donateButton );

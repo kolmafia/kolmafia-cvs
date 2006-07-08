@@ -103,7 +103,7 @@ public class CharsheetRequest extends KoLRequest
 		while ( !token.startsWith( " (" ) )
 			token = cleanContent.nextToken();
 
-		KoLCharacter.setUserID( Integer.parseInt( token.substring( 3, token.length() - 1 ) ) );
+		KoLCharacter.setUserID( StaticEntity.parseInt( token.substring( 3, token.length() - 1 ) ) );
 		skipTokens( cleanContent, 1 );
 		KoLCharacter.setClassName( cleanContent.nextToken().trim() );
 
@@ -336,15 +336,20 @@ public class CharsheetRequest extends KoLRequest
 		token = cleanContent.nextToken();
 
 		List availableSkills = new ArrayList();
-		while ( !token.startsWith( "Current" ) && cleanContent.hasMoreTokens() )
+		// Loop until we get to Current Familiar
+		while ( !token.startsWith( "Current" ) )
 		{
-			if ( token.startsWith( "(" ) )
+			if ( token.startsWith( "(" ) || token.startsWith( " (" ) )
 			{
-				if ( token.length() == 1 )
+				if ( token.length() <= 2 )
 					skipTokens( cleanContent, 2 );
 			}
 			else if ( ClassSkillsDatabase.contains( token ) )
 				availableSkills.add( new UseSkillRequest( StaticEntity.getClient(), token, "", 1 ) );
+
+			// No more tokens if no familiar equipped
+			if ( !cleanContent.hasMoreTokens() )
+				break;
 
 			token = cleanContent.nextToken();
 		}
@@ -395,18 +400,7 @@ public class CharsheetRequest extends KoLRequest
 
 	private static int retrieveBase( String token, int defaultBase )
 	{
-		try
-		{
-			Matcher baseMatcher = BASE_PATTERN.matcher( token );
-			return baseMatcher.find() ? COMMA_FORMAT.parse( baseMatcher.group(1) ).intValue() : defaultBase;
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
-			return defaultBase;
-		}
+		Matcher baseMatcher = BASE_PATTERN.matcher( token );
+		return baseMatcher.find() ? StaticEntity.parseInt( baseMatcher.group(1) ) : defaultBase;
 	}
 }

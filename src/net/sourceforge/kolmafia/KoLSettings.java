@@ -66,7 +66,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 	private static final KoLSettings GLOBAL_SETTINGS = new KoLSettings( "" );
 
 	private File settingsFile;
-	private String characterName;
+	private String noExtensionName;
 
 	/**
 	 * Constructs a settings file for a character with the specified name.
@@ -74,34 +74,42 @@ public class KoLSettings extends Properties implements UtilityConstants
 	 * will be replaced with an underscore, and all other punctuation will
 	 * be removed.
 	 *
-	 * @param	characterName	The name of the character this settings file represents
+	 * @param	noExtensionName	The name of the character this settings file represents
 	 */
 
 	public KoLSettings( String characterName )
 	{
-		this.characterName = characterName;
-		String noExtensionName = characterName.replaceAll( "\\/q", "" ).replaceAll( " ", "_" ).toLowerCase();
-
+		this.noExtensionName = KoLCharacter.baseUserName( characterName );
 		this.settingsFile = new File( DATA_DIRECTORY + "~" + noExtensionName + ".kcs" );
 		loadSettings( this.settingsFile );
 		ensureDefaults();
 	}
 
+	public static boolean isGlobalProperty( String name )
+	{
+		return CLIENT_SETTINGS.containsKey( name ) || GLOBAL_SETTINGS == null ||
+			name.startsWith( "saveState" ) || name.startsWith( "loginScript" ) || name.startsWith( "getBreakfast" );
+	}
+
 	public synchronized String getProperty( String name )
 	{
-		boolean isGlobalProperty = CLIENT_SETTINGS.containsKey( name ) || name.startsWith( "saveState" ) || GLOBAL_SETTINGS == null;
+		boolean isGlobalProperty = isGlobalProperty( name );
 
 		if ( isGlobalProperty && (GLOBAL_SETTINGS == null || this != GLOBAL_SETTINGS) )
-			return GLOBAL_SETTINGS.getProperty( name );
+		{
+			String value = GLOBAL_SETTINGS.getProperty( name );
+			return value == null ? "" : value;
+		}
 		else if ( !isGlobalProperty && this == GLOBAL_SETTINGS )
 			return "";
 
-		return super.getProperty( name );
+		String value = super.getProperty( name );
+		return value == null ? "" : value;
 	}
 
 	public synchronized Object setProperty( String name, String value )
 	{
-		boolean isGlobalProperty = CLIENT_SETTINGS.containsKey( name ) || name.startsWith( "saveState" ) || GLOBAL_SETTINGS == null;
+		boolean isGlobalProperty = isGlobalProperty( name );
 
 		if ( isGlobalProperty && (GLOBAL_SETTINGS == null || this != GLOBAL_SETTINGS) )
 			return GLOBAL_SETTINGS.setProperty( name, value );
@@ -186,9 +194,10 @@ public class KoLSettings extends Properties implements UtilityConstants
 			return;
 
 		CLIENT_SETTINGS.put( "alwaysGetBreakfast", "true" );
+		CLIENT_SETTINGS.put( "autoCheckpoint", "true" );
 		CLIENT_SETTINGS.put( "autoLogin", "" );
 		CLIENT_SETTINGS.put( "autoRepairBoxes", "false" );
-		CLIENT_SETTINGS.put( "autoSatisfyChecks", "false" );
+		CLIENT_SETTINGS.put( "autoSatisfyChecks", "true" );
 		CLIENT_SETTINGS.put( "autoSaveChatLogs", "true" );
 		CLIENT_SETTINGS.put( "battleStop", "0.0" );
 		CLIENT_SETTINGS.put( "breakfastSoftcore", "Summon Snowcone,Summon Hilarious Objects,Advanced Saucecrafting,Pastamastery,Advanced Cocktailcrafting" );
@@ -206,30 +215,21 @@ public class KoLSettings extends Properties implements UtilityConstants
 		CLIENT_SETTINGS.put( "eSoluScriptType", "0" );
 		CLIENT_SETTINGS.put( "fontSize", "3" );
 		CLIENT_SETTINGS.put( "guiUsesOneWindow", "false" );
-		CLIENT_SETTINGS.put( "hpAutoRecover", "-0.1" );
-		CLIENT_SETTINGS.put( "hpAutoRecoverTarget", "-0.1" );
-		CLIENT_SETTINGS.put( "hpRecoveryScript", "" );
-		CLIENT_SETTINGS.put( "hpRestores", "" );
 		CLIENT_SETTINGS.put( "highlightList", "" );
 		CLIENT_SETTINGS.put( "http.proxyHost", "" );
 		CLIENT_SETTINGS.put( "http.proxyPort", "" );
 		CLIENT_SETTINGS.put( "http.proxyUser", "" );
 		CLIENT_SETTINGS.put( "http.proxyPassword", "" );
-		CLIENT_SETTINGS.put( "initialDesktop", "AdventureFrame,MallSearchFrame,SkillBuffFrame,RestoreOptionsFrame" );
+		CLIENT_SETTINGS.put( "initialDesktop", "AdventureFrame,MallSearchFrame,SkillBuffFrame" );
 		CLIENT_SETTINGS.put( "initialFrames", "EventsFrame" );
 		CLIENT_SETTINGS.put( "lastUsername", "" );
 		CLIENT_SETTINGS.put( "loginServer", "0" );
 		CLIENT_SETTINGS.put( "luckySewerAdventure", "stolen accordion" );
 		CLIENT_SETTINGS.put( "makeBrowserDecisions", "false" );
-		CLIENT_SETTINGS.put( "mpAutoRecover", "0.0" );
-		CLIENT_SETTINGS.put( "mpAutoRecoverTarget", "0.0" );
-		CLIENT_SETTINGS.put( "mpRecoveryScript", "" );
-		CLIENT_SETTINGS.put( "mpRestores", "" );
 		CLIENT_SETTINGS.put( "proxySet", "false" );
 		CLIENT_SETTINGS.put( "relayAddsCommandLineLinks", "true" );
 		CLIENT_SETTINGS.put( "relayAddsSimulatorLinks", "true" );
 		CLIENT_SETTINGS.put( "relayAddsUseLinks", "true" );
-		CLIENT_SETTINGS.put( "relayMovesManeuver", "true" );
 		CLIENT_SETTINGS.put( "relayAddsPlinking", "false" );
 		CLIENT_SETTINGS.put( "saveState", "" );
 		CLIENT_SETTINGS.put( "scriptButtonPosition", "0" );
@@ -240,6 +240,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 		CLIENT_SETTINGS.put( "showClosetDrivenCreations", "true" );
 		CLIENT_SETTINGS.put( "sortAdventures", "false" );
 		CLIENT_SETTINGS.put( "toolbarPosition", "1" );
+		CLIENT_SETTINGS.put( "useNonBlockingReader", "false" );
 		CLIENT_SETTINGS.put( "useSystemTrayIcon", "false" );
 		CLIENT_SETTINGS.put( "usePopupContacts", "1" );
 		CLIENT_SETTINGS.put( "useTabbedChat", "1" );
@@ -252,11 +253,19 @@ public class KoLSettings extends Properties implements UtilityConstants
 		PLAYER_SETTINGS.put( "betweenBattleScript", "" );
 		PLAYER_SETTINGS.put( "buffBotCasting", "" );
 		PLAYER_SETTINGS.put( "buffBotMessageDisposal", "0" );
+		PLAYER_SETTINGS.put( "currentMood", "default" );
+		PLAYER_SETTINGS.put( "hpAutoRecovery", "0.3" );
+		PLAYER_SETTINGS.put( "hpAutoRecoveryTarget", "1.0" );
+		PLAYER_SETTINGS.put( "hpAutoRecoveryItems", "tongue of the otter;soft green echo eyedrop antidote;tiny house;cannelloni cocoon;scroll of drastic healing;medicinal herb's medicinal herbs;tongue of the walrus;lasagna bandages;disco power nap;disco nap;phonics down;cast;doc galaktik's homeopathic elixir;doc galaktik's restorative balm;doc galaktik's pungent unguent;doc galaktik's ailment ointment" );
 		PLAYER_SETTINGS.put( "invalidBuffMessage", "You sent an amount which was not a valid buff amount." );
+		PLAYER_SETTINGS.put( "lastBreakfast", "19691231" );
 		PLAYER_SETTINGS.put( "lastFaucetLocation", "-1" );
-		PLAYER_SETTINGS.put( "lastFaucetUse", "0: " );
+		PLAYER_SETTINGS.put( "lastFaucetUse", "A: " );
 		PLAYER_SETTINGS.put( "lastAdventure", "" );
 		PLAYER_SETTINGS.put( "lastMessageID", "" );
+		PLAYER_SETTINGS.put( "mpAutoRecovery", "0.0" );
+		PLAYER_SETTINGS.put( "mpAutoRecoveryTarget", "0.0" );
+		PLAYER_SETTINGS.put( "mpAutoRecoveryItems", "Dyspepsi-Cola;Cloaca-Cola;phonics down;Knob Goblin superseltzer;Knob Goblin seltzer;magical mystery juice;soda water" );
 		PLAYER_SETTINGS.put( "nextAdventure", "" );
 		PLAYER_SETTINGS.put( "retrieveContacts", "true" );
 		PLAYER_SETTINGS.put( "thanksMessage", "Thank you for the donation!" );
@@ -306,6 +315,9 @@ public class KoLSettings extends Properties implements UtilityConstants
 		CLIENT_SETTINGS.put( "choiceAdventure46", "3" );
 		CLIENT_SETTINGS.put( "choiceAdventure47", "2" );
 		CLIENT_SETTINGS.put( "choiceAdventure71", "1" );
+		CLIENT_SETTINGS.put( "choiceAdventure73", "2" );
+		CLIENT_SETTINGS.put( "choiceAdventure74", "2" );
+		CLIENT_SETTINGS.put( "choiceAdventure75", "3" );
 	}
 
 	/**
@@ -321,7 +333,7 @@ public class KoLSettings extends Properties implements UtilityConstants
 		// If this is the set of global settings, be sure
 		// to initialize the global settings.
 
-		if ( characterName.equals( "" ) )
+		if ( noExtensionName.equals( "" ) )
 		{
 			Object [] keys = CLIENT_SETTINGS.keySet().toArray();
 			for ( int i = 0; i < keys.length; ++i )
@@ -338,67 +350,6 @@ public class KoLSettings extends Properties implements UtilityConstants
 		for ( int i = 0; i < keys.length; ++i )
 			if ( !containsKey( keys[i] ) )
 				super.setProperty( (String) keys[i], (String) PLAYER_SETTINGS.get( keys[i] ) );
-
-		// Wheel choice adventures need special handling.
-		// This is where everything is validated for that.
-
-		// KoL no longer allows you to "ignore" a choice adventure.
-		// Fortunately, the wheel choices all provide a "leave the wheel alone" option
-		// which does exactly that - and doesn't use an adventure to take it.
-
-		int [] wheelChoices = new int[4];
-		for ( int i = 0; i < 4; ++i )
-			wheelChoices[i] = Integer.parseInt( getProperty( "choiceAdventure" + (9+i) ) );
-
-		int clockwiseCount = 0, counterClockwiseCount = 0;
-		for ( int i = 0; i < 4; ++i )
-		{
-			switch ( wheelChoices[i] )
-			{
-				case 0:
-					wheelChoices[i] = 3;
-					break;
-
-				case 1:
-					++clockwiseCount;
-					break;
-
-				case 2:
-					++counterClockwiseCount;
-					break;
-			}
-		}
-
-		// Check for valid settings:
-
-		// 1) Two clockwise, one counterclockwise, one leave alone
-		// 2) Two counterclockwise, one clockwise, one leave alone
-		// 3) Four clockwise
-		// 4) Four counterclockwise
-		// 5) All leave alone
-
-		if ( !( (clockwiseCount == 1 && counterClockwiseCount == 2) ||
-			(clockwiseCount == 2 && counterClockwiseCount == 1) ||
-			(clockwiseCount == 4) ||
-			(counterClockwiseCount == 4) ||
-			(clockwiseCount == 0 && counterClockwiseCount == 0) ) )
-		{
-			wheelChoices[0] = 1;
-			wheelChoices[1] = 1;
-			wheelChoices[2] = 3;
-			wheelChoices[3] = 2;
-		}
-
-		String wheelChoice = null;
-		String wheelDecision = null;
-
-		for ( int i = 0; i < 4; ++i )
-		{
-			wheelChoice = "choiceAdventure" + (9+i);
-			wheelDecision = String.valueOf( wheelChoices[i] );
-			if ( !getProperty( wheelChoice ).equals( wheelDecision ) )
-				super.setProperty( wheelChoice, wheelDecision );
-		}
 	}
 
 	/**
@@ -434,13 +385,13 @@ public class KoLSettings extends Properties implements UtilityConstants
 			reader.close();
 			Collections.sort( contents );
 
-			File temporary = new File( DATA_DIRECTORY + "~" + characterName + ".tmp" );
+			File temporary = new File( DATA_DIRECTORY + "~" + noExtensionName + ".kcs.tmp" );
 			temporary.createNewFile();
 			temporary.deleteOnExit();
 
 			PrintStream writer = new PrintStream( new FileOutputStream( temporary ) );
 			for ( int i = 0; i < contents.size(); ++i )
-				if ( !((String) contents.get(i)).startsWith( "saveState" ) || characterName.equals( "" ) )
+				if ( !((String) contents.get(i)).startsWith( "saveState" ) || noExtensionName.equals( "" ) )
 					writer.println( (String) contents.get(i) );
 
 			writer.close();

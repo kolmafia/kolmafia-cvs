@@ -685,7 +685,7 @@ public class MoonPhaseDatabase extends StaticEntity
 			// ecclesiastical full moon after the Spring Equinox
 			// (http://aa.usno.navy.mil/faq/docs/easter.html)
 
-			int y = Integer.parseInt( currentYear );
+			int y = StaticEntity.parseInt( currentYear );
 			int c = y / 100;
 			int n = y - 19 * ( y / 19 );
 			int k = ( c - 17 ) / 25;
@@ -764,6 +764,12 @@ public class MoonPhaseDatabase extends StaticEntity
 
 		if ( stringDate.endsWith( "1225" ) )
 			return "Crimbo";
+
+		if ( stringDate.endsWith( "1022" ) )
+			return "Holatuwol's Birthday";
+
+		if ( stringDate.endsWith( "0923" ) )
+			return "Veracity's Birthday";
 
 		return null;
 	}

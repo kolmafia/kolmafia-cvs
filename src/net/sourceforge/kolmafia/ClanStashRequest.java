@@ -218,45 +218,24 @@ public class ClanStashRequest extends SendMessageRequest
 			return;
 		}
 
-		int lastFindIndex = 0;
-		Pattern qtyPattern = Pattern.compile( "\\(([\\d,]+)\\)" );
-		Matcher optionMatcher = Pattern.compile( "<option value=([\\d]+).*?>(.*?)</option>" ).matcher( stashMatcher.group() );
+		Matcher matcher = Pattern.compile( "<option value=([\\d]+).*?>(.*?)( \\([\\d,]+\\))?( \\(-[\\d,]*\\))?</option>" ).matcher( stashMatcher.group() );
 
+		int lastFindIndex = 0;
 		ArrayList intermediateList = new ArrayList();
 
-		while ( optionMatcher.find( lastFindIndex ) )
+		while ( matcher.find( lastFindIndex ) )
 		{
-			try
-			{
-				lastFindIndex = optionMatcher.end();
-				int itemID = COMMA_FORMAT.parse( optionMatcher.group(1) ).intValue();
+			lastFindIndex = matcher.end();
+			int itemID = StaticEntity.parseInt( matcher.group(1) );
+			String itemString = matcher.group(2);
+			int quantity = matcher.group(3) == null ? 1 :
+				StaticEntity.parseInt( matcher.group(3) );
 
-				String itemString = optionMatcher.group(2);
+			// If this is a previously unknown item, register it.
+			if ( TradeableItemDatabase.getItemName( itemID ) == null )
+				TradeableItemDatabase.registerItem( itemID, itemString );
 
-				if ( TradeableItemDatabase.getItemName( itemID ) == null )
-				{
-					TradeableItemDatabase.registerItem( itemID, itemString.indexOf( "(" ) == -1 ? itemString :
-						itemString.substring( 0, itemString.indexOf( "(" ) ).trim() );
-				}
-
-				// How many are actually in the stash
-				int quantity = 1;
-
-				if ( itemString.indexOf( "(" ) != -1 )
-				{
-					Matcher qtyMatcher = qtyPattern.matcher( itemString.substring( itemString.indexOf( "(" ) ) );
-					quantity = qtyMatcher.find() ? COMMA_FORMAT.parse( qtyMatcher.group(1) ).intValue() : 1;
-				}
-
-				intermediateList.add( new AdventureResult( itemID, quantity ) );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
+			intermediateList.add( new AdventureResult( itemID, quantity ) );
 		}
 
 		// Remove everything that is no longer in the

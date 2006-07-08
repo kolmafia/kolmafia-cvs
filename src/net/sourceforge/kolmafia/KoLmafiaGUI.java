@@ -90,13 +90,13 @@ public class KoLmafiaGUI extends KoLmafia
 	 * loaded, and the user can begin adventuring.
 	 */
 
-	public synchronized void initialize( String username, String sessionID, boolean getBreakfast, boolean isQuickLogin )
+	public synchronized void initialize( String username, boolean getBreakfast, boolean isQuickLogin )
 	{
-		super.initialize( username, sessionID, getBreakfast, isQuickLogin );
+		super.initialize( username, getBreakfast, isQuickLogin );
 		if ( refusesContinue() )
 			return;
 
-		if ( getPasswordHash() != null && !isQuickLogin )
+		if ( KoLRequest.passwordHash != null && !isQuickLogin )
 		{
 			(new MailboxRequest( this, "Inbox" )).run();
 
@@ -195,6 +195,8 @@ public class KoLmafiaGUI extends KoLmafia
 
 			return;
 		}
+		else if ( frameName.equals( "RestoreOptionsFrame" ) )
+			frameName = "OptionsFrame";
 
 		try
 		{
@@ -501,6 +503,6 @@ public class KoLmafiaGUI extends KoLmafia
 		if ( selectedLevel == null)
 			return;
 
-		(new RequestThread( new MindControlRequest( this, Integer.parseInt( selectedLevel.split( " " )[1] ) ) )).run();
+		(new RequestThread( new MindControlRequest( this, StaticEntity.parseInt( selectedLevel.split( " " )[1] ) ) )).run();
 	}
 }

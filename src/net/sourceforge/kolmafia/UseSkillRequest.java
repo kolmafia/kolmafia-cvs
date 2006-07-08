@@ -49,6 +49,8 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 	private static final AdventureResult ACCORDION = new AdventureResult( 11, 1 );
 	public static final AdventureResult ROCKNROLL_LEGEND = new AdventureResult( 50, 1 );
+	public static final AdventureResult WIZARD_HAT = new AdventureResult( 1653, 1 );
+
 	private static final AdventureResult ROLL = new AdventureResult( 47, 1 );
 	private static final AdventureResult BIG_ROCK = new AdventureResult( 30, 1 );
 	private static final AdventureResult HEART = new AdventureResult( 48, 1 );
@@ -106,7 +108,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 		for ( int i = 0; i < KoLmafia.BREAKFAST_SKILLS.length; ++i )
 			if ( this.skillName.equals( KoLmafia.BREAKFAST_SKILLS[i][0] ) )
-				buffCount = Math.min( Integer.parseInt( KoLmafia.BREAKFAST_SKILLS[i][1] ), buffCount );
+				buffCount = Math.min( StaticEntity.parseInt( KoLmafia.BREAKFAST_SKILLS[i][1] ), buffCount );
 
 		if ( buffCount < 1 )
 			buffCount = 1;
@@ -139,51 +141,80 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 	{	return skillName + " (" + ClassSkillsDatabase.getMPConsumptionByID( skillID ) + " mp)";
 	}
 
-	public void run()
+	public static AdventureResult optimizeEquipment( int skillID )
 	{
-		String initialWeapon = KoLCharacter.getEquipment( KoLCharacter.WEAPON );
-		String initialOffhand = KoLCharacter.getEquipment( KoLCharacter.OFFHAND );
-
 		AdventureResult songWeapon = null;
+
 		if ( skillID > 6000 && skillID < 7000 )
 		{
 			songWeapon = prepareAccordion();
+
 			if ( songWeapon == null )
 			{
 				KoLmafia.updateDisplay( ERROR_STATE, "You need an accordion to play Accordion Thief songs." );
-				return;
+				return null;
 			}
 
 			// If there's a stolen accordion equipped, unequip it so the
 			// Rock and Roll Legend in inventory is used to play the song
 
 			if ( songWeapon != ACCORDION && KoLCharacter.hasEquipped( ACCORDION ) )
-				(new EquipmentRequest( client, EquipmentRequest.UNEQUIP, KoLCharacter.WEAPON )).run();
+				(new EquipmentRequest( StaticEntity.getClient(), EquipmentRequest.UNEQUIP, KoLCharacter.WEAPON )).run();
 		}
+
+		if ( ClassSkillsDatabase.isBuff( skillID ) && KoLCharacter.getInventory().contains( WIZARD_HAT ) )
+			(new EquipmentRequest( StaticEntity.getClient(), WIZARD_HAT.getName(), KoLCharacter.HAT )).run();
+
+		return songWeapon;
+	}
+
+	public void run()
+	{
+		if ( !KoLCharacter.hasSkill( skillName ) )
+			return;
+
+		String initialWeapon = KoLCharacter.getEquipment( KoLCharacter.WEAPON );
+		String initialOffhand = KoLCharacter.getEquipment( KoLCharacter.OFFHAND );
+		String initialHat = KoLCharacter.getEquipment( KoLCharacter.HAT );
 
 		// Cast the skill as many times as needed
 
+		AdventureResult songWeapon = optimizeEquipment( skillID );
 		useSkillLoop();
 
+		if ( !KoLmafia.isRunningBetweenBattleChecks() )
+			restoreEquipment( songWeapon, initialWeapon, initialOffhand, initialHat );
+	}
+
+	public static void restoreEquipment( AdventureResult songWeapon, String initialWeapon, String initialOffhand, String initialHat )
+	{
 		// If we untinkered a Clover Weapon and built a Rock and Roll
 		// Legend, undo it all.
 
 		if ( songWeapon != null && songWeapon != ACCORDION && songWeapon != ROCKNROLL_LEGEND )
 		{
 			// Untinker the Rock and Roll Legend we constructed and,
-			// rebuild the weapon we started with.
+			// rebuild the weapon we started with, but only if that
+			// weapon was equipped!
 
-			untinkerCloverWeapon( ROCKNROLL_LEGEND );
-			ItemCreationRequest.getInstance( client, songWeapon ).run();
+			if ( initialWeapon != null && initialWeapon.equalsIgnoreCase( songWeapon.getName() ) )
+			{
+				untinkerCloverWeapon( ROCKNROLL_LEGEND );
+				ItemCreationRequest.getInstance( StaticEntity.getClient(), songWeapon ).run();
+			}
 		}
 
 		// If we unequipped a weapon, equip it again
-		if ( !initialWeapon.equals( KoLCharacter.getEquipment( KoLCharacter.WEAPON ) ) )
-			(new EquipmentRequest( client, initialWeapon, KoLCharacter.WEAPON )).run();
+		if ( initialWeapon != null && !initialWeapon.equals( KoLCharacter.getEquipment( KoLCharacter.WEAPON ) ) )
+			(new EquipmentRequest( StaticEntity.getClient(), initialWeapon, KoLCharacter.WEAPON )).run();
 
 		// If we unequipped an off-hand weapon, equip it again
-		if ( !initialOffhand.equals( KoLCharacter.getEquipment( KoLCharacter.OFFHAND ) ) )
-			(new EquipmentRequest( client, initialOffhand, KoLCharacter.OFFHAND )).run();
+		if ( initialOffhand != null && !initialOffhand.equals( KoLCharacter.getEquipment( KoLCharacter.OFFHAND ) ) )
+			(new EquipmentRequest( StaticEntity.getClient(), initialOffhand, KoLCharacter.OFFHAND )).run();
+
+		// If we unequipped a hat, equip it again
+		if ( initialHat != null && !initialHat.equals( KoLCharacter.getEquipment( KoLCharacter.HAT ) ) )
+			(new EquipmentRequest( StaticEntity.getClient(), initialHat, KoLCharacter.HAT )).run();
 	}
 
 	private void useSkillLoop()
@@ -255,7 +286,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 		}
 	}
 
-	private AdventureResult prepareAccordion()
+	public static AdventureResult prepareAccordion()
 	{
 		// Can the rock and roll legend be acquired in some way
 		// right now?  If so, retrieve it.
@@ -265,6 +296,12 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 			if ( !KoLCharacter.hasEquipped( ROCKNROLL_LEGEND ) )
 				AdventureDatabase.retrieveItem( ROCKNROLL_LEGEND );
 
+			return ROCKNROLL_LEGEND;
+		}
+
+		if ( KoLCharacter.canInteract() )
+		{
+			DEFAULT_SHELL.executeLine( "buy " + ROCKNROLL_LEGEND.getName() );
 			return ROCKNROLL_LEGEND;
 		}
 
@@ -283,7 +320,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 		AdventureResult cloverWeapon = null;
 		for ( int i = 0; i < CLOVER_WEAPONS.length; ++i )
-			if ( KoLCharacter.hasItem( CLOVER_WEAPONS[i], false  ) )
+			if ( KoLCharacter.hasItem( CLOVER_WEAPONS[i], false ) )
 				cloverWeapon = CLOVER_WEAPONS[i];
 
 		// If not, just use existing stolen accordion
@@ -303,11 +340,12 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 		AdventureDatabase.retrieveItem( cloverWeapon );
 		untinkerCloverWeapon( cloverWeapon );
+
 		AdventureDatabase.retrieveItem( ROCKNROLL_LEGEND );
 		return cloverWeapon;
 	}
 
-	private boolean canUntinker()
+	private static boolean canUntinker()
 	{
 		// If you're too low level, don't even try
 
@@ -324,7 +362,7 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 		// If he mentions Degrassi Knoll, you haven't given him
 		// his screwdriver yet.
 
-		KoLRequest questCompleter = new UntinkerRequest( client );
+		KoLRequest questCompleter = new UntinkerRequest( StaticEntity.getClient() );
 		questCompleter.run();
 		return questCompleter.responseText.indexOf( "Degrassi Knoll" ) == -1;
 	}
@@ -462,13 +500,16 @@ public class UseSkillRequest extends KoLRequest implements Comparable
 
 			if ( skillID == OTTER_TONGUE || skillID == WALRUS_TONGUE )
 			{
-				int roundsBeatenUp = KoLAdventure.BEATEN_UP.getCount( KoLCharacter.getEffects() );
-				if ( roundsBeatenUp != 0 )
-					client.processResult( KoLAdventure.BEATEN_UP.getInstance( 0 - roundsBeatenUp ) );
+				KoLCharacter.getEffects().remove( KoLAdventure.BEATEN_UP );
+				needsRefresh = true;
 			}
 
 			super.processResults();
 		}
+	}
+
+	public boolean equals( Object o )
+	{	return o != null && o instanceof UseSkillRequest && getSkillName().equals( ((UseSkillRequest)o).getSkillName() );
 	}
 
 	public String getCommandForm( int iterations )

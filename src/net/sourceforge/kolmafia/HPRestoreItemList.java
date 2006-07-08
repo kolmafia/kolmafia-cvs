@@ -91,12 +91,10 @@ public abstract class HPRestoreItemList extends StaticEntity
 		OTTER, REMEDY, TINY_HOUSE, COCOON, SCROLL, HERBS,
 		WALRUS, BANDAGES, POWERNAP, NAP, PHONICS, CAST, ELIXIR, BALM, UNGUENT, OINTMENT, CAMPING };
 
-	public static final HPRestoreItem [] FALLBACKS = new HPRestoreItem[0];
-
 	public static JCheckBox [] getCheckboxes()
 	{
-		String hpRestoreSetting = StaticEntity.getProperty( "hpRestores" );
-		JCheckBox [] restoreCheckbox = new JCheckBox[ CONFIGURES.length + FALLBACKS.length ];
+		String hpRestoreSetting = StaticEntity.getProperty( "hpAutoRecoveryItems" );
+		JCheckBox [] restoreCheckbox = new JCheckBox[ CONFIGURES.length ];
 
 		for ( int i = 0; i < CONFIGURES.length; ++i )
 		{
@@ -140,14 +138,23 @@ public abstract class HPRestoreItemList extends StaticEntity
 			if ( this == REMEDY )
 			{
 				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
-					(new UneffectRequest( client, KoLAdventure.BEATEN_UP )).run();
+				{
+					boolean canUneffect = KoLCharacter.canInteract() && StaticEntity.getProperty( "autoSatisfyChecks" ).equals( "true" );
+					canUneffect |= UneffectRequest.REMEDY.getCount( KoLCharacter.getInventory() ) > 0;
+
+					if ( canUneffect && KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
+						(new UneffectRequest( client, KoLAdventure.BEATEN_UP )).run();
+				}
 
 				return;
 			}
 
 			if ( this == TINY_HOUSE )
 			{
-				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
+				boolean canUneffect = KoLCharacter.canInteract() && StaticEntity.getProperty( "autoSatisfyChecks" ).equals( "true" );
+				canUneffect |= UneffectRequest.TINY_HOUSE.getCount( KoLCharacter.getInventory() ) > 0;
+
+				if ( canUneffect && KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
 					(new ConsumeItemRequest( client, new AdventureResult( "tiny house", 1 ) )).run();
 
 				return;
@@ -155,8 +162,8 @@ public abstract class HPRestoreItemList extends StaticEntity
 
 			if ( this == OTTER )
 			{
-				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) )
-					(new UseSkillRequest( client, toString(), "", 1 )).run();
+				if ( KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP ) && KoLCharacter.hasSkill( "Tongue of the Otter" ) )
+					(new UseSkillRequest( client, "Tongue of the Otter", "", 1 )).run();
 
 				return;
 			}
@@ -181,7 +188,7 @@ public abstract class HPRestoreItemList extends StaticEntity
 				int numberAvailable = itemUsed.getCount( KoLCharacter.getInventory() );
 
 				if ( this == HERBS )
-					numberAvailable = belowMax < 20 || !NPCStoreDatabase.contains( HERBS.toString() ) ? 0 : 1;
+					numberAvailable = belowMax < 20 || !NPCStoreDatabase.contains( HERBS.toString() ) || KoLCharacter.spleenLimitReached() ? 0 : 1;
 				else if ( this == SCROLL && KoLCharacter.canInteract() )
 					numberAvailable = 1;
 				else if ( this == OINTMENT )

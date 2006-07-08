@@ -261,6 +261,7 @@ public abstract class KoLCharacter extends StaticEntity
 	private static int familiarWeightAdjustment = 0;
 	private static int dodecapedeWeightAdjustment = 0;
 	private static int familiarItemWeightAdjustment = 0;
+	private static int manaCostModifier = 0;
 	private static double combatPercentAdjustment = 0.0;
 	private static double initiativeAdjustment = 0.0;
 	private static double fixedXPAdjustment = 0.0;
@@ -293,11 +294,13 @@ public abstract class KoLCharacter extends StaticEntity
 
 	private static List listenerList = new ArrayList();
 	private static boolean beanstalkArmed = false;
+	private static boolean spleenLimitReached = false;
 
 	// Ascension-related variables
 
 	private static boolean isHardcore = false;
 	private static boolean canInteract = true;
+
 	private static int ascensions = 0;
 	private static String ascensionSign = "None";
 	private static int ascensionSignType = NONE;
@@ -331,6 +334,7 @@ public abstract class KoLCharacter extends StaticEntity
 		familiarWeightAdjustment = 0;
 		dodecapedeWeightAdjustment = 0;
 		familiarItemWeightAdjustment = 0;
+		manaCostModifier = 0;
 		combatPercentAdjustment = 0.0;
 		initiativeAdjustment = 0.0;
 		fixedXPAdjustment = 0.0;
@@ -375,6 +379,7 @@ public abstract class KoLCharacter extends StaticEntity
 
 		stillsAvailable = -1;
 		beanstalkArmed = false;
+		spleenLimitReached = false;
 
 		ascensions = 0;
 		ascensionSign = "None";
@@ -408,8 +413,7 @@ public abstract class KoLCharacter extends StaticEntity
 	}
 
 	public static boolean isFallingDown()
-	{
-		return getInebriety() > (hasSkill( "Liver of Steel" ) ? 19 : 14);
+	{	return getInebriety() > (hasSkill( "Liver of Steel" ) ? 19 : 14);
 	}
 
 	/**
@@ -419,6 +423,14 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static String getUsername()
 	{	return username;
+	}
+
+	public static String baseUserName()
+	{	return baseUserName( username);
+	}
+
+	public static String baseUserName( String name )
+	{	return name.replaceAll( "\\/q", "" ).trim().replaceAll( " ", "_" ).toLowerCase();
 	}
 
 	/**
@@ -981,6 +993,10 @@ public abstract class KoLCharacter extends StaticEntity
 	{	return familiarItemWeightAdjustment;
 	}
 
+	public static int getManaCostModifier()
+	{	return manaCostModifier;
+	}
+
 	/**
 	 * Accessor method to retrieve the total current combat percent
 	 * adjustment
@@ -1077,6 +1093,8 @@ public abstract class KoLCharacter extends StaticEntity
 			}
 		}
 
+		addJoybuzzer();
+
 		if ( equipment.length > FAMILIAR && currentFamiliar != FamiliarData.NO_FAMILIAR )
 		{
 			currentFamiliar.setItem( equipment[FAMILIAR] );
@@ -1090,7 +1108,6 @@ public abstract class KoLCharacter extends StaticEntity
 			EquipmentDatabase.updateOutfits();
 		}
 
-		ClassSkillsDatabase.updateManaModifier();
 		recalculateAdjustments( false );
 		updateStatus();
 	}
@@ -1509,6 +1526,14 @@ public abstract class KoLCharacter extends StaticEntity
 	{	KoLCharacter.beanstalkArmed = true;
 	}
 
+	public static boolean spleenLimitReached()
+	{	return spleenLimitReached;
+	}
+
+	public static void reachSpleenLimit()
+	{	KoLCharacter.spleenLimitReached = true;
+	}
+
 	/**
 	 * Accessor method which indicates whether or not the character has store in the mall
 	 * @return	<code>true</code> if the character has a store
@@ -1885,23 +1910,14 @@ public abstract class KoLCharacter extends StaticEntity
 		// Add the three permanent starting items
 		// which can be used to attack.
 
-		KoLCharacter.battleSkillIDs.add( "item0002" );
+		KoLCharacter.battleSkillIDs.add( "item seal tooth" );
 		KoLCharacter.battleSkillNames.add( "Item: Use a Seal Tooth" );
 
-		KoLCharacter.battleSkillIDs.add( "item0004" );
+		KoLCharacter.battleSkillIDs.add( "item scroll of turtle summoning" );
 		KoLCharacter.battleSkillNames.add( "Item: Use a Scroll of Turtle Summoning" );
 
-		KoLCharacter.battleSkillIDs.add( "item0008" );
+		KoLCharacter.battleSkillIDs.add( "item spices" );
 		KoLCharacter.battleSkillNames.add( "Item: Use Spices" );
-
-		// Add in moxious maneuver if the player
-		// is of the appropriate class.
-
-		if ( isMoxieClass() )
-		{
-			battleSkillIDs.add( "moxman" );
-			battleSkillNames.add( "Special: Moxious Maneuver" );
-		}
 
 		// Check all available skills to see if they
 		// qualify to be added as combat or usables.
@@ -1911,6 +1927,8 @@ public abstract class KoLCharacter extends StaticEntity
 
 		for ( int i = 0; i < skillArray.length; ++i )
 			addAvailableSkill( skillArray[i] );
+
+		addJoybuzzer();
 
 		// Superhuman Cocktailcrafting affects # of summons for
 		// Advanced Cocktailcrafting
@@ -1936,9 +1954,38 @@ public abstract class KoLCharacter extends StaticEntity
 		KoLCharacter.battleSkillIDs.add( "custom" );
 		KoLCharacter.battleSkillNames.add( "Custom: Use Combat Script" );
 
-		battleSkillIDs.setSelectedItem( CombatSettings.getShortCombatOptionName( getProperty( "battleAction" ) ) );
+		battleSkillIDs.setSelectedItem( getProperty( "battleAction" ) );
 		if ( battleSkillIDs.getSelectedIndex() != -1 )
 			battleSkillNames.setSelectedIndex( battleSkillIDs.getSelectedIndex() );
+	}
+
+	public static void addJoybuzzer()
+	{
+		UseSkillRequest handshake = new UseSkillRequest( StaticEntity.getClient(), "Shake Hands", "", 1 );
+
+		if ( getEquipment( OFFHAND ).startsWith( "joybuzzer" ) )
+		{
+			if ( !KoLCharacter.battleSkillIDs.contains( "skill shake hands" ) )
+			{
+				KoLCharacter.battleSkillIDs.add( "skill shake hands" );
+				KoLCharacter.battleSkillNames.add( "Skill: Shake Hands" );
+
+				availableSkills.add( handshake );
+				combatSkills.add( handshake );
+			}
+		}
+		else
+		{
+			int index = KoLCharacter.battleSkillIDs.indexOf( "skill shake hands" );
+			if ( index != -1 )
+			{
+				KoLCharacter.battleSkillIDs.remove( index );
+				KoLCharacter.battleSkillNames.remove( index );
+
+				availableSkills.remove( handshake );
+				combatSkills.remove( handshake );
+			}
+		}
 	}
 
 	public static void addDictionary()
@@ -1959,13 +2006,13 @@ public abstract class KoLCharacter extends StaticEntity
 
 				if ( dictionary.getCount() > 0 )
 				{
-					battleSkillIDs.add( 1, "item0536" );
+					battleSkillIDs.add( 1, "item dictionary" );
 					battleSkillNames.add( 1, "Item: Use a Dictionary" );
 					return;
 				}
 				else if ( dictionary.getCount() == -1 )
 				{
-					int index = battleSkillIDs.indexOf( "item0536" );
+					int index = battleSkillIDs.indexOf( "item dictionary" );
 					if ( index != -1 )
 					{
 						battleSkillIDs.remove( index );
@@ -1981,13 +2028,13 @@ public abstract class KoLCharacter extends StaticEntity
 
 				if ( dictionary.getCount() > 0 )
 				{
-					battleSkillIDs.add( 1, "item1316" );
+					battleSkillIDs.add( 1, "item facsimile dictionary" );
 					battleSkillNames.add( 1, "Item: Use a Facsimile Dictionary" );
 					return;
 				}
 				else if ( dictionary.getCount() == -1 )
 				{
-					int index = battleSkillIDs.indexOf( "item1316" );
+					int index = battleSkillIDs.indexOf( "item facsimile dictionary" );
 					if ( index != -1 )
 					{
 						battleSkillIDs.remove( index );
@@ -2009,38 +2056,38 @@ public abstract class KoLCharacter extends StaticEntity
 
 	public static void addAvailableSkill( UseSkillRequest skill )
 	{
-		int id = ClassSkillsDatabase.getSkillID( skill.getSkillName() );
-
 		availableSkills.add( skill );
 
-		switch ( ClassSkillsDatabase.getSkillType( id ) )
+		switch ( ClassSkillsDatabase.getSkillType( skill.getSkillID() ) )
 		{
-		case ClassSkillsDatabase.PASSIVE:
-			// Flavour of Magic gives you access to five other
-			// castable skills
-			if ( skill.getSkillName().equals( "Flavour of Magic" ) )
-			{
-				usableSkills.add( new UseSkillRequest( client, "Spirit of Cayenne", "", 1 ) );
-				usableSkills.add( new UseSkillRequest( client, "Spirit of Peppermint", "", 1 ) );
-				usableSkills.add( new UseSkillRequest( client, "Spirit of Garlic", "", 1 ) );
-				usableSkills.add( new UseSkillRequest( client, "Spirit of Wormwood", "", 1 ) );
-				usableSkills.add( new UseSkillRequest( client, "Spirit of Bacon Grease", "", 1 ) );
-			}
-			break;
+			case ClassSkillsDatabase.PASSIVE:
+				// Flavour of Magic gives you access to five other
+				// castable skills
+				if ( skill.getSkillName().equals( "Flavour of Magic" ) )
+				{
+					usableSkills.add( new UseSkillRequest( client, "Spirit of Cayenne", "", 1 ) );
+					usableSkills.add( new UseSkillRequest( client, "Spirit of Peppermint", "", 1 ) );
+					usableSkills.add( new UseSkillRequest( client, "Spirit of Garlic", "", 1 ) );
+					usableSkills.add( new UseSkillRequest( client, "Spirit of Wormwood", "", 1 ) );
+					usableSkills.add( new UseSkillRequest( client, "Spirit of Bacon Grease", "", 1 ) );
+				}
+				break;
 
-		case ClassSkillsDatabase.SKILL:
-		case ClassSkillsDatabase.BUFF:
-			usableSkills.add( skill );
-			break;
+			case ClassSkillsDatabase.SKILL:
+			case ClassSkillsDatabase.BUFF:
 
-		case ClassSkillsDatabase.COMBAT:
-			combatSkills.add( skill );
-			battleSkillIDs.add( String.valueOf( id ) );
-			battleSkillNames.add( "Skill: " + skill.getSkillName() );
-			break;
+				usableSkills.add( skill );
+				break;
+
+			case ClassSkillsDatabase.COMBAT:
+
+				combatSkills.add( skill );
+				battleSkillIDs.add( "skill " + skill.getSkillName().toLowerCase() );
+				battleSkillNames.add( "Skill: " + skill.getSkillName() );
+				break;
 		}
 
-                recalculateAdjustments( true );
+		recalculateAdjustments( true );
 	}
 
 	/**
@@ -2072,15 +2119,11 @@ public abstract class KoLCharacter extends StaticEntity
 		if ( hasSkill( name, combatSkills ) )
 			return;
 
-		// Find the skill
-		int id = ClassSkillsDatabase.getSkillID( name );
-		if ( id == -1 )
-			return;
-
 		// Add to lists
 		UseSkillRequest skill = new UseSkillRequest( client, name, "", 1 );
+
 		combatSkills.add( skill );
-		battleSkillIDs.add( String.valueOf( id ) );
+		battleSkillIDs.add( "skill " + name.toLowerCase() );
 		battleSkillNames.add( "Skill: " + name );
 	}
 
@@ -2216,7 +2259,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static boolean hasSkill( String skillName, LockableListModel list )
 	{
 		for ( int i = 0; i < list.size(); ++i )
-			if ( ((UseSkillRequest)list.get(i)).getSkillName().equals( skillName ) )
+			if ( ((UseSkillRequest)list.get(i)).getSkillName().equalsIgnoreCase( skillName ) )
 				return true;
 		return false;
 	}
@@ -2274,7 +2317,7 @@ public abstract class KoLCharacter extends StaticEntity
 			"lack readout with (\\d+) bright green light" ).matcher( responseText );
 
 		if ( stillMatcher.find() )
-			stillsAvailable = Integer.parseInt( stillMatcher.group(1) );
+			stillsAvailable = StaticEntity.parseInt( stillMatcher.group(1) );
 		else
 			stillsAvailable = 0;
 	}
@@ -2486,7 +2529,10 @@ public abstract class KoLCharacter extends StaticEntity
 		else if ( resultName.equals( AdventureResult.MP ) )
 			setMP( getCurrentMP() + result.getCount(), getMaximumMP(), getBaseMaxMP() );
 		else if ( resultName.equals( AdventureResult.MEAT ) )
+		{
 			setAvailableMeat( getAvailableMeat() + result.getCount() );
+			refreshCalculatedLists();
+		}
 		else if ( resultName.equals( AdventureResult.ADV ) )
 		{
 			setAdventuresLeft( getAdventuresLeft() + result.getCount() );
@@ -2534,7 +2580,7 @@ public abstract class KoLCharacter extends StaticEntity
 	public static boolean hasRecoveringEquipment()
 	{
 		// Plexiglass Pith Helmet
-		if ( getEquipment( HAT ).startsWith( "plexiglass pith helmet" ) )
+		if ( getEquipment( HAT ).startsWith( "plexiglass" ) || getEquipment( HAT ).startsWith( "jewel-eyed wizard hat" ) )
 			return true;
 
 		for ( int i = ACCESSORY1; i <= ACCESSORY3; ++i )
@@ -2809,12 +2855,19 @@ public abstract class KoLCharacter extends StaticEntity
 	private static final int SAUCE_GLOVE = 531;
 	private static final String SPIRIT_OF_RIGATONI = "Spirit of Rigatoni";
 
+	// Items that modify Mana cost of skills
+	private static final int BACONSTONE_BRACELET = 717;
+	private static final int STAINLESS_SOLITAIRE = 1226;
+	private static final int PLEXIGLASS_POCKETWATCH = 1232;
+	private static final int WIZARD_HAT = 1653;
+
 	public static boolean recalculateAdjustments( boolean update )
 	{
 		int newMonsterLevelAdjustment = 0;
 		int newFamiliarWeightAdjustment = 0;
 		int newDodecapedeWeightAdjustment = 0;
 		int newFamiliarItemWeightAdjustment = 0;
+		int newManaCostModifier = 0;
 		double newCombatPercentAdjustment = 0.0;
 		double newInitiativeAdjustment = 0.0;
 		double newFixedXPAdjustment = 0.0;
@@ -3010,6 +3063,16 @@ public abstract class KoLCharacter extends StaticEntity
 			case 1246:	// rib of the Bonerdagon
 			case 1467:	// 25-meat staff
 				hasStaff = true;
+				break;
+			case BACONSTONE_BRACELET:
+			case WIZARD_HAT:
+				newManaCostModifier -= 1;
+				break;
+			case STAINLESS_SOLITAIRE:
+				newManaCostModifier -= 2;
+				break;
+			case PLEXIGLASS_POCKETWATCH:
+				newManaCostModifier -= 3;
 				break;
 			}
 		}
@@ -3248,6 +3311,11 @@ public abstract class KoLCharacter extends StaticEntity
 		// Determine if Mysticality is the current To-hit stat
 		newRigatoniActive = rigatoniSkill && hasStaff;
 
+		// Make sure the mana modifier is no more than
+		// three, no matter what.
+
+		newManaCostModifier = Math.max( newManaCostModifier, -3 );
+
 		boolean changed = false;
 		if ( monsterLevelAdjustment != newMonsterLevelAdjustment )
 		{
@@ -3265,6 +3333,12 @@ public abstract class KoLCharacter extends StaticEntity
 		if ( familiarItemWeightAdjustment != newFamiliarItemWeightAdjustment )
 		{
 			familiarItemWeightAdjustment = newFamiliarItemWeightAdjustment;
+			changed = true;
+		}
+
+		if ( manaCostModifier != newManaCostModifier )
+		{
+			manaCostModifier = newManaCostModifier;
 			changed = true;
 		}
 

@@ -116,6 +116,18 @@ public class ChatRequest extends KoLRequest
 		this.lastSeen = lastSeen;
 	}
 
+	public void run()
+	{
+		String graf = getFormField( "graf" );
+		if ( graf != null && graf.startsWith( "/run" ) )
+		{
+			DEFAULT_SHELL.executeLine( graf.substring( 5 ) );
+			return;
+		}
+
+		super.run();
+	}
+
 	protected void processResults()
 	{
 		if ( KoLMessenger.isRunning() && thread == null )
@@ -127,7 +139,7 @@ public class ChatRequest extends KoLRequest
 		int index = responseText.indexOf( "<!--lastseen:" );
 
 		if ( index != -1 )
-			lastSeen = Integer.parseInt( responseText.substring( index + 13, index + 23 ) );
+			lastSeen = StaticEntity.parseInt( responseText.substring( index + 13, index + 23 ) );
 
 		try
 		{
@@ -147,10 +159,6 @@ public class ChatRequest extends KoLRequest
 
 	private class ChatContinuationThread extends Thread
 	{
-		public ChatContinuationThread()
-		{	setDaemon( true );
-		}
-
 		public void run()
 		{
 			ChatRequest request = new ChatRequest( client, lastSeen );
@@ -161,8 +169,15 @@ public class ChatRequest extends KoLRequest
 				// refresh rate indicated - this is likely the default rate
 				// used for the KoLChat.
 
-				ChatRequest.delay( CHAT_DELAY );
-				request.run();
+				try
+				{
+					ChatRequest.delay( CHAT_DELAY );
+					request.run();
+				}
+				catch ( Exception e )
+				{
+					StaticEntity.printStackTrace( e );
+				}
 
 				request.addFormField( "lasttime", String.valueOf( lastSeen ) );
 			}

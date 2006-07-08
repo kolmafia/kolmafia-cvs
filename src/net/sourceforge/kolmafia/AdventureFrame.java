@@ -35,48 +35,26 @@
 package net.sourceforge.kolmafia;
 
 // layout
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.CardLayout;
 import java.awt.GridLayout;
 import java.awt.BorderLayout;
 
 // event listeners
-import javax.swing.SwingUtilities;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
-import java.awt.event.WindowEvent;
 
 // containers
-import javax.swing.JToolBar;
-import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JLabel;
-import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JTextField;
-import javax.swing.JCheckBox;
 import javax.swing.ListSelectionModel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
-import javax.swing.JOptionPane;
-import javax.swing.JTextArea;
-import javax.swing.JTree;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.JEditorPane;
 
 // other imports
 import java.util.Date;
-import java.text.DecimalFormat;
-import java.text.ParseException;
-
-import java.io.BufferedReader;
-import java.io.PrintStream;
-import java.io.FileOutputStream;
-
-import net.java.dev.spellcast.utilities.SortedListModel;
 import net.java.dev.spellcast.utilities.LockableListModel;
 import net.java.dev.spellcast.utilities.JComponentUtilities;
 
@@ -90,9 +68,6 @@ import net.java.dev.spellcast.utilities.JComponentUtilities;
 
 public class AdventureFrame extends KoLFrame
 {
-	private JTree displayTree;
-	private DefaultTreeModel displayModel;
-
 	private JComboBox locationSelect;
 	private JComboBox dropdown1, dropdown2;
 	private AdventureSelectPanel adventureSelect;
@@ -116,33 +91,17 @@ public class AdventureFrame extends KoLFrame
 		this.adventureSelect = new AdventureSelectPanel();
 
 		JPanel southPanel = new JPanel( new GridLayout( 1, 2, 5, 5 ) );
-		southPanel.add( getAdventureSummary( Integer.parseInt( getProperty( "defaultDropdown1" ) ) ) );
-		southPanel.add( getAdventureSummary( Integer.parseInt( getProperty( "defaultDropdown2" ) ) ) );
+		southPanel.add( getAdventureSummary( StaticEntity.parseInt( getProperty( "defaultDropdown1" ) ) ) );
+		southPanel.add( getAdventureSummary( StaticEntity.parseInt( getProperty( "defaultDropdown2" ) ) ) );
 
 		adventureContainer.add( adventureSelect, BorderLayout.NORTH );
 		adventureContainer.add( southPanel, BorderLayout.CENTER );
-		tabs.add( "Adventure", adventureContainer );
-
-		JScrollPane choiceScroller = new JScrollPane( new ChoiceOptionsPanel(),
-			JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-
-		JComponentUtilities.setComponentSize( choiceScroller, 560, 400 );
-		tabs.add( "Choice Options", choiceScroller );
-
-		displayTree = new JTree();
-		displayModel = (DefaultTreeModel) displayTree.getModel();
-
-		JScrollPane treeScroller = new JScrollPane( displayTree, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-			JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-
-		tabs.add( "View CCS", treeScroller );
-		tabs.add( "Modify CCS", new CustomCombatPanel() );
 
 		try
 		{
 			String holiday = MoonPhaseDatabase.getHoliday( DATED_FILENAME_FORMAT.parse( DATED_FILENAME_FORMAT.format( new Date() ) ) );
 
-			if ( holiday.startsWith( "No" ) )
+			if ( holiday.startsWith( "No" ) || holiday.indexOf( "Birthday" ) != -1 )
 				adventureSelect.setStatusMessage( MoonPhaseDatabase.getMoonEffect() );
 			else
 				adventureSelect.setStatusMessage( holiday + ", " + MoonPhaseDatabase.getMoonEffect() );
@@ -155,7 +114,7 @@ public class AdventureFrame extends KoLFrame
 			StaticEntity.printStackTrace( e );
 		}
 
-		getContentPane().add( tabs, BorderLayout.CENTER );
+		getContentPane().add( adventureContainer, BorderLayout.CENTER );
 	}
 
 	public boolean useSidePane()
@@ -193,11 +152,16 @@ public class AdventureFrame extends KoLFrame
 		containerPanel.add( resultPanel, BorderLayout.CENTER );
 
 		if ( dropdown1 == null )
+		{
 			dropdown1 = resultSelect;
+			dropdown1.setSelectedIndex( selectedIndex );
+		}
 		else
+		{
 			dropdown2 = resultSelect;
+			dropdown2.setSelectedIndex( selectedIndex );
+		}
 
-		resultSelect.setSelectedIndex( selectedIndex );
 		return containerPanel;
 	}
 
@@ -312,13 +276,6 @@ public class AdventureFrame extends KoLFrame
 			setContent( elements );
 			int actionIndex = KoLCharacter.getBattleSkillIDs().indexOf( getProperty( "battleAction" ) );
 
-			if ( actionIndex == -1 )
-			{
-				// The character no longer knows this skill
-				setProperty( "battleAction", "attack" );
-				actionIndex = 0;
-			}
-
 			if ( KoLCharacter.getBattleSkillIDs().size() > 0 )
 				actionSelect.setSelectedIndex( actionIndex );
 
@@ -353,17 +310,11 @@ public class AdventureFrame extends KoLFrame
 			// placed in the input fields.
 
 			if ( actionSelect.getSelectedItem() == null )
-			{
-				setStatusMessage( ERROR_STATE, "Please select a combat option." );
-				return;
-			}
+				DEFAULT_SHELL.executeLine( "set battleAction=attack" );
 
 			Runnable request = (Runnable) locationSelect.getSelectedItem();
 			if ( request == null )
-			{
-				setStatusMessage( ERROR_STATE, "Please select an adventure location." );
 				return;
-			}
 
 			setProperty( "lastAdventure", request.toString() );
 
@@ -412,7 +363,10 @@ public class AdventureFrame extends KoLFrame
 					else
 					{
 						if ( !DEFAULT_SHELL.executeConditionsCommand( "add " + conditions[i] ) )
+						{
+							KoLmafia.enableDisplay();
 							return;
+						}
 					}
 				}
 
@@ -471,372 +425,5 @@ public class AdventureFrame extends KoLFrame
 			add( new JScrollPane( tallyDisplay, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
 				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER ), BorderLayout.CENTER );
 		}
-	}
-
-	/**
-	 * This panel allows the user to select which item they would like
-	 * to do for each of the different choice adventures.
-	 */
-
-	private class ChoiceOptionsPanel extends KoLPanel
-	{
-		private JComboBox [] optionSelects;
-
-		private JComboBox battleStopSelect;
-		private JComboBox cloverProtectSelect;
-
-		private JComboBox castleWheelSelect;
-		private JComboBox spookyForestSelect;
-		private JComboBox violetFogSelect;
-
-		/**
-		 * Constructs a new <code>ChoiceOptionsPanel</code>.
-		 */
-
-		public ChoiceOptionsPanel()
-		{
-			super( new Dimension( 130, 20 ), new Dimension( 260, 20 ) );
-
-			optionSelects = new JComboBox[ AdventureDatabase.CHOICE_ADVS.length ];
-			for ( int i = 0; i < AdventureDatabase.CHOICE_ADVS.length; ++i )
-			{
-				optionSelects[i] = new JComboBox();
-
-				boolean ignorable = AdventureDatabase.ignoreChoiceOption( AdventureDatabase.CHOICE_ADVS[i][0][0] ) != null;
-				optionSelects[i].addItem( ignorable ?
-										  "Ignore this adventure" :
-										  "Can't ignore this adventure" );
-
-				for ( int j = 0; j < AdventureDatabase.CHOICE_ADVS[i][2].length; ++j )
-					optionSelects[i].addItem( AdventureDatabase.CHOICE_ADVS[i][2][j] );
-			}
-
-			battleStopSelect = new JComboBox();
-			battleStopSelect.addItem( "Never stop combat" );
-			for ( int i = 0; i <= 9; ++i )
-				battleStopSelect.addItem( "Autostop at " + (i*10) + "% HP" );
-
-			cloverProtectSelect = new JComboBox();
-			cloverProtectSelect.addItem( "Disassemble ten-leaf clovers" );
-			cloverProtectSelect.addItem( "Leave ten-leaf clovers alone" );
-
-			castleWheelSelect = new JComboBox();
-			castleWheelSelect.addItem( "Turn to map quest position" );
-			castleWheelSelect.addItem( "Turn to muscle position" );
-			castleWheelSelect.addItem( "Turn to mysticality position" );
-			castleWheelSelect.addItem( "Turn to moxie position" );
-			castleWheelSelect.addItem( "Turn clockwise" );
-			castleWheelSelect.addItem( "Turn counterclockwise" );
-			castleWheelSelect.addItem( "Ignore this adventure" );
-
-			spookyForestSelect = new JComboBox();
-			spookyForestSelect.addItem( "Loot Seal Clubber corpse" );
-			spookyForestSelect.addItem( "Loot Turtle Tamer corpse" );
-			spookyForestSelect.addItem( "Loot Pastamancer corpse" );
-			spookyForestSelect.addItem( "Loot Sauceror corpse" );
-			spookyForestSelect.addItem( "Loot Disco Bandit corpse" );
-			spookyForestSelect.addItem( "Loot Accordion Thief corpse" );
-
-			violetFogSelect = new JComboBox();
-			for ( int i = 0; i < VioletFog.FogGoals.length; ++i )
-				violetFogSelect.addItem( VioletFog.FogGoals[i] );
-
-			VerifiableElement [] elements = new VerifiableElement[ optionSelects.length + 7 ];
-			elements[0] = new VerifiableElement( "Combat Abort", battleStopSelect );
-			elements[1] = new VerifiableElement( "Clover Protect", cloverProtectSelect );
-
-			elements[2] = new VerifiableElement( "", new JLabel() );
-			elements[3] = new VerifiableElement( "Castle Wheel", castleWheelSelect );
-			elements[4] = new VerifiableElement( "Forest Corpses", spookyForestSelect );
-			elements[5] = new VerifiableElement( "Violet Fog", violetFogSelect );
-			elements[6] = new VerifiableElement( "Lucky Sewer", optionSelects[0] );
-
-			elements[7] = new VerifiableElement( "", new JLabel() );
-			for ( int i = 1; i < optionSelects.length; ++i )
-				elements[i+7] = new VerifiableElement( AdventureDatabase.CHOICE_ADVS[i][1][0], optionSelects[i] );
-
-			setContent( elements );
-			actionCancelled();
-		}
-
-		protected void actionConfirmed()
-		{
-			setProperty( "battleStop", String.valueOf( ((double)(battleStopSelect.getSelectedIndex() - 1) / 10.0) ) );
-			setProperty( "cloverProtectActive", String.valueOf( cloverProtectSelect.getSelectedIndex() == 0 ) );
-			setProperty( "violetFogGoal", String.valueOf( violetFogSelect.getSelectedIndex() ) );
-			setProperty( "luckySewerAdventure", (String) optionSelects[0].getSelectedItem() );
-
-			for ( int i = 1; i < optionSelects.length; ++i )
-			{
-				int index = optionSelects[i].getSelectedIndex();
-				String choice = AdventureDatabase.CHOICE_ADVS[i][0][0];
-				boolean ignorable = AdventureDatabase.ignoreChoiceOption( choice ) != null;
-
-				if ( ignorable || index != 0 )
-					setProperty( choice, String.valueOf( index ) );
-				else
-					optionSelects[i].setSelectedIndex( Integer.parseInt( getProperty( choice ) ) );
-			}
-
-			//              The Wheel:
-
-			//              Muscle
-			// Moxie          +         Mysticality
-			//            Map Quest
-
-			// Option 1: Turn the wheel clockwise
-			// Option 2: Turn the wheel counterclockwise
-			// Option 3: Leave the wheel alone
-
-			switch ( castleWheelSelect.getSelectedIndex() )
-			{
-				case 0: // Map quest position (choice adventure 11)
-					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
-					setProperty( "choiceAdventure10", "1" );  // Turn the mysticality position clockwise
-					setProperty( "choiceAdventure11", "3" );  // Leave the map quest position alone
-					setProperty( "choiceAdventure12", "2" );  // Turn the moxie position counterclockwise
-					break;
-
-				case 1: // Muscle position (choice adventure 9)
-					setProperty( "choiceAdventure9", "3" );	  // Leave the muscle position alone
-					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
-					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
-					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
-					break;
-
-				case 2: // Mysticality position (choice adventure 10)
-					setProperty( "choiceAdventure9", "1" );	  // Turn the muscle position clockwise
-					setProperty( "choiceAdventure10", "3" );  // Leave the mysticality position alone
-					setProperty( "choiceAdventure11", "2" );  // Turn the map quest position counterclockwise
-					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
-					break;
-
-				case 3: // Moxie position (choice adventure 12)
-					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
-					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
-					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
-					setProperty( "choiceAdventure12", "3" );  // Leave the moxie position alone
-					break;
-
-				case 4: // Turn the wheel clockwise
-					setProperty( "choiceAdventure9", "1" );	  // Turn the muscle position clockwise
-					setProperty( "choiceAdventure10", "1" );  // Turn the mysticality position clockwise
-					setProperty( "choiceAdventure11", "1" );  // Turn the map quest position clockwise
-					setProperty( "choiceAdventure12", "1" );  // Turn the moxie position clockwise
-					break;
-
-				case 5: // Turn the wheel counterclockwise
-					setProperty( "choiceAdventure9", "2" );	  // Turn the muscle position counterclockwise
-					setProperty( "choiceAdventure10", "2" );  // Turn the mysticality position counterclockwise
-					setProperty( "choiceAdventure11", "2" );  // Turn the map quest position counterclockwise
-					setProperty( "choiceAdventure12", "2" );  // Turn the moxie position counterclockwise
-					break;
-
-				case 6: // Ignore this adventure
-					setProperty( "choiceAdventure9", "3" );	  // Leave the muscle position alone
-					setProperty( "choiceAdventure10", "3" );  // Leave the mysticality position alone
-					setProperty( "choiceAdventure11", "3" );  // Leave the map quest position alone
-					setProperty( "choiceAdventure12", "3" );  // Leave the moxie position alone
-					break;
-			}
-
-			switch ( spookyForestSelect.getSelectedIndex() )
-			{
-				case 0: // Seal clubber corpse
-					setProperty( "choiceAdventure26", "1" );
-					setProperty( "choiceAdventure27", "1" );
-					break;
-
-				case 1: // Turtle tamer corpse
-					setProperty( "choiceAdventure26", "1" );
-					setProperty( "choiceAdventure27", "2" );
-					break;
-
-				case 2: // Pastamancer corpse
-					setProperty( "choiceAdventure26", "2" );
-					setProperty( "choiceAdventure28", "1" );
-					break;
-
-				case 3: // Sauceror corpse
-					setProperty( "choiceAdventure26", "2" );
-					setProperty( "choiceAdventure28", "2" );
-					break;
-
-				case 4: // Disco bandit corpse
-					setProperty( "choiceAdventure26", "3" );
-					setProperty( "choiceAdventure29", "1" );
-					break;
-
-				case 5: // Accordion thief corpse
-					setProperty( "choiceAdventure26", "3" );
-					setProperty( "choiceAdventure29", "2" );
-					break;
-			}
-		}
-
-		protected void actionCancelled()
-		{
-			battleStopSelect.setSelectedIndex( (int)(Double.parseDouble( getProperty( "battleStop" ) ) * 10) + 1 );
-			cloverProtectSelect.setSelectedIndex( getProperty( "cloverProtectActive" ).equals( "true" ) ? 0 : 1 );
-			violetFogSelect.setSelectedIndex( Integer.parseInt( getProperty( "violetFogGoal" ) ) );
-
-			optionSelects[0].setSelectedItem( getProperty( "luckySewerAdventure" ) );
-			for ( int i = 1; i < optionSelects.length; ++i )
-				optionSelects[i].setSelectedIndex( Integer.parseInt( getProperty( AdventureDatabase.CHOICE_ADVS[i][0][0] ) ) );
-
-			// Determine the desired wheel position by examining
-			// which choice adventure has the "3" value.
-			// If none are "3", may be clockwise or counterclockwise
-			// If they are all "3", leave wheel alone
-
-			int [] counts = { 0, 0, 0, 0 };
-			int option3 = 11;
-			for ( int i = 9; i < 13; ++i )
-			{
-				int choice = Integer.parseInt( getProperty( "choiceAdventure" + i ) );
-				counts[choice]++;
-				if ( choice == 3 )
-					option3 = i;
-			}
-
-			int index = 0;
-
-			if ( counts[1] == 4 )
-			{
-				// All choices say turn clockwise
-				index = 4;
-			}
-			else if ( counts[2] == 4 )
-			{
-				// All choices say turn counterclockwise
-				index = 5;
-			}
-			else if ( counts[3] == 4 )
-			{
-				// All choices say leave alone
-				index = 6;
-			}
-			else if ( counts[3] != 1 )
-			{
-				// Bogus. Assume map quest
-				index = 0;
-			}
-			else if ( option3 == 9)
-			{
-				// Muscle says leave alone
-				index = 1;
-			}
-			else if ( option3 == 10)
-			{
-				// Mysticality says leave alone
-				index = 2;
-			}
-			else if ( option3 == 11)
-			{
-				// Map Quest says leave alone
-				index = 0;
-			}
-			else if ( option3 == 12)
-			{
-				// Moxie says leave alone
-				index = 3;
-			}
-
-			castleWheelSelect.setSelectedIndex( index );
-
-			// Now, determine what is located in choice adventure #26,
-			// which shows you which slot (in general) to use.
-
-			index = Integer.parseInt( getProperty( "choiceAdventure26" ) );
-			index = index * 2 + Integer.parseInt( getProperty( "choiceAdventure" + (26 + index) ) ) - 3;
-
-			spookyForestSelect.setSelectedIndex( index );
-		}
-
-		protected boolean shouldAddStatusLabel( VerifiableElement [] elements )
-		{	return false;
-		}
-	}
-
-	private class CustomCombatPanel extends LabeledScrollPanel
-	{
-		public CustomCombatPanel()
-		{
-			super( "Custom Combat", "save", "help", new JTextArea( 12, 40 ) );
-
-			try
-			{
-				CombatSettings.reset();
-				BufferedReader reader = KoLDatabase.getReader( CombatSettings.settingsFileName() );
-
-				StringBuffer buffer = new StringBuffer();
-
-				String line;
-
-				while ( (line = reader.readLine()) != null )
-				{
-					buffer.append( line );
-					buffer.append( System.getProperty( "line.separator" ) );
-				}
-
-				reader.close();
-				reader = null;
-				((JTextArea)scrollComponent).setText( buffer.toString() );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
-
-			refreshCombatTree();
-		}
-
-		protected void actionConfirmed()
-		{
-			try
-			{
-				PrintStream writer = new PrintStream( new FileOutputStream( DATA_DIRECTORY + CombatSettings.settingsFileName() ) );
-				writer.println( ((JTextArea)scrollComponent).getText() );
-				writer.close();
-				writer = null;
-
-				int customIndex = KoLCharacter.getBattleSkillIDs().indexOf( "custom" );
-				KoLCharacter.getBattleSkillIDs().setSelectedIndex( customIndex );
-				KoLCharacter.getBattleSkillNames().setSelectedIndex( customIndex );
-				setProperty( "battleAction", "custom" );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
-
-			// After storing all the data on disk, go ahead
-			// and reload the data inside of the tree.
-
-			refreshCombatTree();
-			tabs.setSelectedIndex(3);
-		}
-
-		protected void actionCancelled()
-		{	StaticEntity.openSystemBrowser( "http://kolmafia.sourceforge.net/combat.html" );
-		}
-	}
-
-	/**
-	 * Internal class used to handle everything related to
-	 * displaying custom combat.
-	 */
-
-	private void refreshCombatTree()
-	{
-		CombatSettings.reset();
-		displayModel.setRoot( CombatSettings.getRoot() );
-		displayTree.setRootVisible( false );
 	}
 }

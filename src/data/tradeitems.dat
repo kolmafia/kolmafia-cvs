@@ -257,8 +257,8 @@
 257	extra-spicy bloody mary	2	66
 258	dense meat stack	0	1000
 259	whitesnake skin	0	25
-260	White Castle fries	1	11
-261	White Castle burger	1	12
+260	White Citadel fries	1	40
+261	White Citadel burger	1	50
 262	piece of wedding cake	1	12
 263	white chocolate chips	1	24
 264	white chocolate chip cookies	1	44
@@ -1331,7 +1331,7 @@
 1331	Cloaca-Cola helmet	9	35
 1332	Cloaca-Cola knapsack	3	200
 1333	Dyspepsi-Cola knapsack	3	200
-1334	Cloaca-Cola	4	52
+1334	Cloaca-Cola	14	52
 1335	Dyspepsi grenade	0	150
 1336	Cloaca grenade	0	150
 1337
@@ -1482,9 +1482,9 @@
 1482	paper-plate-mail pants	10	80
 1483	troutpiece	10	110
 1484	alpha-mail pants	10	140
-1485
-1486
-1487
+1485	lucky rabbit's foot	8	120
+1486	massive bag of catnip	0	0
+1487	hang glider	0	0
 1488	March hat	5	-1
 1489	miniature dormouse	7	75
 1490	chopsticks	12	80
@@ -1646,7 +1646,15 @@
 1646	spooky and sour sauce	0	100
 1647	stench and sour sauce	0	100
 1648	sleazy and sour sauce	0	100
-1649	brick	0	5
+1649	brick	0	0
 1650	milk of magnesium	3	36
 1651	foie gras	1	30
 1652	candy brain	4	54
+1653	jewel-eyed wizard hat	9	-1
+1654	wad of Crovacite	13	0
+1655	white collar	8	60
+1656	White Citadel Satisfaction Satchel	0	0
+1657	onion shurikens	0	40
+1658	Cherry Cloaca Cola	14	40
+1659	Diet Cloaca Cola	14	40
+1660	Regular Cloaca Cola	14	40

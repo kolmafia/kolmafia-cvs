@@ -224,7 +224,7 @@ public class ConsumeItemRequest extends KoLRequest
 
 		if ( alreadyInstalled )
 		{
-			KoLmafia.updateDisplay( PENDING_STATE, "You already have one installed." );
+			KoLmafia.updateDisplay( "You already have one installed." );
 			return;
 		}
 
@@ -267,7 +267,7 @@ public class ConsumeItemRequest extends KoLRequest
 		{
 			if ( responseText.indexOf( "You've already got a familiar of that type." ) != -1 )
 			{
-				KoLmafia.updateDisplay( PENDING_STATE, "You already have that familiar." );
+				KoLmafia.updateDisplay( "You already have that familiar." );
 				return;
 			}
 
@@ -290,7 +290,8 @@ public class ConsumeItemRequest extends KoLRequest
 
 		if ( responseText.indexOf( "rupture" ) != -1 )
 		{
-			KoLmafia.updateDisplay( PENDING_STATE, "Your spleen might go kabooie." );
+			KoLCharacter.reachSpleenLimit();
+			KoLmafia.updateDisplay( "Your spleen might go kabooie." );
 			return;
 		}
 
@@ -306,7 +307,7 @@ public class ConsumeItemRequest extends KoLRequest
 
 		if ( responseText.indexOf( "too drunk" ) != -1 )
 		{
-			KoLmafia.updateDisplay( ERROR_STATE, "Inebriety limit reached." );
+			KoLmafia.updateDisplay( PENDING_STATE, "Inebriety limit reached." );
 			return;
 		}
 
@@ -356,13 +357,6 @@ public class ConsumeItemRequest extends KoLRequest
 
 			// Remove the old dictionary
 			client.processResult( FightRequest.DICTIONARY1.getNegation() );
-
-			// If he was fighting with the old dictionary, switch
-			// to use the new one.
-
-			if ( getProperty( "battleAction" ).equals( "item0536" ) )
-				setProperty( "battleAction", "item1316" );
-
 			break;
 
 		case ENCHANTED_BEAN:
@@ -428,7 +422,10 @@ public class ConsumeItemRequest extends KoLRequest
 
 		case TINY_HOUSE:
 			// Tiny houses remove lots of different effects.
+
+			int originalEffectCount = KoLCharacter.getEffects().size();
 			client.applyTinyHouseEffect();
+			needsRefresh = originalEffectCount != KoLCharacter.getEffects().size();
 			break;
 
 		case RAFFLE_TICKET:
@@ -555,7 +552,7 @@ public class ConsumeItemRequest extends KoLRequest
 			// ate.	 Try again later."
 			if ( responseText.indexOf( "still cold" ) != -1 )
 			{
-				KoLmafia.updateDisplay( PENDING_STATE, "Your mouth is too cold." );
+				KoLmafia.updateDisplay( "Your mouth is too cold." );
 				return;
 			}
 			break;
@@ -693,11 +690,6 @@ public class ConsumeItemRequest extends KoLRequest
 	public static boolean processRequest( KoLmafia client, String urlString )
 	{
 		int consumptionType = NO_CONSUME;
-		AdventureResult itemUsed = null;
-
-		Matcher itemMatcher = Pattern.compile( "whichitem=(\\d+)" ).matcher( urlString );
-		if ( itemMatcher.find() )
-			itemUsed = new AdventureResult( Integer.parseInt( itemMatcher.group(1) ), 1 );
 
 		if ( urlString.indexOf( "inv_eat.php" ) != -1 )
 			consumptionType = CONSUME_EAT;
@@ -714,11 +706,16 @@ public class ConsumeItemRequest extends KoLRequest
 		else
 			return false;
 
+		AdventureResult itemUsed = null;
+		Matcher itemMatcher = Pattern.compile( "whichitem=(\\d+)" ).matcher( urlString );
+		if ( itemMatcher.find() )
+			itemUsed = new AdventureResult( StaticEntity.parseInt( itemMatcher.group(1) ), 1 );
+
 		if ( urlString.indexOf( "multiuse.php" ) != -1 || urlString.indexOf( "skills.php" ) != -1 )
 		{
 			Matcher quantityMatcher = Pattern.compile( "quantity=(\\d+)" ).matcher( urlString );
 			if ( quantityMatcher.find() )
-				itemUsed = itemUsed.getInstance( Integer.parseInt( quantityMatcher.group(1) ) );
+				itemUsed = itemUsed.getInstance( StaticEntity.parseInt( quantityMatcher.group(1) ) );
 		}
 
 		String useTypeAsString = (consumptionType == ConsumeItemRequest.CONSUME_EAT) ? "eat " :

@@ -277,18 +277,12 @@ public abstract class SorceressLair extends StaticEntity
 		// If you couldn't complete the gateway, then return
 		// from this method call.
 
-		List requirements = new ArrayList();
-		requirements.addAll( completeGateway() );
+		completeGateway();
 
-		if ( !requirements.isEmpty() )
-		{
-			requirements.addAll( retrieveRhythm( true ) );
-			requirements.addAll( retrieveStrumming( true ) );
-			requirements.addAll( retrieveSqueezings( true ) );
-			client.checkRequirements( requirements );
-
+		if ( KoLmafia.refusesContinue() )
 			return;
-		}
+
+		List requirements = new ArrayList();
 
 		// Next, figure out which instruments are needed for the final
 		// stage of the entryway. If the person has a clover weapon,
@@ -339,7 +333,7 @@ public abstract class SorceressLair extends StaticEntity
 		requirements.addAll( retrieveScubaGear( false ) );
 
 		SpecialOutfit.restoreCheckpoint();
-		if ( !client.checkRequirements( requirements ) || !KoLmafia.permitsContinue() )
+		if ( !client.checkRequirements( requirements ) || KoLmafia.refusesContinue() )
 			return;
 
 		// If you decided to use a broken skull because
@@ -396,13 +390,8 @@ public abstract class SorceressLair extends StaticEntity
 		KoLmafia.updateDisplay( "Sorceress entryway complete." );
 	}
 
-	private static List completeGateway()
+	private static void completeGateway()
 	{
-		// Remove his weapon so that everything is easier for
-		// the rest of the script.
-
-		List requirements = new ArrayList();
-
 		// Make sure the character has some candy, or at least
 		// the appropriate status effect.
 
@@ -418,17 +407,17 @@ public abstract class SorceressLair extends StaticEntity
 		if ( request.responseText.indexOf( "gatesdone" ) == -1 )
 		{
 			if ( !KoLCharacter.getEffects().contains( SUGAR ) && !hasItem( candy ) )
-				requirements.add( candy );
+				AdventureDatabase.retrieveItem( candy );
 
 			if ( !KoLCharacter.getEffects().contains( WUSSINESS ) && !hasItem( WUSSY_POTION ) )
-				requirements.add( WUSSY_POTION );
+				AdventureDatabase.retrieveItem( WUSSY_POTION );
 
 			if ( !KoLCharacter.getEffects().contains( MIASMA ) && !hasItem( BLACK_CANDLE ) )
-				requirements.add( BLACK_CANDLE );
+				AdventureDatabase.retrieveItem( BLACK_CANDLE );
 		}
 
-		if ( !requirements.isEmpty() )
-			return requirements;
+		if ( KoLmafia.refusesContinue() )
+			return;
 
 		// Use the rice candy, wussiness potion, and black candle
 		// and then cross through the first door.
@@ -467,8 +456,6 @@ public abstract class SorceressLair extends StaticEntity
 			request.addFormField( "action", "mirror" );
 			request.run();
 		}
-
-		return requirements;
 	}
 
 	private static List retrieveRhythm( boolean isCheckOnly )
@@ -1150,7 +1137,7 @@ public abstract class SorceressLair extends StaticEntity
 		int n = -1;
 		Matcher placeMatcher = Pattern.compile( "lair6.php\\?place=(\\d+)" ).matcher( request.responseText );
 		if ( placeMatcher.find() )
-			n = Integer.parseInt( placeMatcher.group(1) );
+			n = StaticEntity.parseInt( placeMatcher.group(1) );
 
 		if ( n < 0 )
 		{
@@ -1328,7 +1315,6 @@ public abstract class SorceressLair extends StaticEntity
 		AdventureResult option = new AdventureResult( "red pixel potion", 4 );
 
 		int maximumDamage = 22 + (int) Math.floor( KoLCharacter.getMaximumHP() / 5 ) + 3;
-		int minimumHealing = 25;
 
 		// Suppose you have 126 HP, and assume maximum damage taken.
 		// We have the following results, assuming worst-case health
@@ -1346,7 +1332,7 @@ public abstract class SorceressLair extends StaticEntity
 		// shadow for maximum damage four times and you will recover
 		// your health three times.
 
-		int neededHealth = maximumDamage * 4 - minimumHealing * 3;
+		int neededHealth = maximumDamage * 4 - 75;
 
 		if ( neededHealth > KoLCharacter.getCurrentHP() && KoLCharacter.hasSkill( "Ambidextrous Funkslinging" ) )
 		{
@@ -1364,7 +1350,7 @@ public abstract class SorceressLair extends StaticEntity
 			// and you will recover your health twice.
 
 			option = new AdventureResult( "Doc Galaktik's Homeopathic Elixir", 6 );
-			neededHealth = maximumDamage * 3 - minimumHealing * 2;
+			neededHealth = maximumDamage * 3 - 72;
 		}
 
 		// Now, if you have greater than the amount of needed
@@ -1413,7 +1399,7 @@ public abstract class SorceressLair extends StaticEntity
 			if ( KoLCharacter.hasItem( egg, true ) )
 			{
 				option = egg;
-				neededHealth = maximumDamage * 3 - minimumHealing * 2;
+				neededHealth = maximumDamage * 3 - 50;
 			}
 		}
 
@@ -1445,14 +1431,14 @@ public abstract class SorceressLair extends StaticEntity
 
 		// Start the battle!
 
-		String action = getProperty( "battleAction" );
-		setProperty( "battleAction", "item" + option.getItemID() );
+		String oldAction = getProperty( "battleAction" );
+		setProperty( "battleAction", "item " + option.getName().toLowerCase() );
 
 		KoLRequest request = new KoLRequest( client, "lair6.php" );
 		request.addFormField( "place", "2" );
 		request.run();
 
-		setProperty( "battleAction", action );
+		setProperty( "battleAction", oldAction );
 
 		if ( request.responseText.indexOf( "You don't have time to mess around up here." ) != -1 )
 		{

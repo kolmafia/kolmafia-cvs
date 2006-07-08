@@ -185,7 +185,7 @@ public class CakeArenaFrame extends KoLFrame
 		}
 	}
 
-	private class OpponentButton extends JButton implements MouseListener
+	private class OpponentButton extends NestedInsideTableButton implements MouseListener
 	{
 		private int row, column;
 		private String skill;
@@ -202,41 +202,15 @@ public class CakeArenaFrame extends KoLFrame
 
 		public void mouseReleased( MouseEvent e )
 		{
-			try
-			{
-				FamiliarData currentFamiliar = KoLCharacter.getFamiliar();
-				int currentSkillValue = FamiliarsDatabase.getFamiliarSkill( currentFamiliar.getRace(), column ).intValue();
-				String currentSkill = currentSkillValue == 1 ? "1 star (yours)" : currentSkillValue + " stars (yours)";
+			FamiliarData currentFamiliar = KoLCharacter.getFamiliar();
+			int currentSkillValue = FamiliarsDatabase.getFamiliarSkill( currentFamiliar.getRace(), column ).intValue();
+			String currentSkill = currentSkillValue == 1 ? "1 star (yours)" : currentSkillValue + " stars (yours)";
 
-				int battleCount = COMMA_FORMAT.parse( JOptionPane.showInputDialog( "<html>" + opponents.get( row ).toString() + ", " +
-					CakeArenaManager.getEvent( column ) + "<br>" + currentSkill + " vs. " + skill + "</html>" ) ).intValue();
+			int battleCount = StaticEntity.parseInt( JOptionPane.showInputDialog( "<html>" + opponents.get( row ).toString() + ", " +
+				CakeArenaManager.getEvent( column ) + "<br>" + currentSkill + " vs. " + skill + "</html>" ) );
 
-				if ( battleCount > 0 )
-					CakeArenaManager.fightOpponent( opponents.get( row ).toString(), column, battleCount );
-			}
-			catch ( Exception e1 )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e1 );
-			}
-		}
-
-		public void mouseClicked( MouseEvent e )
-		{
-		}
-
-		public void mouseEntered( MouseEvent e )
-		{
-		}
-
-		public void mouseExited( MouseEvent e )
-		{
-		}
-
-		public void mousePressed( MouseEvent e )
-		{
+			if ( battleCount > 0 )
+				CakeArenaManager.fightOpponent( opponents.get( row ).toString(), column, battleCount );
 		}
 	}
 

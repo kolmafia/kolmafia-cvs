@@ -152,7 +152,6 @@ public class BuffBotFrame extends KoLFrame
 		{
 			BuffBotHome.setBuffBotActive( false );
 			BuffBotHome.updateStatus( "BuffBot stopped by user." );
-			KoLmafia.updateDisplay( ERROR_STATE, "Buffbot stopped by user." );
 		}
 	}
 
@@ -197,19 +196,9 @@ public class BuffBotFrame extends KoLFrame
 
 		protected void actionConfirmed()
 		{
-			try
-			{
-				BuffBotManager.addBuff( ((UseSkillRequest) skillSelect.getSelectedItem()).getSkillName(),
-					COMMA_FORMAT.parse( priceField.getText() ).intValue(), COMMA_FORMAT.parse( countField.getText() ).intValue(),
-						restrictBox.isSelected(), singletonBox.isSelected() );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
+			BuffBotManager.addBuff( ((UseSkillRequest) skillSelect.getSelectedItem()).getSkillName(),
+				StaticEntity.parseInt( priceField.getText() ), StaticEntity.parseInt( countField.getText() ),
+					restrictBox.isSelected(), singletonBox.isSelected() );
 		}
 
 		public void actionCancelled()
@@ -271,7 +260,7 @@ public class BuffBotFrame extends KoLFrame
 		}
 
 		public void actionCancelled()
-		{	messageDisposalSelect.setSelectedIndex( Integer.parseInt( getProperty( "buffBotMessageDisposal" ) ) );
+		{	messageDisposalSelect.setSelectedIndex( StaticEntity.parseInt( getProperty( "buffBotMessageDisposal" ) ) );
 		}
 	}
 
@@ -347,7 +336,6 @@ public class BuffBotFrame extends KoLFrame
 	public void dispose()
 	{
 		BuffBotHome.deinitialize();
-		KoLmafia.updateDisplay( "Buffbot deactivated." );
 		super.dispose();
 	}
 }

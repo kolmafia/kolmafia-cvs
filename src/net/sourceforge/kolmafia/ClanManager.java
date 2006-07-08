@@ -51,7 +51,6 @@ import java.io.PrintStream;
 import java.util.Date;
 import java.util.Collections;
 import java.text.SimpleDateFormat;
-import javax.swing.SwingUtilities;
 import javax.swing.JOptionPane;
 
 import edu.stanford.ejalbert.BrowserLauncher;
@@ -790,7 +789,7 @@ public class ClanManager extends StaticEntity
 						stashMap.put( currentMember, new ArrayList() );
 
 					entryList = (List) stashMap.get( currentMember );
-					entryCount = COMMA_FORMAT.parse( entryMatcher.group(3) ).intValue();
+					entryCount = StaticEntity.parseInt( entryMatcher.group(3) );
 
 					lastItemID = TradeableItemDatabase.getItemID( entryMatcher.group(4) );
 					entryBuffer.append( (new AdventureResult( lastItemID, entryCount )).toString() );

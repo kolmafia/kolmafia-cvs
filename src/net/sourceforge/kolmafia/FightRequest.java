@@ -33,10 +33,6 @@
  */
 
 package net.sourceforge.kolmafia;
-import java.io.IOException;
-import java.util.StringTokenizer;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 
 /**
  * An extension of <code>KoLRequest</code> which handles fights
@@ -51,11 +47,14 @@ public class FightRequest extends KoLRequest
 
 	private int roundCount;
 	private int turnsUsed = 0;
+	private int offenseModifier = 0, defenseModifier = 0;
+
 	private String action1, action2;
 	private MonsterDatabase.Monster monsterData;
 
-	private static String encounter = "";
-	private static String encounterLookup = "";
+	private String encounter = "";
+	private String encounterLookup = "";
+
 	private static final String [] RARE_MONSTERS =
 	{
 		// Ultra-rare monsters
@@ -64,8 +63,11 @@ public class FightRequest extends KoLRequest
 		"crazy bastard",
 		"hockey elemental",
 		"hypnotist of hey deze",
-		"infinite meat bug",
+		"infinite meat bug"
+	};
 
+	private static final String [] HOLIDAY_MONSTERS =
+	{
 		// Monsters that scale with player level and can't be defeated
 		// with normal tactics
 
@@ -83,7 +85,8 @@ public class FightRequest extends KoLRequest
 	 */
 
 	public FightRequest( KoLmafia client )
-	{	this( client, true );
+	{
+		this( client, true );
 	}
 
 	public FightRequest( KoLmafia client, boolean isFirstRound )
@@ -91,11 +94,14 @@ public class FightRequest extends KoLRequest
 		super( client, "fight.php" );
 		this.roundCount = isFirstRound ? 0 : -100;
 
-		FightRequest.encounter = "";
-		FightRequest.encounterLookup = "";
+		this.encounter = "";
+		this.encounterLookup = "";
 
 		this.turnsUsed = 0;
 		this.monsterData = null;
+
+		this.offenseModifier = 0;
+		this.defenseModifier = 0;
 	}
 
 	public void nextRound()
@@ -106,14 +112,21 @@ public class FightRequest extends KoLRequest
 		// Now, to test if the user should run away from the
 		// battle - this is an HP test.
 
-		int haltTolerance = (int)( Double.parseDouble( getProperty( "battleStop" ) ) * (double) KoLCharacter.getMaximumHP() );
+		int haltTolerance = (int)( StaticEntity.parseDouble( getProperty( "battleStop" ) ) * (double) KoLCharacter.getMaximumHP() );
 
 		action1 = CombatSettings.getShortCombatOptionName( getProperty( "battleAction" ) );
 		action2 = null;
 
 		for ( int i = 0; i < RARE_MONSTERS.length; ++i )
 			if ( encounterLookup.indexOf( RARE_MONSTERS[i] ) != -1 )
-				client.updateDisplay( ABORT_STATE, "You have encountered the " + encounter );
+				KoLmafia.updateDisplay( ABORT_STATE, "You have encountered the " + encounter );
+
+		if ( !action1.equals( "custom" ) )
+		{
+			for ( int i = 0; i < HOLIDAY_MONSTERS.length; ++i )
+				if ( encounterLookup.indexOf( HOLIDAY_MONSTERS[i] ) != -1 )
+					KoLmafia.updateDisplay( ABORT_STATE, "You have encountered the " + encounter );
+		}
 
 		if ( roundCount == 1 )
 		{
@@ -125,9 +138,45 @@ public class FightRequest extends KoLRequest
 		}
 		else if ( action1.equals( "custom" ) )
 		{
-			action1 = CombatSettings.getSetting( encounterLookup, roundCount - 2 );
+			action1 = CombatSettings.getSetting( encounterLookup, KoLCharacter.getNextAdventure(), roundCount - 2 );
 		}
-		else if ( action1.equals( "abort" ) || !KoLmafia.permitsContinue() )
+
+		// Let the de-level action figure out what
+		// should be done, and then re-process.
+
+		if ( action1.equals( "delevel" ) )
+			action1 = getMonsterWeakenAction();
+
+		// Disallow stasis-like strategies when the player is
+		// out of Ronin.
+
+		if ( KoLCharacter.canInteract() && action1 != null )
+		{
+			// The joy buzzer is the only known skill which causes zero
+			// damage against a monster.
+
+			if ( action1.equals( "7002" ) )
+				action1 = "attack";
+
+			// Items which cause little (or no) damage without being consumed
+			// (thereby ideal for stasis) include the dictionaries, seal teeth,
+			// scrolls of turtle summoning, and spices.
+
+			else if ( action1.startsWith( "item" ) )
+			{
+				if ( action1.equals( "item536" ) || action1.equals( "item1316" ) )
+				{
+					if ( !KoLCharacter.getNextAdventure().getAdventureID().equals( "80" ) )
+						action1 = "attack";
+				}
+				else if ( action1.equals( "item2" ) || action1.equals( "item4" ) || action1.equals( "item8" ) )
+				{
+					action1 = "attack";
+				}
+			}
+		}
+
+		if ( action1 == null || action1.equals( "abort" ) || !KoLmafia.permitsContinue() )
 		{
 			// If the user has chosen to abort
 			// combat, flag it.
@@ -149,13 +198,14 @@ public class FightRequest extends KoLRequest
 		else if ( action1.equals( "attack" ) )
 		{
 			action1 = "attack";
-			addFormField( "action", action1 );
+			if ( roundCount != 1 )
+				addFormField( "action", action1 );
 		}
 
 		// If the player wants to use an item, make sure he has one
 		else if ( action1.startsWith( "item" ) )
 		{
-			int itemID = Integer.parseInt( action1.substring( 4 ) );
+			int itemID = StaticEntity.parseInt( action1.substring( 4 ) );
 			int itemCount = (new AdventureResult( itemID, 1 )).getCount( KoLCharacter.getInventory() );
 
 			if ( itemCount == 0 )
@@ -182,16 +232,11 @@ public class FightRequest extends KoLRequest
 			action1 = "attack";
 			addFormField( "action", action1 );
 		}
-		else if ( action1.equals( "moxman" ) )
-		{
-			action1 = "moxman";
-			addFormField( "action", action1 );
-		}
 
 		// If the player wants to use a skill, make sure he knows it
 		else
 		{
-			String skillName = ClassSkillsDatabase.getSkillName( Integer.parseInt( action1 ) );
+			String skillName = ClassSkillsDatabase.getSkillName( StaticEntity.parseInt( action1 ) );
 
 			if ( KoLmafiaCLI.getCombatSkillName( skillName ) == null )
 			{
@@ -226,23 +271,20 @@ public class FightRequest extends KoLRequest
 			if ( !KoLmafia.refusesContinue() )
 				nextRound();
 
-			if ( action1 != null && action1.equals( "attack" ) && monsterData != null && monsterData.willAlwaysMiss() &&
-				!KoLCharacter.hasSkill( "Disco Eye-Poke" ) && !KoLCharacter.hasSkill( "Disco Dance of Doom" ) &&
-				!KoLCharacter.hasSkill( "Disco Dance II: Electric Boogaloo" ) && !KoLCharacter.hasSkill( "Disco Face Stab" ) )
+			if ( action1 != null && action1.equals( "attack" ) && monsterData != null && monsterData.willAlwaysMiss( defenseModifier ) )
 			{
 				action1 = null;
 				action2 = null;
+				clearDataFields();
 			}
-			else
-			{
-				super.run();
-			}
+
+			super.run();
 
 			if ( KoLmafia.refusesContinue() || action1 == null )
 			{
 				if ( turnsUsed == 0 )
 				{
-					if ( client.getPasswordHash() != null )
+					if ( passwordHash != null )
 					{
 						showInBrowser( true );
 						KoLmafia.updateDisplay( ABORT_STATE, "You're on your own, partner." );
@@ -256,6 +298,61 @@ public class FightRequest extends KoLRequest
 				return;
 			}
 		}
+	}
+
+	private boolean isAcceptable( int offenseModifier, int defenseModifier )
+	{
+		if ( monsterData == null )
+			return true;
+
+		return monsterData.hasAcceptableDodgeRate( this.offenseModifier + offenseModifier ) &&
+			!monsterData.willAlwaysMiss( this.defenseModifier + defenseModifier );
+	}
+
+	private String getMonsterWeakenAction()
+	{
+		if ( isAcceptable( 0, 0 ) )
+			return "attack";
+
+		int desiredSkill = 0;
+		boolean isAcceptable = false;
+
+		// Disco Eye-Poke
+		if ( !isAcceptable && KoLCharacter.hasSkill( "Disco Eye-Poke" ) )
+		{
+			desiredSkill = 5003;
+			isAcceptable = isAcceptable( -1, -1 );
+		}
+
+		// Disco Dance of Doom
+		if ( !isAcceptable && KoLCharacter.hasSkill( "Disco Dance of Doom" ) )
+		{
+			desiredSkill = 5005;
+			isAcceptable = isAcceptable( -3, -3 );
+		}
+
+		// Disco Dance II: Electric Boogaloo
+		if ( !isAcceptable && KoLCharacter.hasSkill( "Disco Dance II: Electric Boogaloo" ) )
+		{
+			desiredSkill = 5008;
+			isAcceptable = isAcceptable( -5, -5 );
+		}
+
+		// Entangling Noodles
+		if ( !isAcceptable && KoLCharacter.hasSkill( "Entangling Noodles" ) )
+		{
+			desiredSkill = 3004;
+			isAcceptable = isAcceptable( -6, 0 );
+		}
+
+		// Disco Face Stab
+		if ( !isAcceptable && KoLCharacter.hasSkill( "Disco Face Stab" ) )
+		{
+			desiredSkill = 5012;
+			isAcceptable = isAcceptable( -7, -7 );
+		}
+
+		return desiredSkill == 0 ? null : String.valueOf( desiredSkill );
 	}
 
 	protected void processResults()
@@ -304,10 +401,7 @@ public class FightRequest extends KoLRequest
 		if ( action1.startsWith( "item" ) )
 			return 0;
 
-		if ( action1.equals( "moxman" ) )
-			return KoLCharacter.getLevel();
-
-		return ClassSkillsDatabase.getMPConsumptionByID( Integer.parseInt( action1 ) );
+		return ClassSkillsDatabase.getMPConsumptionByID( StaticEntity.parseInt( action1 ) );
 	}
 
 	private boolean hasActionCost( int itemID )
@@ -338,7 +432,7 @@ public class FightRequest extends KoLRequest
 
 		if ( action1.startsWith( "item" ) )
 		{
-			int id1 = Integer.parseInt( action1.substring( 4 ) );
+			int id1 = StaticEntity.parseInt( action1.substring( 4 ) );
 
 			if ( hasActionCost( id1 ) )
 				client.processResult( new AdventureResult( id1, -1 ) );
@@ -346,7 +440,7 @@ public class FightRequest extends KoLRequest
 			if ( action2 == null || action2.equals( "" ) )
 				return;
 
-			int id2 = Integer.parseInt( action2.substring( 4 ) );
+			int id2 = StaticEntity.parseInt( action2.substring( 4 ) );
 
 			if ( hasActionCost( id2 ) )
 				client.processResult( new AdventureResult( id2, -1 ) );
@@ -354,11 +448,38 @@ public class FightRequest extends KoLRequest
 			return;
 		}
 
-		int mp = action1.equals( "moxman" ) ? KoLCharacter.getLevel() :
-			ClassSkillsDatabase.getMPConsumptionByID( Integer.parseInt( action1 ) );
+		int skillID = StaticEntity.parseInt( action1 );
+		int mpCost = ClassSkillsDatabase.getMPConsumptionByID( skillID );
 
-		if ( mp > 0 )
-			client.processResult( new AdventureResult( AdventureResult.MP, 0 - mp ) );
+		switch ( skillID )
+		{
+			case 3004: // Entangling Noodles
+				offenseModifier -= 6;
+				break;
+
+			case 5003: // Disco Eye-Poke
+				offenseModifier -= 1;
+				defenseModifier -= 1;
+				break;
+
+			case 5005: // Disco Dance of Doom
+				offenseModifier -= 3;
+				defenseModifier -= 3;
+				break;
+
+			case 5008: // Disco Dance II: Electric Boogaloo
+				offenseModifier -= 5;
+				defenseModifier -= 5;
+				break;
+
+			case 5012: // Disco Face Stab
+				offenseModifier -= 7;
+				defenseModifier -= 7;
+				break;
+		}
+
+		if ( mpCost > 0 )
+			client.processResult( new AdventureResult( AdventureResult.MP, 0 - mpCost ) );
 	}
 
 	/**

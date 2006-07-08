@@ -35,6 +35,7 @@
 package net.sourceforge.kolmafia;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.Map;
 import java.util.TreeMap;
@@ -50,8 +51,6 @@ import java.io.BufferedReader;
 
 public class ClassSkillsDatabase extends KoLDatabase
 {
-	private static int manaModifier = 0;
-
 	private static Map skillByID = new TreeMap();
 	private static Map skillByName = new TreeMap();
 	private static Map mpConsumptionByID = new TreeMap();
@@ -99,7 +98,7 @@ public class ClassSkillsDatabase extends KoLDatabase
 		{
 			// This should not happen.  Therefore, print
 			// a stack trace for debug purposes.
-			
+
 			StaticEntity.printStackTrace( e );
 		}
 	}
@@ -158,8 +157,19 @@ public class ClassSkillsDatabase extends KoLDatabase
 
 	public static final int getMPConsumptionByID( int skillID )
 	{
+		// Moxious Maneuver has a special mana cost.
+		if ( skillID == 7008 )
+			return Math.max( KoLCharacter.getLevel() + KoLCharacter.getManaCostModifier(), 1 );
+
+		// Magic Missile has a special mana cost.
+		if ( skillID == 7009 )
+			return Math.max( Math.min( ( KoLCharacter.getLevel() + 3 ) / 2, 6 ) + KoLCharacter.getManaCostModifier(), 1 );
+
+		if ( getSkillType( skillID ) == PASSIVE )
+			return 0;
+
 		Object mpConsumption = mpConsumptionByID.get( new Integer( skillID ) );
-		return mpConsumption == null ? 0 : Math.max( ((Integer)mpConsumption).intValue() + manaModifier, 1 );
+		return mpConsumption == null ? 0 : Math.max( ((Integer)mpConsumption).intValue() + KoLCharacter.getManaCostModifier(), 1 );
 	}
 
 	/**
@@ -216,6 +226,22 @@ public class ClassSkillsDatabase extends KoLDatabase
 	}
 
 	/**
+	 * Returns all skills in the database of the given type.
+	 */
+
+	public static final List getSkillsByType( int type )
+	{
+		ArrayList list = new ArrayList();
+
+		Object [] keys = skillTypeByID.keySet().toArray();
+		for ( int i = 0; i < keys.length; ++i )
+			if ( isType( ((Integer)keys[i]).intValue(), type ) )
+				list.add( new UseSkillRequest( client, getSkillName( ((Integer)keys[i]).intValue() ), "", 1 ) );
+
+		return list;
+	}
+
+	/**
 	 * Returns whether or not an item with a given name
 	 * exists in the database; this is useful in the
 	 * event that an item is encountered which is not
@@ -226,48 +252,6 @@ public class ClassSkillsDatabase extends KoLDatabase
 
 	public static final boolean contains( String skillName )
 	{	return skillByName.containsKey( getCanonicalName( skillName ) );
-	}
-
-	public static void updateManaModifier()
-	{
-		manaModifier = 0;
-
-		if ( client == null )
-			return;
-
-		int [] accessoryID = new int[3];
-		accessoryID[0] = TradeableItemDatabase.getItemID( KoLCharacter.getEquipment( KoLCharacter.ACCESSORY1 ) );
-		accessoryID[1] = TradeableItemDatabase.getItemID( KoLCharacter.getEquipment( KoLCharacter.ACCESSORY2 ) );
-		accessoryID[2] = TradeableItemDatabase.getItemID( KoLCharacter.getEquipment( KoLCharacter.ACCESSORY3 ) );
-
-		for ( int i = 0; i < 3; ++i )
-		{
-			switch ( accessoryID[i] )
-			{
-				case 717:  // baconstone bracelet
-
-					manaModifier -= 1;
-					break;
-
-				case 1226: // stainless steel solitaire
-
-					manaModifier -= 2;
-					break;
-
-				case 1232: // plexiglass pocketwatch
-
-					manaModifier -= 3;
-					break;
-
-				default:
-					break;
-			}
-		}
-
-		// Make sure the modifier is no more than
-		// three, no matter what.
-
-		manaModifier = Math.max( manaModifier, -3 );
 	}
 
 	/**

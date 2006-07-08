@@ -79,6 +79,8 @@ import javax.swing.SwingUtilities;
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.FileOutputStream;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /**
  * A multi-purpose message buffer which stores all sorts of the messages
@@ -100,9 +102,7 @@ public class ChatBuffer
 	protected JEditorPane displayPane;
 	protected Runnable scrollBarResizer;
 	protected PrintWriter activeLogWriter;
-
 	protected StringBuffer displayBuffer;
-	protected JScrollBar verticalScroller;
 
 	protected static final String EMPTY_STRING = "";
 	protected static final String NEW_LINE = System.getProperty( "line.separator" );
@@ -159,17 +159,10 @@ public class ChatBuffer
 		displayPane = display;
 		displayPane.setContentType( "text/html" );
 		displayPane.setEditable( false );
+
 		fireBufferChanged( DISPLAY_CHANGE, null );
-
-		JScrollPane scroller = new JScrollPane( display, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
-		verticalScroller = scroller.getVerticalScrollBar();
-		return scroller;
+		return new JScrollPane( display, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
 	}
-
-	/**
-	 * Sets the vertical scrollbar for the chat display.  Returns the
-	 * appropriate display buffer.
-	 */
 
 	/**
 	 * Sets the log file used to actively record messages that are being
@@ -258,21 +251,45 @@ public class ChatBuffer
 
 		if ( changeType != LOGFILE_CHANGE && displayPane != null )
 		{
-			try
+			if ( newContents != null && newContents.indexOf( "<body" ) == -1 )
 			{
-				DisplayPaneUpdater runner = new DisplayPaneUpdater( newContents );
+				try
+				{
+					HTMLDocument currentHTML = (HTMLDocument) displayPane.getDocument();
+					Element parentElement = currentHTML.getDefaultRootElement();
 
-				if ( SwingUtilities.isEventDispatchThread() )
-					runner.run();
-				else
-					SwingUtilities.invokeAndWait( runner );
+					while ( !parentElement.isLeaf() )
+						parentElement = parentElement.getElement( parentElement.getElementCount() - 1 );
+
+					currentHTML.insertAfterEnd( parentElement, newContents.trim() );
+					displayPane.setCaretPosition( currentHTML.getLength() );
+				}
+				catch ( Exception e )
+				{
+					// In case someone happens to be running with a console,
+					// print the debug information to the screen.
+
+					e.printStackTrace();
+				}
 			}
-			catch ( Exception e )
+			else
 			{
-				// Print the stack trace to show that
-				// an interruption occurred.
+				try
+				{
+					DisplayPaneUpdater runner = new DisplayPaneUpdater( newContents );
 
-				e.printStackTrace();
+					if ( SwingUtilities.isEventDispatchThread() )
+						runner.run();
+					else
+						SwingUtilities.invokeAndWait( runner );
+				}
+				catch ( Exception e )
+				{
+					// Print the stack trace to show that
+					// an interruption occurred.
+
+					e.printStackTrace();
+				}
 			}
 		}
 
@@ -319,32 +336,28 @@ public class ChatBuffer
 
 		public void run()
 		{
-			if ( newContents == null )
-			{
-				displayPane.setText( header + "<style>" + BUFFER_STYLE + "</style></head><body>" + displayBuffer.toString() + "</body></html>" );
-				displayPane.validate();
-				return;
-			}
-
 			try
 			{
-				HTMLDocument currentHTML = (HTMLDocument) displayPane.getDocument();
-				Element parentElement = currentHTML.getDefaultRootElement();
+				if ( newContents != null )
+				{
+					String text = displayBuffer.toString();
 
-				while ( !parentElement.isLeaf() )
-					parentElement = parentElement.getElement( parentElement.getElementCount() - 1 );
+					Matcher matcher = Pattern.compile( "<style.*?</style>", Pattern.DOTALL ).matcher( text );
+					text = matcher.replaceAll( "" );
 
-				currentHTML.insertAfterEnd( parentElement, newContents.trim() );
-				verticalScroller.setValue( verticalScroller.getMaximum() );
-				displayPane.validate();
+					matcher = Pattern.compile( "<script.*?</script>", Pattern.DOTALL ).matcher( text );
+					text = matcher.replaceAll( "" );
+
+					displayBuffer.setLength( 0 );
+					displayBuffer.append( text );
+				}
+
+				displayPane.setText( header + "<style>" + BUFFER_STYLE + "</style></head><body>" + displayBuffer.toString() + "</body></html>" );
+				displayPane.setCaretPosition( displayPane.getDocument().getLength() );
 			}
 			catch ( Exception e )
 			{
-				// In case someone happens to be running with a console,
-				// print the debug information to the screen.
-
 				e.printStackTrace();
-				return;
 			}
 		}
 	}

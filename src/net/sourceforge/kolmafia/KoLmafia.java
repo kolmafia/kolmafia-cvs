@@ -43,7 +43,6 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -52,7 +51,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.ArrayList;
-import java.util.Properties;
 
 import java.util.Arrays;
 import java.math.BigInteger;
@@ -65,7 +63,6 @@ import java.lang.reflect.Method;
 
 import javax.swing.JEditorPane;
 import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
 
 import net.java.dev.spellcast.utilities.LockableListModel;
 import net.java.dev.spellcast.utilities.SortedListModel;
@@ -141,12 +138,8 @@ public abstract class KoLmafia implements KoLConstants
 	private static boolean recoveryActive = false;
 	protected static boolean isMakingRequest = false;
 	protected static KoLRequest currentRequest = null;
-	protected static LoginRequest cachedLogin = null;
 	private static String currentIterationString = "";
 	protected static int continuationState = CONTINUE_STATE;
-
-	protected String password, sessionID, passwordHash;
-	protected Properties LOCAL_SETTINGS = new Properties();
 
 	protected int [] initialStats = new int[3];
 	protected int [] fullStatGain = new int[3];
@@ -344,11 +337,8 @@ public abstract class KoLmafia implements KoLConstants
 	 * loaded, and the user can begin adventuring.
 	 */
 
-	public synchronized void initialize( String username, String sessionID, boolean getBreakfast, boolean isQuickLogin )
+	public synchronized void initialize( String username, boolean getBreakfast, boolean isQuickLogin )
 	{
-		if ( this.sessionID != null )
-			return;
-
 		this.conditions.clear();
 
 		// Initialize the variables to their initial
@@ -360,8 +350,6 @@ public abstract class KoLmafia implements KoLConstants
 			deinitialize();
 			return;
 		}
-
-		this.sessionID = sessionID;
 
 		StaticEntity.setProperty( "lastUsername", username );
 		KoLCharacter.reset( username );
@@ -393,13 +381,10 @@ public abstract class KoLmafia implements KoLConstants
 		// If the password hash is non-null, then that means you
 		// might be mid-transition.
 
-		if ( getPasswordHash() != null && getPasswordHash().equals( "" ) )
+		if ( KoLRequest.passwordHash != null &&  KoLRequest.passwordHash.equals( "" ) )
 			return;
 
 		registerPlayer( username, String.valueOf( KoLCharacter.getUserID() ) );
-		String scriptSetting = StaticEntity.getProperty( "loginScript." + username.toLowerCase() );
-		if ( scriptSetting != null && !scriptSetting.equals( "" ) )
-			DEFAULT_SHELL.executeLine( scriptSetting );
 
 		if ( getBreakfast )
 		{
@@ -410,6 +395,10 @@ public abstract class KoLmafia implements KoLConstants
 			if ( lastBreakfast == null || !lastBreakfast.equals( today ) )
 				getBreakfast( true );
 		}
+
+		String scriptSetting = StaticEntity.getProperty( "loginScript." + username.toLowerCase() );
+		if ( !scriptSetting.equals( "" ) )
+			DEFAULT_SHELL.executeLine( scriptSetting );
 	}
 
 	public void resetBreakfastSummonings()
@@ -434,12 +423,28 @@ public abstract class KoLmafia implements KoLConstants
 		if ( KoLCharacter.hasArches() )
 			(new CampgroundRequest( this, "arches" )).run();
 
+		boolean shouldCast = false;
 		String skillSetting = StaticEntity.getProperty( "breakfast" + (KoLCharacter.isHardcore() ? "Hardcore" : "Softcore") );
 
 		if ( skillSetting != null )
+		{
 			for ( int i = 0; i < BREAKFAST_SKILLS.length; ++i )
-				if ( (!checkSettings || skillSetting.indexOf( BREAKFAST_SKILLS[i][0] ) != -1) && KoLCharacter.hasSkill( BREAKFAST_SKILLS[i][0] ) )
-					getBreakfast( BREAKFAST_SKILLS[i][0], Integer.parseInt( BREAKFAST_SKILLS[i][1] ) );
+			{
+				shouldCast = !checkSettings || skillSetting.indexOf( BREAKFAST_SKILLS[i][0] ) != -1;
+				shouldCast &= KoLCharacter.hasSkill( BREAKFAST_SKILLS[i][0] );
+
+				if ( checkSettings && shouldCast && KoLCharacter.isHardcore() )
+				{
+					if ( BREAKFAST_SKILLS[i][0].equals( "Pastamastery" ) && !KoLCharacter.canEat() )
+						shouldCast = false;
+					if ( BREAKFAST_SKILLS[i][0].equals( "Advanced Cocktailcrafting" ) && !KoLCharacter.canDrink() )
+						shouldCast = false;
+				}
+
+				if ( shouldCast )
+					getBreakfast( BREAKFAST_SKILLS[i][0], StaticEntity.parseInt( BREAKFAST_SKILLS[i][1] ) );
+			}
+		}
 
 		forceContinue();
 	}
@@ -495,7 +500,7 @@ public abstract class KoLmafia implements KoLConstants
 		// If the password hash is non-null, then that means you
 		// might be mid-transition.
 
-		if ( getPasswordHash() != null && getPasswordHash().equals( "" ) )
+		if ( KoLRequest.passwordHash != null && KoLRequest.passwordHash.equals( "" ) )
 		{
 			ConcoctionsDatabase.getConcoctions().clear();
 			KoLCharacter.refreshCalculatedLists();
@@ -523,6 +528,12 @@ public abstract class KoLmafia implements KoLConstants
 		if ( refusesContinue() )
 			return;
 
+		// Finally, if the player is in Ronin (and not in hardcore),
+		// then pull their storage data.
+
+		if ( !KoLCharacter.canInteract() && !KoLCharacter.isHardcore() )
+			(new ItemStorageRequest( this )).run();
+
 		updateDisplay( "Data refreshed." );
 
 		resetSession();
@@ -545,8 +556,8 @@ public abstract class KoLmafia implements KoLConstants
 
 	public void deinitialize()
 	{
-		sessionID = null;
-		passwordHash = null;
+		KoLRequest.sessionID = null;
+		KoLRequest.passwordHash = null;
 
 		closeDebugStream();
 		closeMacroStream();
@@ -639,23 +650,14 @@ public abstract class KoLmafia implements KoLConstants
 		 }
 
 		// Remove parenthesized number and match again.
-		StringTokenizer parsedItem = new StringTokenizer( result, "()" );
-		String name = parsedItem.nextToken().trim();
+		String name = result;
 		int count = 1;
 
-		if ( parsedItem.hasMoreTokens() )
+		int index = result.lastIndexOf( " (" );
+		if ( index != -1 )
 		{
-			try
-			{
-				count = COMMA_FORMAT.parse( parsedItem.nextToken() ).intValue();
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
+			name = result.substring( 0, index );
+			count = StaticEntity.parseInt( result.substring( index ) );
 		}
 
 		processResult( new AdventureResult( name, count, false ) );
@@ -669,18 +671,7 @@ public abstract class KoLmafia implements KoLConstants
 		String parsedEffectName = parsedEffect.nextToken().trim();
 		String parsedDuration = parsedEffect.hasMoreTokens() ? parsedEffect.nextToken() : "1";
 
-		try
-		{
-			return processResult( new AdventureResult( parsedEffectName, COMMA_FORMAT.parse( parsedDuration ).intValue(), true ) );
-		}
-		catch ( Exception e )
-		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
-			return false;
-		}
+		return processResult( new AdventureResult( parsedEffectName, StaticEntity.parseInt( parsedDuration ), true ) );
 	}
 
 	/**
@@ -896,33 +887,6 @@ public abstract class KoLmafia implements KoLConstants
 	}
 
 	/**
-	 * Retrieves the session ID for this <code>KoLmafia</code> session.
-	 * @return	The session ID of the current session
-	 */
-
-	public String getSessionID()
-	{	return sessionID;
-	}
-
-	/**
-	 * Stores the password hash for this <code>KoLmafia</code> session.
-	 * @param	passwordHash	The password hash for this session
-	 */
-
-	public void setPasswordHash( String passwordHash )
-	{	this.passwordHash = passwordHash;
-	}
-
-	/**
-	 * Retrieves the password hash for this <code>KoLmafia</code> session.
-	 * @return	The password hash of the current session
-	 */
-
-	public String getPasswordHash()
-	{	return passwordHash;
-	}
-
-	/**
 	 * Returns the character's contact list.
 	 */
 
@@ -989,8 +953,7 @@ public abstract class KoLmafia implements KoLConstants
 	 * and if not, calls the appropriate scripts to do so.
 	 */
 
-	private final boolean recover( int needed, String settingName, String currentName, String maximumName,
-		String scriptProperty, String listProperty, Object [] techniques, Object [] fallbacks ) throws Exception
+	private final boolean recover( int needed, String settingName, String currentName, String maximumName, Object [] techniques ) throws Exception
 	{
 		if ( refusesContinue() )
 			return false;
@@ -1010,16 +973,10 @@ public abstract class KoLmafia implements KoLConstants
 		// First, check against the restore trigger to see if
 		// any restoration needs to take place.
 
-		double setting = Double.parseDouble( StaticEntity.getProperty( settingName ) );
+		double setting = StaticEntity.parseDouble( StaticEntity.getProperty( settingName ) );
 
 		if ( !BuffBotHome.isBuffBotActive() )
-		{
-			needed = setting < 0 ? -1 : needed != 0 ? needed :
-				(int) Math.max( setting * (double) maximum, (double) needed );
-
-			if ( needed < 0 )
-				return true;
-		}
+			needed = Math.max( needed, (int) Math.max( setting * (double) maximum, (double) needed ) );
 
 		int last = -1;
 		int current = ((Number)currentMethod.invoke( null, empty )).intValue();
@@ -1043,38 +1000,17 @@ public abstract class KoLmafia implements KoLConstants
 		// Next, check against the restore target to see how
 		// far you need to go.
 
-		int threshold = needed;
-		setting = Double.parseDouble( StaticEntity.getProperty( settingName + "Target" ) );
+		int threshold = initial == 0 ? needed : needed - 1;
+		setting = StaticEntity.parseDouble( StaticEntity.getProperty( settingName + "Target" ) );
 
 		if ( initial == 0 )
 			needed = (int) ( setting * (double) maximum );
-
-		// First, attempt to recover using the appropriate script, if it exists.
-		// This uses a lot of excessive reflection, but the idea is that it
-		// checks the current value of the stat against the needed value of
-		// the stat and makes sure that there's a change with every iteration.
-		// If there is no change, it exists the loop.
-
-		String scriptPath = StaticEntity.getProperty( scriptProperty ).trim();
-
-		if ( !scriptPath.equals( "" ) )
-		{
-			while ( current < threshold && last != current && !refusesContinue() )
-			{
-				last = current;
-				DEFAULT_SHELL.executeLine( scriptPath );
-				current = ((Number)currentMethod.invoke( null, empty )).intValue();
-			}
-		}
-
-		if ( refusesContinue() )
-			return false;
 
 		// If it gets this far, then you should attempt to recover
 		// using the selected items.  This involves a few extra
 		// reflection methods.
 
-		String restoreSetting = StaticEntity.getProperty( listProperty ).trim().toLowerCase();
+		String restoreSetting = StaticEntity.getProperty( settingName + "Items" ).trim().toLowerCase();
 
 		// Iterate through every single restore item, checking to
 		// see if the settings wish to use this item.  If so, go ahead
@@ -1082,17 +1018,17 @@ public abstract class KoLmafia implements KoLConstants
 
 		String currentTechniqueName;
 
-		for ( int i = 0; i < techniques.length && (current < threshold || checkBeatenUp); ++i )
+		for ( int i = 0; i < techniques.length && (current <= threshold || checkBeatenUp); ++i )
 		{
 			currentTechniqueName = techniques[i].toString().toLowerCase();
 			if ( restoreSetting.indexOf( currentTechniqueName ) != -1 )
 			{
 				last = -1;
 
-				while ( (current < threshold || checkBeatenUp) && last != current && !refusesContinue() )
+				while ( (current <= threshold || checkBeatenUp) && last != current && !refusesContinue() )
 				{
 					last = current;
-					recoverOnce( techniques[i], currentTechniqueName, needed, false );
+					recoverOnce( techniques[i], currentTechniqueName, needed );
 					current = ((Number)currentMethod.invoke( null, empty )).intValue();
 					checkBeatenUp &= KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP );
 				}
@@ -1105,53 +1041,7 @@ public abstract class KoLmafia implements KoLConstants
 		if ( refusesContinue() )
 			return false;
 
-		if ( current >= threshold )
-			return true;
-
-		// Do the restoration, but without making any purchases
-		// from NPC/PC stores.
-
-		for ( int i = 0; i < fallbacks.length && current < threshold; ++i )
-		{
-			last = -1;
-
-			while ( (current < threshold || checkBeatenUp) && last != current && !refusesContinue() )
-			{
-				last = current;
-				recoverOnce( fallbacks[i], fallbacks[i].toString(), needed, false );
-				current = ((Number)currentMethod.invoke( null, empty )).intValue();
-				checkBeatenUp &= KoLCharacter.getEffects().contains( KoLAdventure.BEATEN_UP );
-			}
-		}
-
-		if ( refusesContinue() )
-			return false;
-
-		// Fall-through check, just in case you've reached the
-		// desired value.
-
-		if ( current >= threshold )
-			return true;
-
-		// Now, last check -- go ahead and call the method which
-		// invokes the fallback restores;
-
-		for ( int i = 0; i < fallbacks.length && current < threshold; ++i )
-		{
-			last = -1;
-
-			while ( current < threshold && last != current && !refusesContinue() )
-			{
-				last = current;
-				recoverOnce( fallbacks[i], fallbacks[i].toString(), needed, true );
-				current = ((Number)currentMethod.invoke( null, empty )).intValue();
-			}
-		}
-
-		if ( refusesContinue() )
-			return false;
-
-		if ( current >= threshold )
+		if ( current > threshold )
 			return true;
 
 		updateDisplay( ABORT_STATE, "Autorecovery failed." );
@@ -1173,8 +1063,7 @@ public abstract class KoLmafia implements KoLConstants
 	{
 		try
 		{
-			return recover( recover, "hpAutoRecover", "getCurrentHP", "getMaximumHP",
-				"hpRecoveryScript", "hpRestores", HPRestoreItemList.CONFIGURES, HPRestoreItemList.FALLBACKS );
+			return recover( recover, "hpAutoRecovery", "getCurrentHP", "getMaximumHP", HPRestoreItemList.CONFIGURES );
 		}
 		catch ( Exception e )
 		{
@@ -1191,19 +1080,17 @@ public abstract class KoLmafia implements KoLConstants
 	 * in a script) in order to restore.
 	 */
 
-	private final void recoverOnce( Object technique, String techniqueName, int needed, boolean isFallback )
+	private final void recoverOnce( Object technique, String techniqueName, int needed )
 	{
 		// If the technique is an item, and the item is not readily available,
 		// then don't bother with this item -- however, if it is the only item
 		// present, then rethink it.
 
-		updateDisplay( "Recovering using " + techniqueName + "..." );
-
 		if ( technique instanceof HPRestoreItemList.HPRestoreItem )
 			((HPRestoreItemList.HPRestoreItem)technique).recoverHP( needed );
 
 		if ( technique instanceof MPRestoreItemList.MPRestoreItem )
-			((MPRestoreItemList.MPRestoreItem)technique).recoverMP( needed, isFallback );
+			((MPRestoreItemList.MPRestoreItem)technique).recoverMP( needed );
 	}
 
 	/**
@@ -1219,9 +1106,6 @@ public abstract class KoLmafia implements KoLConstants
 		for ( int i = 0; i < MPRestoreItemList.CONFIGURES.length; ++i )
 			if ( mpRestoreSetting.indexOf( MPRestoreItemList.CONFIGURES[i].toString() ) != -1 )
 				restoreCount += MPRestoreItemList.CONFIGURES[i].getItem().getCount( KoLCharacter.getInventory() );
-
-		for ( int i = 0; i < MPRestoreItemList.FALLBACKS.length; ++i )
-			restoreCount += MPRestoreItemList.FALLBACKS[i].getItem().getCount( KoLCharacter.getInventory() );
 
 		return restoreCount;
 	}
@@ -1246,8 +1130,7 @@ public abstract class KoLmafia implements KoLConstants
 	{
 		try
 		{
-			return recover( mpNeeded, "mpAutoRecover", "getCurrentMP", "getMaximumMP",
-				"mpRecoveryScript", "mpRestores", MPRestoreItemList.CONFIGURES, MPRestoreItemList.FALLBACKS );
+			return recover( mpNeeded, "mpAutoRecovery", "getCurrentMP", "getMaximumMP", MPRestoreItemList.CONFIGURES );
 		}
 		catch ( Exception e )
 		{
@@ -1525,7 +1408,6 @@ public abstract class KoLmafia implements KoLConstants
 				updateDisplay( currentIterationString );
 
 			request.run();
-			applyRecentEffects();
 
 			// Decrement the counter to null out the increment
 			// effect on the next iteration of the loop.
@@ -1659,14 +1541,18 @@ public abstract class KoLmafia implements KoLConstants
 
 		String lastUseString = lastUse.toString();
 
-		if ( !lastUseString.startsWith( String.valueOf( KoLCharacter.getAscensions() ) ) )
+		if ( !lastUseString.startsWith( KoLCharacter.getAscensions() + ":" ) )
 		{
-			lastUse.setLength(0);
+			searchIndex = new Integer( -1 );
+
+			lastUse.setLength( 0 );
 			lastUse.append( KoLCharacter.getAscensions() );
 			lastUse.append( ": " );
 
 			lastUseString = lastUse.toString();
-			searchIndex = new Integer( -1 );
+
+			StaticEntity.setProperty( "lastFaucetUse", lastUseString );
+			StaticEntity.setProperty( "lastFaucetLocation", "-1" );
 		}
 
 		// Determine which elements have already been checked
@@ -1675,14 +1561,17 @@ public abstract class KoLmafia implements KoLConstants
 		ArrayList searchList = new ArrayList();
 		for ( int i = 1; i <= 25; ++i )
 		{
-			if ( lastUseString.indexOf( " " + i + " " ) == -1 )
+			if ( lastUseString.indexOf( "[" + i + "]" ) == -1 )
 				searchList.add( new Integer(i) );
 		}
 
 		// If the faucet has not yet been found, then go through
 		// the process of trying to locate it.
 
-		if ( searchIndex.intValue() == -1 )
+		KoLAdventure adventure = new KoLAdventure( this, "", "rats.php", "", "Typical Tavern (Pre-Rat)" );
+		boolean foundFaucet = false;
+
+		if ( searchIndex.intValue() < 0 )
 		{
 			if ( KoLCharacter.getLevel() < 3 )
 			{
@@ -1700,37 +1589,38 @@ public abstract class KoLmafia implements KoLConstants
 			}
 
 			updateDisplay( "Searching for faucet..." );
-
-			KoLAdventure adventure = new KoLAdventure( this, "", "rats.php", "", "Typical Tavern (Pre-Rat)" );
 			adventure.run();
 
 			// Random guess instead of straightforward search
 			// for the location of the faucet (lowers the chance
 			// of bad results if the faucet is near the end).
 
-			while ( !searchList.isEmpty() && KoLCharacter.getCurrentHP() > 0 && KoLCharacter.getAdventuresLeft() > 0 &&
-				(adventure.getRequest().responseText == null || adventure.getRequest().responseText.indexOf( "faucetoff" ) == -1) )
+			do
 			{
-				searchIndex = (Integer) searchList.get( RNG.nextInt( searchList.size() ) );
-				searchList.remove( searchIndex );
+				searchIndex = (Integer) searchList.remove( RNG.nextInt( searchList.size() ) );
 
+				lastUse.append( '[' );
 				lastUse.append( searchIndex );
-				lastUse.append( " " );
+				lastUse.append( ']' );
 
+				StaticEntity.setProperty( "lastFaucetUse", lastUse.toString() );
+
+				adventure.getRequest().clearDataFields();
 				adventure.getRequest().addFormField( "where", searchIndex.toString() );
 				adventure.run();
+
+				foundFaucet = adventure.getRequest().responseText != null &&
+					adventure.getRequest().responseText.indexOf( "faucetoff" ) != -1;
 			}
+			while ( !foundFaucet && KoLCharacter.getCurrentHP() > 0 && KoLCharacter.getAdventuresLeft() > 0 );
 		}
 
 		// If you have not yet found the faucet, be sure
 		// to set the settings so that your next attempt
 		// does not repeat located squares.
 
-		StaticEntity.setProperty( "lastFaucetLocation", "-1" );
-		if ( !permitsContinue() )
+		if ( !foundFaucet )
 		{
-			StaticEntity.setProperty( "lastFaucetUse", lastUse.toString() );
-
 			updateDisplay( ERROR_STATE, "Unable to find faucet.  " + searchList.size() + " squares unchecked." );
 			return -1;
 		}
@@ -1775,7 +1665,7 @@ public abstract class KoLmafia implements KoLConstants
 				item = new AdventureResult( 27, 5 );
 		}
 
-		int neededCount = neededMatcher.find() ? Integer.parseInt( neededMatcher.group(1) ) : 26;
+		int neededCount = neededMatcher.find() ? StaticEntity.parseInt( neededMatcher.group(1) ) : 26;
 
 		while ( neededCount <= 25 && neededCount <= item.getCount( KoLCharacter.getInventory() ) )
 		{
@@ -2253,24 +2143,6 @@ public abstract class KoLmafia implements KoLConstants
 	{	return encounterList;
 	}
 
-	public void executeTimeInRequest()
-	{
-		deinitialize();
-		updateDisplay( "Timing in session..." );
-
-		cachedLogin.run();
-		if ( getPasswordHash() == null )
-			cachedLogin.run();
-
-		while ( getPasswordHash() == null )
-		{
-			StaticEntity.executeCountdown( "Next login in ", 300 );
-			cachedLogin.run();
-		}
-
-		updateDisplay( "Session timed in." );
-	}
-
 	public boolean checkRequirements( List requirements )
 	{
 		AdventureResult [] requirementsArray = new AdventureResult[ requirements.size() ];
@@ -2294,6 +2166,9 @@ public abstract class KoLmafia implements KoLConstants
 			{
 				AdventureDatabase.retrieveItem( requirementsArray[i] );
 				missingCount = requirementsArray[i].getCount() - requirementsArray[i].getCount( KoLCharacter.getInventory() );
+
+				if ( KoLCharacter.hasEquipped( requirementsArray[i] ) )
+					--missingCount;
 			}
 			else if ( requirementsArray[i].isStatusEffect() )
 			{
@@ -2498,36 +2373,6 @@ public abstract class KoLmafia implements KoLConstants
 	{	currentRequest = request;
 	}
 
-	public void setLocalProperty( String property, String value )
-	{	LOCAL_SETTINGS.setProperty( property, value );
-	}
-
-	public void setLocalProperty( String property, boolean value )
-	{	LOCAL_SETTINGS.setProperty( property, String.valueOf( value ) );
-	}
-
-	public void setLocalProperty( String property, int value )
-	{	LOCAL_SETTINGS.setProperty( property, String.valueOf( value ) );
-	}
-
-	public String getLocalProperty( String property )
-	{
-		String value = LOCAL_SETTINGS.getProperty( property );
-		return ( value == null ) ? "" : value;
-	}
-
-	public boolean getLocalBooleanProperty( String property )
-	{
-		String value = LOCAL_SETTINGS.getProperty( property );
-		return ( value == null) ? false : value.equals( "true" );
-	}
-
-	public int getLocalIntegerProperty( String property )
-	{
-		String value = LOCAL_SETTINGS.getProperty( property );
-		return ( value == null) ? 0 : Integer.parseInt( value );
-	}
-
 	public final String [] extractTargets( String targetList )
 	{
 		// If there are no targets in the list, then
@@ -2631,22 +2476,35 @@ public abstract class KoLmafia implements KoLConstants
 		updateDisplay( "Download completed.  Please restart to complete the update." );
 	}
 
+	public static boolean isRunningBetweenBattleChecks()
+	{	return recoveryActive;
+	}
+
 	public void runBetweenBattleChecks()
 	{
+		// Do not run between battle checks if you are in the middle
+		// of your checks or if you have aborted.
+
 		if ( recoveryActive || refusesContinue() )
 			return;
-
-		// Before running the request, make sure you have enough
-		// mana and health to continue.
 
 		if ( !(getCurrentRequest() instanceof CampgroundRequest) )
 		{
 			recoveryActive = true;
+
+			// First, run the between battle script defined by the
+			// user, which may make it so that none of the built
+			// in behavior needs to run.
+
 			String scriptPath = StaticEntity.getProperty( "betweenBattleScript" );
 
 			if ( !scriptPath.equals( "" ) )
 				DEFAULT_SHELL.executeLine( scriptPath );
 
+			// Now, run the built-in behavior to take care of
+			// any loose ends.
+
+			MoodSettings.execute();
 			recoverHP();
 			recoverMP();
 
@@ -2759,7 +2617,7 @@ public abstract class KoLmafia implements KoLConstants
 		{
 			if ( TradeableItemDatabase.getPriceByID( items[i].getItemID() ) != 0 )
 			{
-				if ( NPCStoreDatabase.contains( items[i].getName() ) )
+				if ( NPCStoreDatabase.contains( items[i].getName(), false ) )
 					autosell.add( items[i] );
 				else
 					automall.add( items[i] );
@@ -2788,6 +2646,8 @@ public abstract class KoLmafia implements KoLConstants
 	protected void handleAscension()
 	{
 		refreshSession();
+		MoodSettings.setMood( "apathetic" );
+
 		enableDisplay();
 
 		sessionStream.println();

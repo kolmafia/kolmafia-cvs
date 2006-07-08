@@ -810,7 +810,7 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		// compiled string.  Print it to the debug log for
 		// reference purposes.
 
-		String pwd = StaticEntity.getClient().getPasswordHash();
+		String pwd = KoLRequest.passwordHash;
 		String text = pwd == null ? displayHTML : displayHTML.replaceAll( pwd, "" );
 		KoLmafia.getDebugStream().println( text );
 
@@ -826,9 +826,6 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 
 		if ( StaticEntity.getProperty( "relayAddsUseLinks" ).equals( "true" ) )
 			text = addUseLinks( text );
-
-		if ( StaticEntity.getProperty( "relayMovesManeuver" ).equals( "true" ) )
-			text = moveManeuverButton( text );
 
 		if ( StaticEntity.getProperty( "relayAddsPlinking" ).equals( "true" ) )
 			text = addPlinking( text );
@@ -935,22 +932,6 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		return linkedResponse.toString();
 	}
 
-	private static String moveManeuverButton( String text )
-	{
-		int moxmanIndex = text.indexOf( "<form name=moxman" );
-		if ( moxmanIndex == -1 )
-			return text;
-
-		StringBuffer textBuffer = new StringBuffer( text );
-		int endIndex = text.indexOf( "</form>", moxmanIndex );
-		textBuffer.delete( moxmanIndex, endIndex );
-
-		int skillIndex = textBuffer.indexOf( "skill)</option>" );
-		textBuffer.insert( skillIndex + 15, "<option value='moxman'>Moxious Maneuver (" +
-			KoLCharacter.getLevel() + " Muscularity Points)</option>" );
-		return textBuffer.toString();
-	}
-
 	private static String addChoiceSpoilers( String text )
 	{
 		Matcher choiceMatcher = Pattern.compile( "whichchoice value=(\\d+)" ).matcher( text );
@@ -974,29 +955,42 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 		if ( possibleDecisions == null )
 			return text;
 
-		String item, itemID;
 		int index1 = 0, index2 = 0;
-
 		StringBuffer newText = new StringBuffer();
 
-		for ( int i = 0; i < possibleDecisions[3].length; ++i )
+		for ( int i = 0; i < possibleDecisions[2].length; ++i )
 		{
-			item = possibleDecisions[2][i];
-			itemID = possibleDecisions[3][i];
-
 			index2 = text.indexOf( "</form>", index1 );
+
+			// If KoL says we've run out of choices, quit now
+			if ( index2 == -1 )
+				break;
+
+			// Start spoiler text
 			newText.append( text.substring( index1, index2 ) );
 			newText.append( "<br><font size=-1>(" );
+
+			// Say what the choice will give you
+			String item = possibleDecisions[2][i];
 			newText.append( item );
 
-			if ( itemID != null )
+			// If this choice helps complete an outfit...
+			if ( possibleDecisions.length > 3 )
 			{
-				newText.append( " - " );
-				AdventureResult result = new AdventureResult( Integer.parseInt( itemID ), 1 );
-				newText.append( result.getCount( KoLCharacter.getInventory() ) );
-				newText.append( " in inventory" );
+				String itemID = possibleDecisions[3][i];
+
+				// If this decision leads to an item...
+				if ( itemID != null )
+				{
+					// List # in inventory
+					newText.append( " - " );
+					AdventureResult result = new AdventureResult( StaticEntity.parseInt( itemID ), 1 );
+					newText.append( result.getCount( KoLCharacter.getInventory() ) );
+					newText.append( " in inventory" );
+				}
 			}
 
+			// Finish spoiler text
 			newText.append( ")</font></form>" );
 			index1 = index2 + 7;
 		}
@@ -1014,28 +1008,18 @@ public class RequestEditorKit extends HTMLEditorKit implements KoLConstants
 			int selectedItem = -1;
 			Matcher itemMatcher = Pattern.compile( "<option.*?value=(.*?)>.*?\\((.*?)\\)</option>" ).matcher( selectMatcher.group() );
 
-			try
+			while ( itemMatcher.find() )
 			{
-				while ( itemMatcher.find() )
-				{
-					int id = Integer.parseInt( itemMatcher.group(1) );
-					if ( id == 0 )
-						continue;
+				int id = StaticEntity.parseInt( itemMatcher.group(1) );
+				if ( id == 0 )
+					continue;
 
-					int count = COMMA_FORMAT.parse( itemMatcher.group(2) ).intValue();
-					AdventureResult currentItem = new AdventureResult( id, count );
-					if ( itemMatcher.group().indexOf( "selected" ) != -1 )
-						selectedItem = id;
+				int count = StaticEntity.parseInt( itemMatcher.group(2) );
+				AdventureResult currentItem = new AdventureResult( id, count );
+				if ( itemMatcher.group().indexOf( "selected" ) != -1 )
+					selectedItem = id;
 
-					items.add( currentItem );
-				}
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
+				items.add( currentItem );
 			}
 
 			Collections.sort( items );

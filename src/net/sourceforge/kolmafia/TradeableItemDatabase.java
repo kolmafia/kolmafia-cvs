@@ -74,11 +74,11 @@ public class TradeableItemDatabase extends KoLDatabase
 		{
 			if ( data.length == 4 )
 			{
-				int itemID = Integer.parseInt( data[0] );
+				int itemID = StaticEntity.parseInt( data[0] );
 				Integer id = new Integer( itemID );
 
-				useTypeByID.set( itemID, Integer.parseInt( data[2] ) );
-				priceByID.set( itemID, Integer.parseInt( data[3] ) );
+				useTypeByID.set( itemID, StaticEntity.parseInt( data[2] ) );
+				priceByID.set( itemID, StaticEntity.parseInt( data[3] ) );
 
 				itemIDByName.put( getCanonicalName( data[1] ), id );
 				nameByItemID.put( id, getDisplayName( data[1] ) );
@@ -113,7 +113,7 @@ public class TradeableItemDatabase extends KoLDatabase
 						isDescriptionID = false;
 
 				if ( isDescriptionID )
-					descByID.set( Integer.parseInt( data[0].trim() ), data[1] );
+					descByID.set( StaticEntity.parseInt( data[0].trim() ), data[1] );
 			}
 		}
 
@@ -403,16 +403,6 @@ public class TradeableItemDatabase extends KoLDatabase
 
 	public static final List getMatchingNames( String substring )
 	{	return getMatchingNames( itemIDByName, substring );
-	}
-
-	/**
-	 * Returns a list of all items which can be abbreviated
-	 * using the given substring.  This is really useful when
-	 * you don't feel like figuring out what letters match.
-	 */
-
-	public static final List getMatchingAbbreviations( String substring )
-	{	return getMatchingAbbreviations( itemIDByName, substring );
 	}
 
 	/**

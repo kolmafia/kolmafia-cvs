@@ -130,6 +130,10 @@ public class EquipmentRequest extends PasswordHashRequest
 	}
 
 	public EquipmentRequest( KoLmafia client, String change, int equipmentSlot )
+	{	this( client, change, equipmentSlot, false );
+	}
+
+	public EquipmentRequest( KoLmafia client, String change, int equipmentSlot, boolean force )
 	{
 		super( client, "inv_equip.php" );
 		addFormField( "which", "2" );
@@ -159,7 +163,7 @@ public class EquipmentRequest extends PasswordHashRequest
 			this.equipmentSlot = chooseEquipmentSlot();
 
 		// Make sure you can equip it in the requested slot
-		String action = getAction();
+		String action = getAction( force );
 		if ( action == null )
 			return;
 
@@ -184,7 +188,7 @@ public class EquipmentRequest extends PasswordHashRequest
 		this.error = null;
 	}
 
-	private String getAction()
+	private String getAction( boolean force )
 	{
 		AdventureResult item = new AdventureResult( itemID, 0 );
 		if ( equipmentSlot != KoLCharacter.FAMILIAR &&
@@ -204,9 +208,9 @@ public class EquipmentRequest extends PasswordHashRequest
 		case KoLCharacter.WEAPON:
 			if ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON )
 			{
-				String offhand = KoLCharacter.getCurrentEquipmentName( KoLCharacter.OFFHAND );
-				if ( KoLCharacter.dualWielding() )
+				if ( !force && KoLCharacter.dualWielding() )
 				{
+					String offhand = KoLCharacter.getCurrentEquipmentName( KoLCharacter.OFFHAND );
 					if ( EquipmentDatabase.isRanged( itemID ) && !EquipmentDatabase.isRanged( offhand ) )
 					{
 						error = "You can't equip a ranged weapon in your main hand with a melee weapon in your off-hand.";
@@ -228,17 +232,17 @@ public class EquipmentRequest extends PasswordHashRequest
 
 			if ( equipmentType == ConsumeItemRequest.EQUIP_WEAPON )
 			{
-				if ( KoLCharacter.weaponHandedness() != 1 )
+				if ( !force && KoLCharacter.weaponHandedness() != 1 )
 				{
 					error = "You must have a 1-handed weapon equipped first.";
 					return null;
 				}
-				if ( KoLCharacter.rangedWeapon() && !EquipmentDatabase.isRanged( itemID ) )
+				if ( !force && KoLCharacter.rangedWeapon() && !EquipmentDatabase.isRanged( itemID ) )
 				{
 					error = "You can't equip a melee weapon in your off-hand with a ranged weapon in your main hand.";
 					return null;
 				}
-				if ( !KoLCharacter.rangedWeapon() && EquipmentDatabase.isRanged( itemID ) )
+				if ( !force && !KoLCharacter.rangedWeapon() && EquipmentDatabase.isRanged( itemID ) )
 				{
 					error = "You can't equip a ranged weapon in your off-hand with a melee weapon in your main hand.";
 					return null;
@@ -367,16 +371,9 @@ public class EquipmentRequest extends PasswordHashRequest
 					return;
 
 				// Next, ensure that you have all the pieces for the
-				// given outfit -- do this by adding all of the items
-				// as conditions and then issuing a check.
+				// given outfit.
 
-				ArrayList temporaryList = new ArrayList();
-				temporaryList.addAll( client.getConditions() );
-				client.getConditions().clear();
-
-				EquipmentDatabase.addOutfitConditions( outfit.getOutfitID() );
-				DEFAULT_SHELL.executeConditionsCommand( "check" );
-				client.getConditions().addAll( temporaryList );
+				EquipmentDatabase.retrieveOutfit( id );
 
 				// Bail now if the conditions were not met
 				if ( !KoLmafia.permitsContinue() )
@@ -495,70 +492,65 @@ public class EquipmentRequest extends PasswordHashRequest
 	protected void processResults()
 	{
 		// Fetch updated equipment
-
-		try
+		if ( requestType == CLOSET )
 		{
-			if ( requestType == CLOSET )
-			{
-				parseCloset();
-				super.processResults();
-				(new EquipmentRequest( client, EquipmentRequest.QUESTS )).run();
-				(new EquipmentRequest( client, EquipmentRequest.EQUIPMENT )).run();
-				(new EquipmentRequest( client, EquipmentRequest.CONSUMABLES )).run();
+			parseCloset();
+			super.processResults();
+			(new EquipmentRequest( client, EquipmentRequest.QUESTS )).run();
+			(new EquipmentRequest( client, EquipmentRequest.EQUIPMENT )).run();
+			(new EquipmentRequest( client, EquipmentRequest.CONSUMABLES )).run();
 
-				KoLCharacter.setAvailableSkills( KoLCharacter.getAvailableSkills() );
-			}
-			else if ( requestType == QUESTS || requestType == CONSUMABLES )
-			{
-				parseQuestItems( responseText );
-				super.processResults();
-			}
-			else
-			{
-				// Skip past equipped gear
-				parseQuestItems( responseText.substring( responseText.indexOf( "Save as Custom Outfit" ) ) );
-
-				String [] oldEquipment = new String[9];
-				int oldFakeHands = KoLCharacter.getFakeHands();
-
-				// Ensure that the inventory stays up-to-date by
-				// switching items around, as needed.
-
-				for ( int i = 0; i < 9; ++i )
-					oldEquipment[i] = KoLCharacter.getEquipment( i );
-
-				parseEquipment( this.responseText );
-				if ( KoLmafia.cachedLogin != null )
-				{
-					for ( int i = 0; i < 9; ++i )
-						switchItem( oldEquipment[i], KoLCharacter.getEquipment( i ) );
-
-					// Adjust inventory of fake hands
-					int newFakeHands = KoLCharacter.getFakeHands();
-					if ( oldFakeHands != newFakeHands )
-						AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( FAKE_HAND, oldFakeHands - newFakeHands ) );
-
-					CharpaneRequest.getInstance().run();
-				}
-
-				KoLCharacter.recalculateAdjustments( false );
-				KoLCharacter.updateStatus();
-
-				if ( requestType == EQUIPMENT )
-					KoLmafia.updateDisplay( "Equipment updated." );
-				else if ( requestType == SAVE_OUTFIT )
-					KoLmafia.updateDisplay( "Outfit saved." );
-				else
-					KoLmafia.updateDisplay( "Gear changed." );
-			}
+			KoLCharacter.setAvailableSkills( KoLCharacter.getAvailableSkills() );
+			return;
 		}
-		catch ( RuntimeException e )
+
+		if ( requestType == QUESTS || requestType == CONSUMABLES )
 		{
-			// This should not happen.  Therefore, print
-			// a stack trace for debug purposes.
-
-			StaticEntity.printStackTrace( e );
+			parseQuestItems( responseText );
+			super.processResults();
+			return;
 		}
+
+		// In valhalla, you can't make outfits and have no inventory.
+		int outfitIndex = responseText.indexOf( "Save as Custom Outfit" );
+		if ( outfitIndex == -1 )
+			return;
+
+		// Skip past equipped gear
+		parseQuestItems( responseText.substring( outfitIndex ) );
+
+		String [] oldEquipment = new String[9];
+		int oldFakeHands = KoLCharacter.getFakeHands();
+
+		// Ensure that the inventory stays up-to-date by switching
+		// items around, as needed.
+
+		for ( int i = 0; i < 9; ++i )
+			oldEquipment[i] = KoLCharacter.getEquipment( i );
+
+		parseEquipment( this.responseText );
+		if ( !LoginRequest.isInstanceRunning() )
+		{
+			for ( int i = 0; i < 9; ++i )
+				switchItem( oldEquipment[i], KoLCharacter.getEquipment( i ) );
+
+			// Adjust inventory of fake hands
+			int newFakeHands = KoLCharacter.getFakeHands();
+			if ( oldFakeHands > newFakeHands )
+				AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( FAKE_HAND, newFakeHands - oldFakeHands ) );
+
+			CharpaneRequest.getInstance().run();
+		}
+
+		KoLCharacter.recalculateAdjustments( false );
+		KoLCharacter.updateStatus();
+
+		if ( requestType == EQUIPMENT )
+			KoLmafia.updateDisplay( "Equipment updated." );
+		else if ( requestType == SAVE_OUTFIT )
+			KoLmafia.updateDisplay( "Outfit saved." );
+		else
+			KoLmafia.updateDisplay( "Gear changed." );
 	}
 
 	private void switchItem( String oldItem, String newItem )
@@ -580,13 +572,13 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		if ( switchIn != switchOut )
 		{
-			// Manually add/subtract items from inventory to avoid
+			// Manually subtract item from inventory to avoid
 			// excessive list updating.
 			if ( switchIn != -1 )
 				AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( switchIn, -1 ) );
 
-			if ( switchOut != -1 )
-				AdventureResult.addResultToList( KoLCharacter.getInventory(), new AdventureResult( switchOut, 1 ) );
+			// Do not add item to inventory since we detected it
+			// when looking for quest items.
 		}
 	}
 
@@ -599,30 +591,19 @@ public class EquipmentRequest extends PasswordHashRequest
 
 		if ( meatInClosetMatcher.find() )
 		{
-			try
-			{
-				String meatInCloset = meatInClosetMatcher.group();
-				KoLCharacter.setClosetMeat( COMMA_FORMAT.parse( meatInCloset ).intValue() );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
+			String meatInCloset = meatInClosetMatcher.group();
+			KoLCharacter.setClosetMeat( StaticEntity.parseInt( meatInCloset ) );
 		}
 
-		Matcher inventoryMatcher = Pattern.compile( "<b>Put:.*?</select>" ).matcher( responseText );
+		Matcher inventoryMatcher = Pattern.compile( "<b>Put:.*?</select>", Pattern.DOTALL ).matcher( responseText );
 		if ( inventoryMatcher.find() )
 		{
 			List inventory = KoLCharacter.getInventory();
 			inventory.clear();
-
 			parseCloset( inventoryMatcher.group(), inventory, true );
 		}
 
-		Matcher closetMatcher = Pattern.compile( "<b>Take:.*?</select>" ).matcher( responseText );
+		Matcher closetMatcher = Pattern.compile( "<b>Take:.*?</select>", Pattern.DOTALL ).matcher( responseText );
 		if ( closetMatcher.find() )
 		{
 			List closet = KoLCharacter.getCloset();
@@ -637,35 +618,25 @@ public class EquipmentRequest extends PasswordHashRequest
 		Matcher optionMatcher = Pattern.compile( "<option value='([\\d]+)'>(.*?)\\(([\\d,]+)\\)" ).matcher( content );
 		while ( optionMatcher.find( lastFindIndex ) )
 		{
-			try
-			{
-				lastFindIndex = optionMatcher.end();
-				int itemID = COMMA_FORMAT.parse( optionMatcher.group(1) ).intValue();
+			lastFindIndex = optionMatcher.end();
+			int itemID = StaticEntity.parseInt( optionMatcher.group(1) );
 
-				if ( TradeableItemDatabase.getItemName( itemID ) == null )
-					TradeableItemDatabase.registerItem( itemID, optionMatcher.group(2).trim() );
+			if ( TradeableItemDatabase.getItemName( itemID ) == null )
+				TradeableItemDatabase.registerItem( itemID, optionMatcher.group(2).trim() );
 
-				AdventureResult result = new AdventureResult( itemID, COMMA_FORMAT.parse( optionMatcher.group(3) ).intValue() );
-				AdventureResult.addResultToList( resultList, result );
-			}
-			catch ( Exception e )
-			{
-				// This should not happen.  Therefore, print
-				// a stack trace for debug purposes.
-
-				StaticEntity.printStackTrace( e );
-			}
+			AdventureResult result = new AdventureResult( itemID, StaticEntity.parseInt( optionMatcher.group(3) ) );
+			AdventureResult.addResultToList( resultList, result );
 		}
 	}
 
-	private void parseQuestItems( String text)
+	private void parseQuestItems( String text )
 	{
 		Matcher itemMatcher = Pattern.compile( "<b>(<a.*?>)?([^<]+)(</a>)?</b>([^<]*?)<font size=1>" ).matcher( text );
 		while ( itemMatcher.find() )
 		{
 			String quantity = itemMatcher.group(4).trim();
 			AdventureResult item = new AdventureResult( itemMatcher.group(2),
-				quantity.length() == 0 ? 1 : Integer.parseInt( quantity.substring( 1, quantity.length() - 1 ) ) );
+				quantity.length() == 0 ? 1 : StaticEntity.parseInt( quantity.substring( 1, quantity.length() - 1 ) ), false );
 
 			if ( item.getItemID() != -1 && !KoLCharacter.getInventory().contains( item ) )
 				AdventureResult.addResultToList( KoLCharacter.getInventory(), item );

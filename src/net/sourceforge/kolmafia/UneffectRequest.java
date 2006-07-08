@@ -39,7 +39,9 @@ public class UneffectRequest extends KoLRequest
 	private int effectID;
 	private boolean isShruggable;
 	private AdventureResult effect;
+
 	public static AdventureResult REMEDY = new AdventureResult( "soft green echo eyedrop antidote", 1 );
+	public static AdventureResult TINY_HOUSE = new AdventureResult( "tiny house", 1 );
 
 	/**
 	 * Constructs a new <code>UneffectRequest</code>.
@@ -85,10 +87,32 @@ public class UneffectRequest extends KoLRequest
 
 	public static String effectToSkill( String effectName )
 	{
+		if ( effectName.equals( "Polka of Plenty" ) ||
+			effectName.equals( "Magical Mojomuscular Melody" ) ||
+			effectName.equals( "Power Ballad of the Arrowsmith" ) ||
+			effectName.equals( "Psalm of Pointiness" ) ||
+			effectName.equals( "Ode to Booze" ) )
+				return "The " + effectName;
+
 		if ( effectName.equals( "Empathy" ) )
 			return "Empathy of the Newt";
 
 		return effectName;
+	}
+
+	public static String skillToEffect( String skillName )
+	{
+		if ( skillName.equals( "The Polka of Plenty" ) ||
+			skillName.equals( "The Magical Mojomuscular Melody" ) ||
+			skillName.equals( "The Power Ballad of the Arrowsmith" ) ||
+			skillName.equals( "The Psalm of Pointiness" ) ||
+			skillName.equals( "The Ode to Booze" ) )
+				return skillName.substring(4);
+
+		if ( skillName.equals( "Empathy of the Newt" ) )
+			return "Empathy";
+
+		return skillName;
 	}
 
 	public void run()
@@ -99,7 +123,7 @@ public class UneffectRequest extends KoLRequest
 				DEFAULT_SHELL.executeLine( "acquire " + REMEDY.getName() );
 			else if ( !KoLCharacter.getInventory().contains( REMEDY ) )
 			{
-				KoLmafia.updateDisplay( ERROR_STATE, "You don't have any soft green fluffy martians." );
+				KoLmafia.updateDisplay( "You don't have any soft green fluffy martians." );
 				return;
 			}
 		}
@@ -121,7 +145,7 @@ public class UneffectRequest extends KoLRequest
 			if ( isShruggable )
 				CharsheetRequest.parseStatus( responseText );
 			else
-				client.processResult( REMEDY );
+				client.processResult( REMEDY.getNegation() );
 
 			KoLmafia.updateDisplay( "Effect removed." );
 
@@ -133,6 +157,6 @@ public class UneffectRequest extends KoLRequest
 			KoLCharacter.recalculateAdjustments( false );
 		}
 		else if ( !isShruggable )
-			KoLmafia.updateDisplay( ERROR_STATE, "Effect removal failed." );
+			KoLmafia.updateDisplay( "Effect removal failed." );
 	}
 }
